@@ -59,7 +59,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 
 .card-value { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px; height: 100%; overflow: hidden; }
 .card-value .main-val { font-size: clamp(16px, 1.8vw, 22px); font-weight: 700; font-family: 'Urbanist'; display: block; line-height: 1.2; white-space: nowrap; }
-.card-value .sub-val { font-size: clamp(11px, 1.2vw, 14px); opacity: 0.6; font-family: 'Urbanist'; display: block; line-height: 1.2; min-height: 16px; white-space: nowrap; }
+.card-value .sub-val { font-size: clamp(11px, 1.2vw, 14px); opacity: 0.8; font-family: 'Urbanist'; display: block; line-height: 1.2; min-height: 16px; white-space: nowrap; color: var(--danger); font-weight: 600; }
 
 .section-box { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 20px; margin-bottom: 15px; }
 .section-box h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; color: #fff; border-left: 3px solid var(--blue); padding-left: 8px; text-transform: uppercase; }
@@ -170,3 +170,42 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
 
 .fa-shake { animation: fa-shake 1.5s ease infinite; }
 @keyframes fa-shake { 0% { transform: rotate(0deg); } 10% { transform: rotate(15deg); } 20% { transform: rotate(-15deg); } 30% { transform: rotate(10deg); } 40% { transform: rotate(-10deg); } 50% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
+
+/* SELECTOR DE ACCIÓN RÁPIDA 4 BOTONES */
+.action-type-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+@media (min-width: 500px) {
+    .action-type-selector-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+.btn-type-pill {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    padding: 12px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.25s ease;
+}
+.btn-type-pill:hover {
+    background: var(--bg-card);
+    color: #fff;
+    border-color: var(--text-muted);
+}
+.btn-type-pill.active {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+    box-shadow: 0 4px 15px var(--blue-glow);
+}
