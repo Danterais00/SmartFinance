@@ -206,7 +206,7 @@ function recalculateFinancialMetrics() {
     let catGastosMap = {};
     state.misCategoriasUnificadas.forEach(c => { catGastosMap[c] = 0; });
 
-    // 1. Acumular saldos de toda la vida y clasificar activos vs pasivos
+    // 1. Acumular saldos históricos y separar activos vs pasivos
     state.globalTransData.forEach(t => {
         const monto = parseFloat(t.monto) || 0;
         const isCurrentMonth = t.fecha && t.fecha.substring(0, 7) === activeMonth;
@@ -214,7 +214,6 @@ function recalculateFinancialMetrics() {
         const esTarjeta = CUENTAS_TARJETAS.includes(t.cuenta);
 
         if (esTarjeta) {
-            // En cuentas de pasivo: los gastos elevan la deuda y los pagos (ingresos a la tarjeta) la cancelan
             if (t.moneda === 'USD') {
                 if (t.tipo === 'gasto') state.creditCardDebtUSD[t.cuenta] = (state.creditCardDebtUSD[t.cuenta] || 0) + monto;
                 else if (t.tipo === 'ingreso') state.creditCardDebtUSD[t.cuenta] = (state.creditCardDebtUSD[t.cuenta] || 0) - monto;
@@ -223,7 +222,6 @@ function recalculateFinancialMetrics() {
                 else if (t.tipo === 'ingreso') state.creditCardDebtARS[t.cuenta] = (state.creditCardDebtARS[t.cuenta] || 0) - monto;
             }
         } else {
-            // Cuentas de activo corrientes
             if (t.moneda === 'USD') {
                 if (t.tipo === 'ingreso') state.currentAccountBalancesUSD[t.cuenta] = (state.currentAccountBalancesUSD[t.cuenta] || 0) + monto;
                 else if (t.tipo === 'gasto') state.currentAccountBalancesUSD[t.cuenta] = (state.currentAccountBalancesUSD[t.cuenta] || 0) - monto;
@@ -233,7 +231,7 @@ function recalculateFinancialMetrics() {
             }
         }
 
-        // Métricas del mes activo
+        // Métricas exclusivas del mes seleccionado
         if (isCurrentMonth) {
             if (t.categoria === 'Rendimiento Inversiones') {
                 if (t.moneda === 'USD') state.brokerEarningsUSD[t.cuenta] = (state.brokerEarningsUSD[t.cuenta] || 0) + monto;
@@ -253,7 +251,7 @@ function recalculateFinancialMetrics() {
         }
     });
 
-    // 2. Presupuesto planificado del mes
+    // 2. Presupuesto asignado para el mes
     let catMetaMap = {};
     state.misCategoriasUnificadas.forEach(c => { catMetaMap[c] = 0; });
     state.globalBudgetData.forEach(b => {
@@ -262,7 +260,7 @@ function recalculateFinancialMetrics() {
         if (catMetaMap[b.nombre] !== undefined) catMetaMap[b.nombre] = val;
     });
 
-    // 3. Totales de activos líquidos, comitentes y deducción de pasivos
+    // 3. Totales consolidados (Activos - Pasivos)
     let liquidezDisponible = 0;
     CUENTAS_OPERATIVAS.forEach(acc => {
         liquidezDisponible += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO);
@@ -283,7 +281,7 @@ function recalculateFinancialMetrics() {
     let patrimonioNeto = (liquidezDisponible + comitentesTotal) - deudaTarjetasTotal;
     let ahorroMes = totalIngresosMes - totalGastosMes;
 
-    // Pintar tarjetas del Dashboard
+    // Actualización visual de tarjetas del Dashboard
     const setCard = (id, mainText, subText = '') => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -297,7 +295,6 @@ function recalculateFinancialMetrics() {
     setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit' : 'Déficit');
     setCard('metric-disponible', `$${Math.round(liquidezDisponible).toLocaleString('es-AR')}`);
 
-    // Renderizar componentes visuales
     renderPortfolioPieChart(state.currentAccountBalancesARS);
     renderSavingsPatrimonialTab(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, state.brokerEarningsARS, state.brokerEarningsUSD);
 
@@ -635,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
         exportAuditPDF(state.cachedAuditResult);
     });
 
-    // Control dinámico de campos según tipo de movimiento
+    // Control dinámico de campos según tipo de movimiento y selección de cuenta
     const uniTipo = document.getElementById('uni-tipo');
     const uniOrigen = document.getElementById('uni-origen');
 
@@ -654,8 +651,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (boxDestino) boxDestino.style.display = (t === 'TRANSFERENCIA' || t === 'CAMBIO_DIVISAS' || t === 'RENDIMIENTO') ? 'block' : 'none';
         if (boxCat) boxCat.style.display = (t === 'GASTO') ? 'block' : 'none';
         if (boxPureza) boxPureza.style.display = (t === 'RENDIMIENTO') ? 'block' : 'none';
-        
-        // Si el gasto se hace con tarjeta, se oculta el checkbox de excluir porque nunca debe excluirse
         if (boxExcluir) boxExcluir.style.display = (t === 'GASTO' && !esTarjeta) ? 'block' : 'none';
         if (boxMontoDestino) boxMontoDestino.style.display = (t === 'CAMBIO_DIVISAS') ? 'block' : 'none';
         if (lblOrigen) lblOrigen.innerText = (t === 'INGRESO') ? 'Cuenta Receptora' : 'Cuenta Débito / Origen';
@@ -663,6 +658,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     uniTipo?.addEventListener('change', updateUnifiedFormUI);
     uniOrigen?.addEventListener('change', updateUnifiedFormUI);
+
+    // Conexión del Selector de 4 Botones Táctiles
+    document.querySelectorAll('#action-type-selector-group .btn-type-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#action-type-selector-group .btn-type-pill').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const selectedType = btn.getAttribute('data-type');
+            if (uniTipo) uniTipo.value = selectedType;
+            updateUnifiedFormUI();
+        });
+    });
 
     const hoyIso = getLocalDateString();
     if (document.getElementById('uni-fecha')) document.getElementById('uni-fecha').value = hoyIso;
@@ -698,6 +704,14 @@ document.addEventListener('DOMContentLoaded', () => {
             window.UI.showToast("Operación registrada con éxito");
             document.getElementById('uni-monto').value = "";
             document.getElementById('uni-concepto').value = "";
+            
+            // Restablecer botón activo a GASTO
+            if (uniTipo) uniTipo.value = "GASTO";
+            document.querySelectorAll('#action-type-selector-group .btn-type-pill').forEach(b => {
+                b.classList.toggle('active', b.getAttribute('data-type') === 'GASTO');
+            });
+            updateUnifiedFormUI();
+
             loadUserDataFromDatabase();
             switchView('view-inicio', 'btn-nav-inicio');
         }
