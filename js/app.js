@@ -84,6 +84,26 @@ window.UI = {
     openModal(modalId) {
         const m = document.getElementById(modalId);
         if (m) m.classList.add('is-open');
+    },
+
+    // Selección táctil directa de los 4 botones de carga rápida
+    selectActionType(type, buttonEl) {
+        const pills = document.querySelectorAll('#action-type-selector-group .btn-type-pill');
+        pills.forEach(b => b.classList.remove('active'));
+
+        if (buttonEl) {
+            buttonEl.classList.add('active');
+        } else {
+            const target = document.querySelector(`#action-type-selector-group .btn-type-pill[data-type="${type}"]`);
+            if (target) target.classList.add('active');
+        }
+
+        const uniTipo = document.getElementById('uni-tipo');
+        if (uniTipo) uniTipo.value = type;
+
+        if (typeof window.updateUnifiedFormUI === 'function') {
+            window.updateUnifiedFormUI();
+        }
     }
 };
 
@@ -206,7 +226,6 @@ function recalculateFinancialMetrics() {
     let catGastosMap = {};
     state.misCategoriasUnificadas.forEach(c => { catGastosMap[c] = 0; });
 
-    // 1. Acumular saldos históricos y separar activos vs pasivos
     state.globalTransData.forEach(t => {
         const monto = parseFloat(t.monto) || 0;
         const isCurrentMonth = t.fecha && t.fecha.substring(0, 7) === activeMonth;
@@ -231,7 +250,6 @@ function recalculateFinancialMetrics() {
             }
         }
 
-        // Métricas exclusivas del mes seleccionado
         if (isCurrentMonth) {
             if (t.categoria === 'Rendimiento Inversiones') {
                 if (t.moneda === 'USD') state.brokerEarningsUSD[t.cuenta] = (state.brokerEarningsUSD[t.cuenta] || 0) + monto;
@@ -251,7 +269,6 @@ function recalculateFinancialMetrics() {
         }
     });
 
-    // 2. Presupuesto asignado para el mes
     let catMetaMap = {};
     state.misCategoriasUnificadas.forEach(c => { catMetaMap[c] = 0; });
     state.globalBudgetData.forEach(b => {
@@ -260,7 +277,6 @@ function recalculateFinancialMetrics() {
         if (catMetaMap[b.nombre] !== undefined) catMetaMap[b.nombre] = val;
     });
 
-    // 3. Totales consolidados (Activos - Pasivos)
     let liquidezDisponible = 0;
     CUENTAS_OPERATIVAS.forEach(acc => {
         liquidezDisponible += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO);
@@ -281,7 +297,6 @@ function recalculateFinancialMetrics() {
     let patrimonioNeto = (liquidezDisponible + comitentesTotal) - deudaTarjetasTotal;
     let ahorroMes = totalIngresosMes - totalGastosMes;
 
-    // Actualización visual de tarjetas del Dashboard
     const setCard = (id, mainText, subText = '') => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -633,10 +648,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Control dinámico de campos según tipo de movimiento y selección de cuenta
-    const uniTipo = document.getElementById('uni-tipo');
-    const uniOrigen = document.getElementById('uni-origen');
-
     const updateUnifiedFormUI = () => {
+        const uniTipo = document.getElementById('uni-tipo');
+        const uniOrigen = document.getElementById('uni-origen');
         const t = uniTipo ? uniTipo.value : 'GASTO';
         const origenVal = uniOrigen ? uniOrigen.value : '';
         const esTarjeta = CUENTAS_TARJETAS.includes(origenVal);
@@ -656,19 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lblOrigen) lblOrigen.innerText = (t === 'INGRESO') ? 'Cuenta Receptora' : 'Cuenta Débito / Origen';
     };
 
-    uniTipo?.addEventListener('change', updateUnifiedFormUI);
-    uniOrigen?.addEventListener('change', updateUnifiedFormUI);
-
-    // Conexión del Selector de 4 Botones Táctiles
-    document.querySelectorAll('#action-type-selector-group .btn-type-pill').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#action-type-selector-group .btn-type-pill').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            const selectedType = btn.getAttribute('data-type');
-            if (uniTipo) uniTipo.value = selectedType;
-            updateUnifiedFormUI();
-        });
-    });
+    window.updateUnifiedFormUI = updateUnifiedFormUI;
+    document.getElementById('uni-origen')?.addEventListener('change', updateUnifiedFormUI);
 
     const hoyIso = getLocalDateString();
     if (document.getElementById('uni-fecha')) document.getElementById('uni-fecha').value = hoyIso;
@@ -706,11 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('uni-concepto').value = "";
             
             // Restablecer botón activo a GASTO
-            if (uniTipo) uniTipo.value = "GASTO";
-            document.querySelectorAll('#action-type-selector-group .btn-type-pill').forEach(b => {
-                b.classList.toggle('active', b.getAttribute('data-type') === 'GASTO');
-            });
-            updateUnifiedFormUI();
+            window.UI.selectActionType('GASTO');
 
             loadUserDataFromDatabase();
             switchView('view-inicio', 'btn-nav-inicio');
