@@ -196,7 +196,9 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: all 0.25s ease;
+    transition: all 0.2s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 .btn-type-pill:hover {
     background: var(--bg-card);
@@ -204,8 +206,8 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
     border-color: var(--text-muted);
 }
 .btn-type-pill.active {
-    background: var(--blue);
-    border-color: var(--blue);
-    color: #fff;
-    box-shadow: 0 4px 15px var(--blue-glow);
+    background: var(--blue) !important;
+    border-color: var(--blue) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 15px var(--blue-glow) !important;
 }
