@@ -3,6 +3,7 @@ import {
     state, 
     CUENTAS_OPERATIVAS, 
     CUENTAS_COMITENTES, 
+    CUENTAS_TARJETAS,
     CUENTAS_SISTEMA_TOTAL, 
     MESES_ES, 
     getLocalDateString, 
@@ -14,7 +15,8 @@ import {
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
-    buildUnifiedTransactionBatch 
+    buildUnifiedTransactionBatch,
+    buildCreditCardClosingBatch 
 } from './financeEngine.js';
 import { 
     renderInteractiveChart, 
@@ -118,7 +120,7 @@ function initMonthSelector() {
     if (!selector) return;
     selector.innerHTML = "";
 
-    const fechaBase = new Date(2026, 6, 1); // Desde Julio 2026
+    const fechaBase = new Date(2026, 6, 1);
     const fechaActual = new Date();
     let currentIter = new Date(fechaBase);
 
@@ -172,16 +174,17 @@ function populateSelectOptions() {
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
 }
 
-// CÁLCULO DE SALDOS Y MÉTRICAS
+// CÁLCULO DE SALDOS, PASIVOS Y PATRIMONIO NETO
 function recalculateFinancialMetrics() {
     const selector = document.getElementById('global-month-selector');
     const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
 
-    // Reiniciar balances
     state.currentAccountBalancesARS = {};
     state.currentAccountBalancesUSD = {};
     state.brokerEarningsARS = {};
     state.brokerEarningsUSD = {};
+    state.creditCardDebtARS = {};
+    state.creditCardDebtUSD = {};
 
     CUENTAS_SISTEMA_TOTAL.forEach(acc => {
         state.currentAccountBalancesARS[acc] = 0;
@@ -191,6 +194,10 @@ function recalculateFinancialMetrics() {
         state.brokerEarningsARS[b] = 0;
         state.brokerEarningsUSD[b] = 0;
     });
+    CUENTAS_TARJETAS.forEach(c => {
+        state.creditCardDebtARS[c] = 0;
+        state.creditCardDebtUSD[c] = 0;
+    });
 
     let totalIngresosMes = 0;
     let totalGastosMes = 0;
@@ -199,19 +206,31 @@ function recalculateFinancialMetrics() {
     let catGastosMap = {};
     state.misCategoriasUnificadas.forEach(c => { catGastosMap[c] = 0; });
 
-    // 1. Acumular saldos de toda la vida y métricas del mes
+    // 1. Acumular saldos de toda la vida y clasificar activos vs pasivos
     state.globalTransData.forEach(t => {
         const monto = parseFloat(t.monto) || 0;
         const isCurrentMonth = t.fecha && t.fecha.substring(0, 7) === activeMonth;
         const convUSD = (t.moneda === 'USD') ? monto * (t.tipo_cambio || TIPO_CAMBIO_PRESUPUESTO) : monto;
+        const esTarjeta = CUENTAS_TARJETAS.includes(t.cuenta);
 
-        // Saldos en cuenta
-        if (t.moneda === 'USD') {
-            if (t.tipo === 'ingreso') state.currentAccountBalancesUSD[t.cuenta] = (state.currentAccountBalancesUSD[t.cuenta] || 0) + monto;
-            else if (t.tipo === 'gasto') state.currentAccountBalancesUSD[t.cuenta] = (state.currentAccountBalancesUSD[t.cuenta] || 0) - monto;
+        if (esTarjeta) {
+            // En cuentas de pasivo: los gastos elevan la deuda y los pagos (ingresos a la tarjeta) la cancelan
+            if (t.moneda === 'USD') {
+                if (t.tipo === 'gasto') state.creditCardDebtUSD[t.cuenta] = (state.creditCardDebtUSD[t.cuenta] || 0) + monto;
+                else if (t.tipo === 'ingreso') state.creditCardDebtUSD[t.cuenta] = (state.creditCardDebtUSD[t.cuenta] || 0) - monto;
+            } else {
+                if (t.tipo === 'gasto') state.creditCardDebtARS[t.cuenta] = (state.creditCardDebtARS[t.cuenta] || 0) + monto;
+                else if (t.tipo === 'ingreso') state.creditCardDebtARS[t.cuenta] = (state.creditCardDebtARS[t.cuenta] || 0) - monto;
+            }
         } else {
-            if (t.tipo === 'ingreso') state.currentAccountBalancesARS[t.cuenta] = (state.currentAccountBalancesARS[t.cuenta] || 0) + monto;
-            else if (t.tipo === 'gasto') state.currentAccountBalancesARS[t.cuenta] = (state.currentAccountBalancesARS[t.cuenta] || 0) - monto;
+            // Cuentas de activo corrientes
+            if (t.moneda === 'USD') {
+                if (t.tipo === 'ingreso') state.currentAccountBalancesUSD[t.cuenta] = (state.currentAccountBalancesUSD[t.cuenta] || 0) + monto;
+                else if (t.tipo === 'gasto') state.currentAccountBalancesUSD[t.cuenta] = (state.currentAccountBalancesUSD[t.cuenta] || 0) - monto;
+            } else {
+                if (t.tipo === 'ingreso') state.currentAccountBalancesARS[t.cuenta] = (state.currentAccountBalancesARS[t.cuenta] || 0) + monto;
+                else if (t.tipo === 'gasto') state.currentAccountBalancesARS[t.cuenta] = (state.currentAccountBalancesARS[t.cuenta] || 0) - monto;
+            }
         }
 
         // Métricas del mes activo
@@ -221,9 +240,11 @@ function recalculateFinancialMetrics() {
                 else state.brokerEarningsARS[t.cuenta] = (state.brokerEarningsARS[t.cuenta] || 0) + monto;
             }
 
-            if (t.tipo === 'ingreso' && t.categoria !== 'Transferencia Interna' && t.categoria !== 'Compra/Venta Divisas' && t.categoria !== 'Ajuste Técnico Saldos') {
+            const esTransferenciaOPago = (t.categoria === 'Transferencia Interna' || t.categoria === 'Compra/Venta Divisas' || t.categoria === 'Pago Tarjeta de Crédito' || t.categoria === 'Ajuste Técnico Saldos');
+
+            if (t.tipo === 'ingreso' && !esTransferenciaOPago) {
                 totalIngresosMes += convUSD;
-            } else if (t.tipo === 'gasto' && t.presupuestado !== 'NO_COMPUTA' && t.categoria !== 'Transferencia Interna' && t.categoria !== 'Compra/Venta Divisas' && t.categoria !== 'Ajuste Técnico Saldos') {
+            } else if (t.tipo === 'gasto' && t.presupuestado !== 'NO_COMPUTA' && !esTransferenciaOPago) {
                 totalGastosMes += convUSD;
                 if (catGastosMap[t.categoria] !== undefined) {
                     catGastosMap[t.categoria] += convUSD;
@@ -241,7 +262,7 @@ function recalculateFinancialMetrics() {
         if (catMetaMap[b.nombre] !== undefined) catMetaMap[b.nombre] = val;
     });
 
-    // 3. Totales de liquidez y patrimonio
+    // 3. Totales de activos líquidos, comitentes y deducción de pasivos
     let liquidezDisponible = 0;
     CUENTAS_OPERATIVAS.forEach(acc => {
         liquidezDisponible += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO);
@@ -251,7 +272,15 @@ function recalculateFinancialMetrics() {
     CUENTAS_COMITENTES.forEach(b => {
         comitentesTotal += (state.currentAccountBalancesARS[b] || 0) + ((state.currentAccountBalancesUSD[b] || 0) * TIPO_CAMBIO_PRESUPUESTO);
     });
-    let patrimonioTotal = liquidezDisponible + comitentesTotal;
+
+    let deudaTarjetasTotal = 0;
+    CUENTAS_TARJETAS.forEach(c => {
+        const dARS = Math.max(0, state.creditCardDebtARS[c] || 0);
+        const dUSD = Math.max(0, state.creditCardDebtUSD[c] || 0);
+        deudaTarjetasTotal += dARS + (dUSD * TIPO_CAMBIO_PRESUPUESTO);
+    });
+
+    let patrimonioNeto = (liquidezDisponible + comitentesTotal) - deudaTarjetasTotal;
     let ahorroMes = totalIngresosMes - totalGastosMes;
 
     // Pintar tarjetas del Dashboard
@@ -261,18 +290,17 @@ function recalculateFinancialMetrics() {
         el.innerHTML = `<span class="main-val">${mainText}</span>${subText ? `<span class="sub-val">${subText}</span>` : ''}`;
     };
 
-    setCard('metric-patrimonio', `$${Math.round(patrimonioTotal).toLocaleString('es-AR')}`);
+    setCard('metric-patrimonio', `$${Math.round(patrimonioNeto).toLocaleString('es-AR')}`, deudaTarjetasTotal > 0 ? `Pasivo: -$${Math.round(deudaTarjetasTotal).toLocaleString('es-AR')}` : 'Sin pasivos');
     setCard('metric-ingresos', `$${Math.round(totalIngresosMes).toLocaleString('es-AR')}`);
     setCard('metric-presupuesto', `$${Math.round(totalPlanificadoMes).toLocaleString('es-AR')}`);
     setCard('metric-gastos', `$${Math.round(totalGastosMes).toLocaleString('es-AR')}`);
     setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit' : 'Déficit');
     setCard('metric-disponible', `$${Math.round(liquidezDisponible).toLocaleString('es-AR')}`);
 
-    // Renderizar gráficos
+    // Renderizar componentes visuales
     renderPortfolioPieChart(state.currentAccountBalancesARS);
     renderSavingsPatrimonialTab(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, state.brokerEarningsARS, state.brokerEarningsUSD);
 
-    // Preparar datos para tabla RAG y gráfico de categorías
     let categoriesMes = [];
     state.misCategoriasUnificadas.forEach(c => {
         if (c === 'Ajuste Técnico Saldos') return;
@@ -335,7 +363,7 @@ function buildHistoricalChartData() {
             metaSum += parseFloat(b.presupuesto_mensual) || 0;
         });
 
-        state.globalTransData.filter(t => t.fecha && t.fecha.substring(0, 7) === periodVal && t.tipo === 'gasto' && t.presupuestado !== 'NO_COMPUTA' && t.categoria !== 'Transferencia Interna' && t.categoria !== 'Compra/Venta Divisas' && t.categoria !== 'Ajuste Técnico Saldos').forEach(t => {
+        state.globalTransData.filter(t => t.fecha && t.fecha.substring(0, 7) === periodVal && t.tipo === 'gasto' && t.presupuestado !== 'NO_COMPUTA' && t.categoria !== 'Transferencia Interna' && t.categoria !== 'Compra/Venta Divisas' && t.categoria !== 'Pago Tarjeta de Crédito' && t.categoria !== 'Ajuste Técnico Saldos').forEach(t => {
             const m = parseFloat(t.monto) || 0;
             gastoSum += (t.moneda === 'USD') ? m * (t.tipo_cambio || TIPO_CAMBIO_PRESUPUESTO) : m;
         });
@@ -380,7 +408,6 @@ function renderTransactionHistoryTable(dataset) {
     });
 }
 
-// RECORDATORIOS Y ALERTAS DE VENCIMIENTOS
 function checkRemindersAndAlerts() {
     const today = getLocalDateString();
     state.currentMonthAlertsCache = [];
@@ -435,7 +462,6 @@ function checkRemindersAndAlerts() {
     }
 }
 
-// CARGA INICIAL DE DATOS DESDE SUPABASE
 async function loadUserDataFromDatabase() {
     if (!state.currentUser) return;
     try {
@@ -467,7 +493,6 @@ async function loadUserDataFromDatabase() {
     }
 }
 
-// ACCIONES DE EDICIÓN Y BORRADO EN EL DOM
 window.UI.editBudgetDirect = (catName, currentMeta) => {
     const selector = document.getElementById('global-month-selector');
     const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
@@ -518,12 +543,10 @@ window.UI.openEditTransactionModal = (id) => {
     window.UI.openModal('edit-transaction-modal');
 };
 
-// ORQUESTACIÓN DE EVENTOS AL MONTAR EL DOCUMENTO
 document.addEventListener('DOMContentLoaded', () => {
     initMonthSelector();
     fetchMarketData();
 
-    // Comprobar sesión de Supabase
     _supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
             state.currentUser = session.user;
@@ -534,7 +557,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Formulario de inicio de sesión
     document.getElementById('form-auth-login')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('email').value.trim();
@@ -558,7 +580,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Botón de Cerrar Sesión
     document.getElementById('btn-header-logout')?.addEventListener('click', async () => {
         window.UI.showAppConfirm("Cerrar Sesión", "¿Querés salir del sistema?", async () => {
             await _supabase.auth.signOut();
@@ -566,34 +587,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Selector Global de Mes
     document.getElementById('global-month-selector')?.addEventListener('change', () => {
         loadUserDataFromDatabase();
     });
 
-    // Notificaciones Campana
     document.getElementById('btn-header-bell')?.addEventListener('click', () => {
         window.UI.openModal('notifications-modal-center');
     });
 
-    // Barra de Navegación Mobile & Desktop
     document.getElementById('btn-nav-inicio')?.addEventListener('click', () => switchView('view-inicio', 'btn-nav-inicio'));
     document.getElementById('btn-nav-inversiones')?.addEventListener('click', () => switchView('view-inversiones', 'btn-nav-inversiones'));
     document.getElementById('btn-nav-rapido')?.addEventListener('click', () => switchView('view-rapido', 'btn-nav-rapido'));
     document.getElementById('btn-nav-mas')?.addEventListener('click', () => switchView('view-mas', 'btn-nav-mas'));
     document.getElementById('btn-nav-config')?.addEventListener('click', () => switchView('view-config', 'btn-nav-config'));
 
-    // Subpestañas en Reportes
     document.getElementById('subtab-btn-presupuestos')?.addEventListener('click', () => switchSubTab('subview-presupuestos', 'subtab-btn-presupuestos'));
     document.getElementById('subtab-btn-historial')?.addEventListener('click', () => switchSubTab('subview-historial', 'subtab-btn-historial'));
     document.getElementById('subtab-btn-graficos')?.addEventListener('click', () => switchSubTab('subview-graficos', 'subtab-btn-graficos'));
 
-    // Controles de Gráficos
     document.getElementById('btn-chart-scale-toggle')?.addEventListener('click', toggleInteractiveScale);
     document.getElementById('btn-chart-zoom-reset')?.addEventListener('click', resetInteractiveZoom);
     document.getElementById('btn-history-zoom-reset')?.addEventListener('click', resetInteractiveHistoryZoom);
 
-    // Auditoría Pre-Flight y Generación de PDF
+    // Auditoría Pre-Flight antes de emitir PDF
     document.getElementById('btn-trigger-report')?.addEventListener('click', () => {
         const audit = executeFinancialAuditEngine();
         const body = document.getElementById('audit-modal-body');
@@ -606,6 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <ul style="font-size:12px; color:var(--text-muted); line-height:1.6; padding-left:18px;">
                     <li>${audit.transferenciasHuerfanas.length === 0 ? "✓ Partida doble cuadrada" : `⚠ ${audit.transferenciasHuerfanas.length} transferencias desalineadas`}</li>
                     <li>${audit.cuentasEnRojo.length === 0 ? "✓ Cajas operativas en positivo" : `⚠ Cuentas en saldo negativo: ${audit.cuentasEnRojo.join(', ')}`}</li>
+                    <li>${audit.tarjetasConDeuda.length === 0 ? "✓ Tarjetas al día (sin saldo pendiente)" : `💳 Deuda en tarjetas: ${audit.tarjetasConDeuda.join(', ')}`}</li>
                     <li>${audit.posiblesDuplicados.length === 0 ? "✓ Sin consumos duplicados" : `⚠ ${audit.posiblesDuplicados.length} posibles consumos repetidos`}</li>
                 </ul>
             `;
@@ -618,10 +635,15 @@ document.addEventListener('DOMContentLoaded', () => {
         exportAuditPDF(state.cachedAuditResult);
     });
 
-    // Comportamiento dinámico del formulario de movimientos
+    // Control dinámico de campos según tipo de movimiento
     const uniTipo = document.getElementById('uni-tipo');
-    uniTipo?.addEventListener('change', () => {
-        const t = uniTipo.value;
+    const uniOrigen = document.getElementById('uni-origen');
+
+    const updateUnifiedFormUI = () => {
+        const t = uniTipo ? uniTipo.value : 'GASTO';
+        const origenVal = uniOrigen ? uniOrigen.value : '';
+        const esTarjeta = CUENTAS_TARJETAS.includes(origenVal);
+
         const boxDestino = document.getElementById('box-uni-destino');
         const boxCat = document.getElementById('box-uni-categoria');
         const boxPureza = document.getElementById('box-uni-pureza');
@@ -629,20 +651,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const boxMontoDestino = document.getElementById('box-uni-monto-destino');
         const lblOrigen = document.getElementById('lbl-uni-origen');
 
-        boxDestino.style.display = (t === 'TRANSFERENCIA' || t === 'CAMBIO_DIVISAS' || t === 'RENDIMIENTO') ? 'block' : 'none';
-        boxCat.style.display = (t === 'GASTO') ? 'block' : 'none';
-        boxPureza.style.display = (t === 'RENDIMIENTO') ? 'block' : 'none';
-        boxExcluir.style.display = (t === 'GASTO') ? 'block' : 'none';
-        boxMontoDestino.style.display = (t === 'CAMBIO_DIVISAS') ? 'block' : 'none';
-        lblOrigen.innerText = (t === 'INGRESO') ? 'Cuenta Receptora' : 'Cuenta Débito / Origen';
-    });
+        if (boxDestino) boxDestino.style.display = (t === 'TRANSFERENCIA' || t === 'CAMBIO_DIVISAS' || t === 'RENDIMIENTO') ? 'block' : 'none';
+        if (boxCat) boxCat.style.display = (t === 'GASTO') ? 'block' : 'none';
+        if (boxPureza) boxPureza.style.display = (t === 'RENDIMIENTO') ? 'block' : 'none';
+        
+        // Si el gasto se hace con tarjeta, se oculta el checkbox de excluir porque nunca debe excluirse
+        if (boxExcluir) boxExcluir.style.display = (t === 'GASTO' && !esTarjeta) ? 'block' : 'none';
+        if (boxMontoDestino) boxMontoDestino.style.display = (t === 'CAMBIO_DIVISAS') ? 'block' : 'none';
+        if (lblOrigen) lblOrigen.innerText = (t === 'INGRESO') ? 'Cuenta Receptora' : 'Cuenta Débito / Origen';
+    };
 
-    // Fecha actual automática en los formularios
+    uniTipo?.addEventListener('change', updateUnifiedFormUI);
+    uniOrigen?.addEventListener('change', updateUnifiedFormUI);
+
     const hoyIso = getLocalDateString();
     if (document.getElementById('uni-fecha')) document.getElementById('uni-fecha').value = hoyIso;
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
 
-    // Enviar formulario Centro Único de Carga
+    // Enviar movimiento desde el Centro de Carga
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const batch = buildUnifiedTransactionBatch({
@@ -704,7 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Clonar presupuesto del mes anterior
+    // Clonar presupuesto
     document.getElementById('btn-clone-budget')?.addEventListener('click', async () => {
         const selector = document.getElementById('global-month-selector');
         const currentPeriodo = selector ? selector.value : getLocalDateString().substring(0, 7);
@@ -735,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Formulario de edición modal de transacciones
+    // Edición modal de transacciones
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!state.editingTransactionId) return;
@@ -760,7 +786,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Formulario de Ajuste Técnico de Auditoría
+    // Reconciliación contable
     document.getElementById('form-audit-adjust')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const tipoAjuste = document.getElementById('audit-tipo').value;
@@ -794,7 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Formulario para Crear Categoría Maestra
+    // Categoría maestra
     document.getElementById('form-new-category')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = document.getElementById('new-cat-name');
@@ -811,7 +837,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Filtros de la Tabla de Historial
+    // Filtros de búsqueda
     const applyFilters = () => {
         const query = document.getElementById('filter-search')?.value.toLowerCase() || '';
         const fTipo = document.getElementById('filter-tipo')?.value || 'TODOS';
