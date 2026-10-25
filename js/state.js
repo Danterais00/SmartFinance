@@ -2,18 +2,19 @@ import { _supabase } from './supabaseClient.js';
 
 export const CUENTAS_OPERATIVAS = ["Santander", "Efectivo", "Mercado Pago Dante", "Mercado Pago Lore", "Galicia"];
 export const CUENTAS_COMITENTES = ["Inviu", "Balanz", "Bull Market Brokers", "Mercado Pago Dante", "Mercado Pago Lore"];
-export const CUENTAS_SISTEMA_TOTAL = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES])];
+export const CUENTAS_TARJETAS = ["Tarjeta Santander", "Tarjeta Galicia", "Tarjeta Mercado Pago"];
+export const CUENTAS_SISTEMA_TOTAL = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES, ...CUENTAS_TARJETAS])];
 
 export const CATEGORIAS_RESPALDO_SEED = [
     "ARBA Automotor", "ARBA Inmobiliario Pilar", "Aguas", "Ajuste Técnico Saldos", "Apple", "CAFAR", "Carnicería",
     "Cementerio Parque", "Contadora", "Corte Cesped", "Danza Desi", "Edenor Pilar", "Ekisian",
     "Entretenimiento", "Farmacia", "Federación Patronal Seguros Lore", "Google Drive",
-    "IIBB Lore", "Impuesto municipal Pilar", "Impuestos cuentas bancarias", "Indumentaria/ Calzado",
-    "Juguetes", "La Caja Seguros", "Librería / Papelera", "Limpieza Hogar", "Movistar",
-    "Médicos / Pediatra", "Nafta", "Natación", "Naturgy", "Netflix", "Ofrenda", "Peajes",
-    "Peluquería", "Personal Flow", "Personal TV", "Prosegur", "Restaurantes", "Supermercado",
-    "Tarjeta de Crédito Galicia", "Tarjeta de Crédito Mercado Pago", "Tarjeta de Crédito Santander",
-    "Tenis", "Verdulería", "Wellspring", "Leña", "Asesoría Financiera"
+    "IIBB Lore", "Impuesto municipal Pilar", "Impuestos cuentas bancarias", "Impuestos y Sellos Tarjeta", 
+    "Intereses y Financiación Tarjeta", "Indumentaria/ Calzado", "Juguetes", "La Caja Seguros", 
+    "Librería / Papelera", "Limpieza Hogar", "Movistar", "Médicos / Pediatra", "Nafta", "Natación", 
+    "Naturgy", "Netflix", "Ofrenda", "Peajes", "Peluquería", "Personal Flow", "Personal TV", 
+    "Prosegur", "Restaurantes", "Supermercado", "Tenis", "Verdulería", "Wellspring", "Leña", 
+    "Asesoría Financiera"
 ];
 
 export const MESES_ES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -28,6 +29,8 @@ export const state = {
     currentAccountBalancesUSD: {},
     brokerEarningsARS: {},
     brokerEarningsUSD: {},
+    creditCardDebtARS: {},
+    creditCardDebtUSD: {},
     misCategoriasUnificadas: [...CATEGORIAS_RESPALDO_SEED],
     currentMonthAlertsCache: [],
     cachedAuditResult: null,
