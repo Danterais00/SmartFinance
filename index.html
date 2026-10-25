@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SmartFinance AI - PWA Mobile-First</title>
+    
+    <!-- Librerías Externas -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Urbanist:wght@600;700&display=swap" rel="stylesheet">
+    
+    <!-- Metadatos PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SmartFinance">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/584/584067.png">
+
+    <!-- Hoja de estilos modular -->
+    <link rel="stylesheet" href="css/styles.css">
+
+    <!-- CDNs de Motores -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <!-- MODAL PRE-FLIGHT AUDITORÍA CONTABLE -->
+    <div id="audit-preflight-modal" class="modal">
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+                <h3>⚡ Auditoría Contable de Cierre de Mes</h3>
+                <button class="modal-close" onclick="window.UI.closeModal('audit-preflight-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="audit-modal-body" style="max-height: 380px; overflow-y: auto; padding-right: 5px;"></div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:20px; border-top:1px solid var(--border-color); padding-top:16px;">
+                <button onclick="window.UI.closeModal('audit-preflight-modal')" class="btn" style="background:var(--bg-input); border:1px solid var(--border-color); color:var(--text-muted);">Revisar en App</button>
+                <button id="btn-confirm-export-pdf" class="btn" style="background-color:var(--primary); color:#fff;"><i class="fa-solid fa-file-pdf"></i> Emitir Reporte PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALES GLOBALES -->
+    <div id="global-alert-modal" class="modal">
+        <div class="modal-content" style="text-align:center; max-width: 400px;">
+            <h3 id="global-alert-title" style="margin-bottom:15px; color:#fff;">Notificación</h3>
+            <p id="global-alert-message" style="font-size:14px; color:var(--text-muted); margin-bottom:20px; line-height:1.4;"></p>
+            <button onclick="window.UI.closeModal('global-alert-modal')" class="btn" style="background-color: var(--danger);">Entendido</button>
+        </div>
+    </div>
+
+    <div id="global-confirm-modal" class="modal">
+        <div class="modal-content" style="text-align:center; max-width: 420px;">
+            <h3 id="global-confirm-title" style="margin-bottom:12px; color:#fff;">Confirmar Acción</h3>
+            <p id="global-confirm-message" style="font-size:14px; color:var(--text-muted); margin-bottom:24px; line-height:1.4;"></p>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <button id="btn-confirm-cancel" class="btn" style="background:var(--bg-input); border:1px solid var(--border-color); color:var(--text-muted);">Cancelar</button>
+                <button id="btn-confirm-action" class="btn" style="background-color: var(--blue);">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="notifications-modal-center" class="modal">
+        <div class="modal-content" style="max-width:440px;">
+            <div class="modal-header">
+                <h3>🔔 Centro de Control y Alertas</h3>
+                <button class="modal-close" onclick="window.UI.closeModal('notifications-modal-center')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="notifications-center-list-container" style="max-height: 330px; overflow-y: auto; padding-right: 4px;"></div>
+        </div>
+    </div>
+
+    <div id="edit-transaction-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h3>Modificar Registro Financiero</h3><button class="modal-close" onclick="window.UI.closeModal('edit-transaction-modal')"><i class="fa-solid fa-xmark"></i></button></div>
+            <form id="modal-edit-form">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="input-group"><label>Fecha</label><input type="date" id="edit-form-fecha" required></div>
+                    <div class="input-group"><label>Importe</label><input type="number" id="edit-form-importe" step="0.01" required></div>
+                </div>
+                <div class="input-group"><label>Concepto</label><input type="text" id="edit-form-concepto" required></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="input-group"><label>Cuenta</label><select id="edit-form-metodo"></select></div>
+                    <div class="input-group"><label>Categoría</label><select id="edit-form-categoria"></select></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="input-group"><label>¿Presupuestado?</label>
+                        <select id="edit-form-presupuestado">
+                            <option value="SI">SI</option>
+                            <option value="NO">NO</option>
+                            <option value="NO_COMPUTA">NO COMPUTA (Excluido)</option>
+                        </select>
+                    </div>
+                    <div class="input-group"><label>Moneda</label><select id="edit-form-moneda"><option value="ARS">ARS ($)</option><option value="USD">USD (u$d)</option></select></div>
+                </div>
+                <button type="submit" class="btn" style="margin-top: 15px; background-color: var(--primary);">Guardar Cambios</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- PANTALLA DE ACCESO -->
+    <div id="login-screen" style="margin-top: 15vh;">
+        <div class="brand">
+            <h1>Smart<span>Finance</span> AI</h1>
+            <span class="app-ver-tag">v54.0 Modular</span>
+            <p style="color:var(--text-muted); font-size:13px; margin: 15px 0 25px 0;">Consola Patrimonial Unificada</p>
+        </div>
+        <form id="form-auth-login">
+            <div class="input-group"><label>Email</label><div class="input-wrapper"><i class="fa-solid fa-envelope"></i><input type="email" id="email" required autocomplete="username"></div></div>
+            <div class="input-group"><label>Contraseña</label><div class="input-wrapper"><i class="fa-solid fa-lock"></i><input type="password" id="password" required autocomplete="current-password"></div></div>
+            <button type="submit" id="btn-login-submit" class="btn">Iniciar Sesión</button>
+        </form>
+    </div>
+
+    <!-- DASHBOARD PRINCIPAL -->
+    <div id="dashboard-screen" style="display:none;">
+        <header class="app-header">
+            <div class="header-brand-box">
+                <h2>Smart<span>Finance</span></h2>
+                <span class="header-version">v54.0 Modular Pro</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:14px;">
+                <select id="global-month-selector" style="background:var(--bg-input); color:#fff; border:1px solid var(--border-color); padding:6px 12px; border-radius:8px; font-size:12px; font-weight:600;"></select>
+                
+                <button class="btn-bell-global" id="btn-header-bell" title="Centro de Notificaciones y Vencimientos">
+                    <i id="global-bell-vector" class="fa-solid fa-bell"></i>
+                    <span id="global-bell-badge" class="badge-count" style="display:none;">0</span>
+                </button>
+
+                <button id="btn-header-logout" style="background:none; border:none; color:var(--danger); font-size:16px; cursor:pointer; padding:5px;"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+        </header>
+
+        <main id="view-inicio" class="view-container active">
+            <div class="metrics-grid">
+                <div class="card" style="border-color: var(--primary);"><div class="card-title">Patrimonio</div><div class="card-value" id="metric-patrimonio"></div></div>
+                <div class="card" style="border-color: var(--primary);"><div class="card-title">Ingresos Mes</div><div class="card-value" id="metric-ingresos"></div></div>
+                <div class="card" style="border-color: var(--blue);"><div class="card-title">Planificado</div><div class="card-value" id="metric-presupuesto"></div></div>
+                <div class="card" style="border-color: var(--danger);"><div class="card-title">Gastos Mes</div><div class="card-value" id="metric-gastos"></div></div>
+                <div class="card" style="border-color: var(--primary);"><div class="card-title">Ahorro Mes</div><div class="card-value" id="metric-ahorro"></div></div>
+                <div class="card" style="border-color: var(--blue);"><div class="card-title">Liquidez</div><div class="card-value" id="metric-disponible"></div></div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr; gap:15px; margin-bottom:20px;">
+                <div class="chart-frame" style="border-color: var(--border-color);">
+                    <h3 style="font-size:13px; text-transform:uppercase; text-align:left; margin-bottom:15px; border-left:3px solid var(--blue); padding-left:8px;">Saldos Disponibles en Efectivo y Bancos</h3>
+                    <div id="pie-chart-container" class="svg-pie-container"></div>
+                    <div id="pie-chart-legend" class="legend-grid"></div>
+                </div>
+            </div>
+
+            <div class="section-box" style="margin-bottom:20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <h3 style="margin-bottom:0;">Mercado Macro & Divisas en Vivo</h3>
+                    <span id="market-status-tag" style="font-size: 10px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--primary); background: rgba(16, 185, 129, 0.1); color: var(--primary);">🟢 EN VIVO</span>
+                </div>
+                <div class="market-bar-grid" id="market-bar-container">
+                    <p style="font-size:12px; color:var(--text-muted); grid-column: span 2;">Cargando indicadores de mercado...</p>
+                </div>
+            </div>
+        </main>
+
+        <main id="view-inversiones" class="view-container">
+            <div class="section-box">
+                <h3>Carteras Comitentes e Inversiones Históricas</h3>
+                <div id="brokers-cards-area" class="brokers-grid"></div>
+            </div>
+        </main>
+
+        <main id="view-rapido" class="view-container">
+            <div class="section-box" style="max-width:600px; margin: 0 auto;">
+                <h3>Centro Único de Carga y Movimientos</h3>
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom:15px;">Selecciona la acción. El motor calculará el impacto de doble entrada e inferirá el presupuesto por vos.</p>
+                
+                <div class="input-group">
+                    <label>¿Qué deseas registrar?</label>
+                    <div class="input-wrapper"><i class="fa-solid fa-sliders"></i>
+                        <select id="uni-tipo">
+                            <option value="GASTO">💸 Registrar un Gasto / Consumo</option>
+                            <option value="INGRESO">🏦 Inyección de Capital (Ingreso Externo)</option>
+                            <option value="TRANSFERENCIA">🔄 Transferencia entre Cuentas Propias</option>
+                            <option value="CAMBIO_DIVISAS">💱 Compra / Venta de Divisas</option>
+                            <option value="RENDIMIENTO">📈 Liquidar Rendimiento / Cauciones / CEDEARs</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <form id="unified-engine-form">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="input-group"><label>Fecha</label><input type="date" id="uni-fecha" required></div>
+                        <div class="input-group"><label id="lbl-uni-monto">Importe / Monto</label><input type="number" id="uni-monto" step="0.01" placeholder="0.00" required></div>
+                    </div>
+                    
+                    <div class="input-group" id="box-uni-monto-destino" style="display:none; margin-top:-2px; margin-bottom:14px;">
+                        <label>Monto Final Recibido (Divisa Opuesta)</label>
+                        <input type="number" id="uni-monto-destino" step="0.01" placeholder="0.00">
+                    </div>
+
+                    <div class="input-group"><label>Concepto / Memo</label><input type="text" id="uni-concepto" placeholder="Detalle libre del movimiento" required></div>
+                    
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="input-group" id="box-uni-origen"><label id="lbl-uni-origen">Cuenta Débito</label><select id="uni-origen"></select></div>
+                        <div class="input-group" id="box-uni-destino" style="display:none;"><label>Cuenta Destino</label><select id="uni-destino"></select></div>
+                        <div class="input-group" id="box-uni-categoria"><label>Categoría</label><select id="uni-categoria"></select></div>
+                    </div>
+                    
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="input-group" id="box-uni-moneda"><label>Moneda</label><select id="uni-moneda"><option value="ARS">ARS ($)</option><option value="USD">USD (u$d)</option></select></div>
+                        <div class="input-group" id="box-uni-pureza" style="display:none;"><label>Impacto de Inversión</label><select id="uni-pureza"><option value="METRICA">Solo Métrica Pura (Ya moví el capital)</option><option value="CAUCION">Rendimiento + Pase a Banco Automático</option></select></div>
+                        <div class="input-group" id="box-uni-excluir" style="grid-column: span 2; margin-top: 5px;">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--warning); text-transform:none; font-size:12px;">
+                                <input type="checkbox" id="uni-excluir" style="width:auto; transform:scale(1.2);"> No restar de mis Gastos del mes (Ej: Pago Tarjeta de Crédito)
+                            </label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn" style="margin-top:15px; padding:14px; background-color:var(--primary);"><i class="fa-solid fa-circle-check"></i> Procesar Movimiento</button>
+                </form>
+            </div>
+        </main>
+
+        <main id="view-mas" class="view-container">
+            <div class="subtabs-nav">
+                <button class="subtab-link active" id="subtab-btn-presupuestos"><i class="fa-solid fa-chart-pie"></i> Control de Presupuestos</button>
+                <button class="subtab-link" id="subtab-btn-historial"><i class="fa-solid fa-clock-rotate-left"></i> Filtros e Historial Avanzado</button>
+                <button class="subtab-link" id="subtab-btn-graficos"><i class="fa-solid fa-chart-line"></i> Gráficos Interactivos</button>
+            </div>
+
+            <!-- SUBPESTAÑA 1: PRESUPUESTOS -->
+            <div id="subview-presupuestos" class="subview-content active">
+                <div class="section-box" id="presupuestos-form-section">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+                        <h3 style="margin-bottom:0;">Asignar Presupuesto Mensual y Vencimientos</h3>
+                        <button type="button" class="btn" id="btn-clone-budget" style="width:auto; padding:8px 14px; font-size:12px; background:var(--bg-input); border:1px solid var(--blue); color:var(--blue); margin-bottom:0;"><i class="fa-solid fa-copy"></i> Copiar Presupuesto de Mes Anterior</button>
+                    </div>
+                    <form id="form-save-budget">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom: 12px;">
+                            <div class="input-wrapper"><i class="fa-solid fa-tags"></i><select id="pre-cat" required></select></div>
+                            <div class="input-wrapper"><i class="fa-solid fa-sack-dollar"></i><input type="number" id="pre-mon" placeholder="Monto Máximo $" required></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items: stretch;">
+                            <div class="input-wrapper"><i class="fa-solid fa-calendar-day"></i><input type="date" id="pre-fecha" title="Fecha de Vencimiento (Opcional)" style="color:var(--text-muted);"></div>
+                            <button type="submit" class="btn" style="background-color:var(--blue); padding:12px; height:100%;">Fijar Planificación</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="section-box">
+                    <h3>Exactitud del Presupuesto (Semáforo de Control RAG)</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Categoría</th><th style="text-align: right;">Presupuestado</th><th style="text-align: right;">Gasto Real</th><th style="text-align: center;">Estado / Target</th><th style="text-align:center;">Acciones</th></tr></thead>
+                            <tbody id="accuracy-body-real"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPESTAÑA 2: FILTROS E HISTORIAL -->
+            <div id="subview-historial" class="subview-content">
+                <div class="section-box">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+                        <h3 style="margin-bottom:0; border-left:3px solid var(--blue); padding-left:8px;">Historial de Movimientos Detallado</h3>
+                        <button class="btn" id="btn-trigger-report" style="background:#fff; color:#000; font-size:12px; font-weight:700; width:auto; padding:8px 16px; height:auto; margin-bottom:0;"><i class="fa-solid fa-file-shield"></i> Generar Reporte</button>
+                    </div>
+
+                    <div style="margin-bottom:14px;">
+                        <input type="text" id="filter-search" placeholder="🔍 Buscar por concepto, monto, categoría..." style="width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:10px; color:#fff; font-size:13px; outline:none;">
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 140px;">Fecha<select id="filter-fecha" class="header-filter"><option value="TODOS">Todas</option></select></th>
+                                    <th>Concepto</th>
+                                    <th style="width: 150px;">Importe (Flujo)<select id="filter-tipo" class="header-filter"><option value="TODOS">Todos</option><option value="ingreso">Ingresos (+)</option><option value="gasto">Egresos (-)</option></select></th>
+                                    <th style="width: 160px;">Cuenta<select id="filter-cuenta" class="header-filter"></select></th>
+                                    <th style="width: 180px;">Categoría<select id="filter-categoria" class="header-filter"></select></th>
+                                    <th style="width: 120px;">Autor<select id="filter-autor" class="header-filter"><option value="TODOS">Todos</option><option value="dante">Dante</option><option value="lore">Lore</option></select></th>
+                                    <th style="text-align:center; width: 120px;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body-real-movs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBPESTAÑA 3: GRÁFICOS INTERACTIVOS -->
+            <div id="subview-graficos" class="subview-content">
+                <div class="section-box" style="margin-bottom:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+                        <h3 style="margin-bottom:0; border-left:3px solid var(--blue); padding-left:8px;">📊 Desempeño por Categoría (Presupuesto vs. Gasto Real)</h3>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button type="button" class="btn btn-sm" id="btn-chart-scale-toggle" style="width:auto; background:var(--bg-input); border:1px solid var(--border-color); color:var(--text-main);">
+                                <i class="fa-solid fa-chart-line"></i> Escala: <strong id="lbl-scale-mode" style="color:var(--blue);">Lineal</strong>
+                            </button>
+                            <button type="button" class="btn btn-sm" id="btn-chart-zoom-reset" style="width:auto; background:var(--bg-input); border:1px solid var(--border-color); color:var(--primary);" title="Volver al encuadre original">
+                                <i class="fa-solid fa-arrows-rotate"></i> Reset Zoom
+                            </button>
+                        </div>
+                    </div>
+                    <div style="position:relative; width:100%; height:370px; background:var(--bg-card); border-radius:12px; padding:10px; border:1px solid var(--border-color);">
+                        <canvas id="interactive-performance-canvas"></canvas>
+                    </div>
+                </div>
+
+                <div class="section-box" style="margin-bottom:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+                        <h3 style="margin-bottom:0; border-left:3px solid var(--primary); padding-left:8px;">📈 Tendencia Histórica: Presupuesto vs. Gastos (Desde Julio 2026)</h3>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button type="button" class="btn btn-sm" id="btn-history-zoom-reset" style="width:auto; background:var(--bg-input); border:1px solid var(--border-color); color:var(--primary);" title="Restablecer vista histórica">
+                                <i class="fa-solid fa-arrows-rotate"></i> Reset Zoom
+                            </button>
+                        </div>
+                    </div>
+                    <div style="position:relative; width:100%; height:370px; background:var(--bg-card); border-radius:12px; padding:10px; border:1px solid var(--border-color);">
+                        <canvas id="interactive-history-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <main id="view-config" class="view-container">
+            <div class="section-box">
+                <h3>✨ Gestionar Categorías Maestras (Nube Supabase)</h3>
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Agregá categorías personalizadas que se sincronizan al instante con tu base de datos en la nube.</p>
+                <form id="form-new-category" style="display:grid; grid-template-columns: 1fr auto; gap:12px;">
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-folder-plus"></i>
+                        <input type="text" id="new-cat-name" placeholder="Escribí el nombre: Otros, Veterinaria, Regalos..." required>
+                    </div>
+                    <button type="submit" class="btn" style="background-color:var(--primary); padding:12px; height:100%; width:auto; white-space:nowrap;"><i class="fa-solid fa-plus"></i> Crear Categoría</button>
+                </form>
+            </div>
+
+            <div class="section-box" id="audit-form-section">
+                <h3>⚖️ Auditoría y Ajuste Técnico de Saldos</h3>
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom:15px; line-height: 1.4;">Utilizá este módulo para reconciliar diferencias físicas entre tu dinero real y el sistema sin alterar las métricas de Ingresos o Gastos del mes en curso.</p>
+                <form id="form-audit-adjust">
+                    <div class="input-group">
+                        <label>Tipo de Ajuste</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-scale-balanced"></i>
+                            <select id="audit-tipo" required>
+                                <option value="AJUSTE_POSITIVO">🟢 Sobrante / Hallazgo (+)</option>
+                                <option value="AJUSTE_NEGATIVO">🔴 Faltante / Pérdida (-)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="input-group"><label>Fecha</label><input type="date" id="audit-fecha" required></div>
+                        <div class="input-group"><label>Importe</label><input type="number" id="audit-monto" step="0.01" placeholder="0.00" required></div>
+                    </div>
+                    <div class="input-group"><label>Cuenta a Reconciliar</label><select id="audit-cuenta"></select></div>
+                    <div class="input-group"><label>Concepto / Motivo</label><input type="text" id="audit-concepto" placeholder="Ej: Encontré efectivo en el saco" required></div>
+                    <div class="input-group" style="margin-bottom: 15px;"><label>Moneda</label><select id="audit-moneda"><option value="ARS">ARS ($)</option><option value="USD">USD (u$d)</option></select></div>
+                    <button type="submit" class="btn" style="background-color:var(--warning); color:#000;"><i class="fa-solid fa-check-double"></i> Aplicar Reconciliación</button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- NAVEGACIÓN INFERIOR MOBILE -->
+    <nav class="mobile-tab-bar">
+        <div class="tab-item active" id="btn-nav-inicio"><i class="fa-solid fa-wallet"></i><span>Inicio</span></div>
+        <div class="tab-item" id="btn-nav-inversiones"><i class="fa-solid fa-chart-line"></i><span>Inversiones</span></div>
+        <div class="tab-item tab-item-center" id="btn-nav-rapido">
+            <div class="fab-btn"><i class="fa-solid fa-plus"></i></div>
+            <span class="tab-label-rapido">Centro Único de Carga</span>
+        </div>
+        <div class="tab-item" id="btn-nav-mas"><i class="fa-solid fa-chart-pie"></i><span>Reportes</span></div>
+        <div class="tab-item" id="btn-nav-config"><i class="fa-solid fa-sliders"></i><span>Ajustes</span></div>
+    </nav>
+
+    <!-- CARGA DE MÓDULOS ES6 -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
