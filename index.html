@@ -28,11 +28,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
-    <!-- Hoja de Estilos -->
-    <link rel="stylesheet" href="css/styles.css">
+    <!-- Hoja de Estilos con control de versión de caché -->
+    <link rel="stylesheet" href="css/styles.css?v=3.5">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/app.js?v=3.5"></script>
 </head>
 <body>
 
@@ -43,7 +43,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V3.4</span>
+            <span class="app-ver-tag">PWA CONSOLE V3.5</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -89,17 +89,18 @@
             </div>
         </header>
 
-        <!-- Barra de Mercado y Variables Macroeconómicas -->
-        <div style="max-width: 1200px; margin: 12px auto 0 auto; padding: 0 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Variables Macroeconómicas</span>
-                <span id="market-status-tag" style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border-color);">Sincronizando...</span>
-            </div>
-            <div class="market-bar-grid" id="market-bar-container"></div>
-        </div>
-
         <!-- VISTA 1: INICIO (DASHBOARD) -->
         <main class="view-container active" id="view-inicio">
+            
+            <!-- Variables Macroeconómicas: Confinadas exclusivamente a la vista Inicio -->
+            <div style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Variables Macroeconómicas</span>
+                    <span id="market-status-tag" style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border-color);">Sincronizando...</span>
+                </div>
+                <div class="market-bar-grid" id="market-bar-container"></div>
+            </div>
+
             <div class="metrics-grid">
                 <div class="card">
                     <span class="card-title">Patrimonio Neto</span>
@@ -151,13 +152,13 @@
                 <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">Registra consumos, sueldos, cancelaciones de tarjeta o compra de dólares con partida doble.</p>
 
                 <form id="unified-engine-form">
-                    <!-- Selector de 4 Botones Directos -->
+                    <!-- Selector de 4 Botones Táctiles Directos -->
                     <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:8px; font-weight:600; text-transform:uppercase;">Tipo de Operación</label>
                     <div class="action-type-selector-grid" id="action-type-selector-group">
-                        <button type="button" class="btn-type-pill active" data-type="GASTO"><i class="fa-solid fa-arrow-trend-down"></i> Gasto</button>
-                        <button type="button" class="btn-type-pill" data-type="INGRESO"><i class="fa-solid fa-arrow-trend-up"></i> Ingreso</button>
-                        <button type="button" class="btn-type-pill" data-type="TRANSFERENCIA"><i class="fa-solid fa-arrow-right-arrow-left"></i> Pase / Tarjeta</button>
-                        <button type="button" class="btn-type-pill" data-type="CAMBIO_DIVISAS"><i class="fa-solid fa-money-bill-transfer"></i> Divisas</button>
+                        <button type="button" class="btn-type-pill active" data-type="GASTO" onclick="window.UI.selectActionType('GASTO', this)"><i class="fa-solid fa-arrow-trend-down"></i> Gasto</button>
+                        <button type="button" class="btn-type-pill" data-type="INGRESO" onclick="window.UI.selectActionType('INGRESO', this)"><i class="fa-solid fa-arrow-trend-up"></i> Ingreso</button>
+                        <button type="button" class="btn-type-pill" data-type="TRANSFERENCIA" onclick="window.UI.selectActionType('TRANSFERENCIA', this)"><i class="fa-solid fa-arrow-right-arrow-left"></i> Pase / Tarjeta</button>
+                        <button type="button" class="btn-type-pill" data-type="CAMBIO_DIVISAS" onclick="window.UI.selectActionType('CAMBIO_DIVISAS', this)"><i class="fa-solid fa-money-bill-transfer"></i> Divisas</button>
                     </div>
                     <input type="hidden" id="uni-tipo" value="GASTO">
 
