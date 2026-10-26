@@ -278,37 +278,53 @@ function recalculateFinancialMetrics() {
         if (catMetaMap[b.nombre] !== undefined) catMetaMap[b.nombre] = val;
     });
 
+    // CORRECCIÓN CRÍTICA 1: Deduplicación matemática estricta de activos
+    // Se itera sobre el conjunto único de cuentas operativas e inversiones para que Mercado Pago no compute doble
+    const cuentasActivoUnicas = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES])];
+    let totalActivos = 0;
+    cuentasActivoUnicas.forEach(acc => {
+        totalActivos += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO);
+    });
+
     let liquidezDisponible = 0;
     CUENTAS_OPERATIVAS.forEach(acc => {
         liquidezDisponible += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO);
     });
 
-    let comitentesTotal = 0;
-    CUENTAS_COMITENTES.forEach(b => {
-        comitentesTotal += (state.currentAccountBalancesARS[b] || 0) + ((state.currentAccountBalancesUSD[b] || 0) * TIPO_CAMBIO_PRESUPUESTO);
-    });
-
+    // CORRECCIÓN CRÍTICA 3: Cómputo algebraico de deuda y saldos a favor
     let deudaTarjetasTotal = 0;
     CUENTAS_TARJETAS.forEach(c => {
-        const dARS = Math.max(0, state.creditCardDebtARS[c] || 0);
-        const dUSD = Math.max(0, state.creditCardDebtUSD[c] || 0);
+        const dARS = state.creditCardDebtARS[c] || 0;
+        const dUSD = state.creditCardDebtUSD[c] || 0;
         deudaTarjetasTotal += dARS + (dUSD * TIPO_CAMBIO_PRESUPUESTO);
     });
 
-    let patrimonioNeto = (liquidezDisponible + comitentesTotal) - deudaTarjetasTotal;
+    // Patrimonio neto = Total Activos - Pasivo Neto (si es saldo a favor en tarjeta, suma al patrimonio)
+    let patrimonioNeto = totalActivos - deudaTarjetasTotal;
     let ahorroMes = totalIngresosMes - totalGastosMes;
 
-    const setCard = (id, mainText, subText = '') => {
+    const setCard = (id, mainText, subText = '', subColor = '') => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.innerHTML = `<span class="main-val">${mainText}</span>${subText ? `<span class="sub-val">${subText}</span>` : ''}`;
+        const colorStyle = subColor ? `style="color: ${subColor} !important;"` : '';
+        el.innerHTML = `<span class="main-val">${mainText}</span>${subText ? `<span class="sub-val" ${colorStyle}>${subText}</span>` : ''}`;
     };
 
-    setCard('metric-patrimonio', `$${Math.round(patrimonioNeto).toLocaleString('es-AR')}`, deudaTarjetasTotal > 0 ? `Pasivo: -$${Math.round(deudaTarjetasTotal).toLocaleString('es-AR')}` : 'Sin pasivos');
+    let subPatrimonio = 'Sin pasivos';
+    let colorPatrimonio = 'var(--text-muted)';
+    if (deudaTarjetasTotal > 0) {
+        subPatrimonio = `Pasivo: -$${Math.round(deudaTarjetasTotal).toLocaleString('es-AR')}`;
+        colorPatrimonio = 'var(--danger)';
+    } else if (deudaTarjetasTotal < 0) {
+        subPatrimonio = `Saldo a favor: +$${Math.round(Math.abs(deudaTarjetasTotal)).toLocaleString('es-AR')}`;
+        colorPatrimonio = 'var(--primary)';
+    }
+
+    setCard('metric-patrimonio', `$${Math.round(patrimonioNeto).toLocaleString('es-AR')}`, subPatrimonio, colorPatrimonio);
     setCard('metric-ingresos', `$${Math.round(totalIngresosMes).toLocaleString('es-AR')}`);
     setCard('metric-presupuesto', `$${Math.round(totalPlanificadoMes).toLocaleString('es-AR')}`);
     setCard('metric-gastos', `$${Math.round(totalGastosMes).toLocaleString('es-AR')}`);
-    setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit' : 'Déficit');
+    setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit' : 'Déficit', ahorroMes >= 0 ? 'var(--primary)' : 'var(--danger)');
     setCard('metric-disponible', `$${Math.round(liquidezDisponible).toLocaleString('es-AR')}`);
 
     renderPortfolioPieChart(state.currentAccountBalancesARS);
@@ -528,13 +544,29 @@ window.UI.editBudgetDirect = (catName, currentMeta) => {
         .catch(err => window.UI.showAppAlert("Error", err.message));
 };
 
+// CORRECCIÓN CRÍTICA 2A: Eliminación protegida por partida doble
 window.UI.deleteTransaction = (id) => {
-    window.UI.showAppConfirm("Eliminar Registro", "¿Estás seguro de que deseas eliminar este movimiento contable?", async () => {
-        const { error } = await _supabase.from('transacciones').delete().eq('id', id);
-        if (error) {
-            window.UI.showAppAlert("Error", "No se pudo eliminar el movimiento.");
+    const t = state.globalTransData.find(item => item.id === id);
+    if (!t) return;
+
+    const isGroup = !!t.transfer_group_id;
+    const confirmMsg = isGroup 
+        ? "Este movimiento forma parte de una transferencia/cancelación doble. Se eliminarán ambas operaciones para mantener la partida doble cuadrada. ¿Deseas continuar?"
+        : "¿Estás seguro de que deseas eliminar este movimiento contable?";
+
+    window.UI.showAppConfirm("Eliminar Registro", confirmMsg, async () => {
+        let query = _supabase.from('transacciones').delete();
+        if (isGroup) {
+            query = query.eq('transfer_group_id', t.transfer_group_id);
         } else {
-            window.UI.showToast("Movimiento eliminado correctamente");
+            query = query.eq('id', id);
+        }
+
+        const { error } = await query;
+        if (error) {
+            window.UI.showAppAlert("Error", "No se pudo eliminar el movimiento: " + error.message);
+        } else {
+            window.UI.showToast(isGroup ? "Transferencia doble eliminada con éxito" : "Movimiento eliminado con éxito");
             loadUserDataFromDatabase();
         }
     });
@@ -618,12 +650,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('subtab-btn-historial')?.addEventListener('click', () => switchSubTab('subview-historial', 'subtab-btn-historial'));
     document.getElementById('subtab-btn-graficos')?.addEventListener('click', () => switchSubTab('subview-graficos', 'subtab-btn-graficos'));
 
-    // Escala y Resets de Gráficos
     document.getElementById('btn-chart-scale-toggle')?.addEventListener('click', toggleInteractiveScale);
     document.getElementById('btn-chart-zoom-reset')?.addEventListener('click', resetInteractiveZoom);
     document.getElementById('btn-history-zoom-reset')?.addEventListener('click', resetInteractiveHistoryZoom);
 
-    // Controles táctiles discretos para móviles (Zoom X / Y)
     document.getElementById('btn-chart-zoom-in-x')?.addEventListener('click', () => zoomPerformanceChart('x', 0.8));
     document.getElementById('btn-chart-zoom-out-x')?.addEventListener('click', () => zoomPerformanceChart('x', 1.25));
     document.getElementById('btn-chart-zoom-in-y')?.addEventListener('click', () => zoomPerformanceChart('y', 0.8));
@@ -632,7 +662,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-history-zoom-in')?.addEventListener('click', () => zoomHistoryChart(0.8));
     document.getElementById('btn-history-zoom-out')?.addEventListener('click', () => zoomHistoryChart(1.25));
 
-    // Auditoría Pre-Flight antes de emitir PDF
     document.getElementById('btn-trigger-report')?.addEventListener('click', () => {
         const audit = executeFinancialAuditEngine();
         const body = document.getElementById('audit-modal-body');
@@ -658,7 +687,6 @@ document.addEventListener('DOMContentLoaded', () => {
         exportAuditPDF(state.cachedAuditResult);
     });
 
-    // Control dinámico de campos según tipo de movimiento y selección de cuenta
     const updateUnifiedFormUI = () => {
         const uniTipo = document.getElementById('uni-tipo');
         const uniOrigen = document.getElementById('uni-origen');
@@ -688,7 +716,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('uni-fecha')) document.getElementById('uni-fecha').value = hoyIso;
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
 
-    // Enviar movimiento desde el Centro de Carga
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const batch = buildUnifiedTransactionBatch({
@@ -726,7 +753,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Guardar presupuesto
     document.getElementById('form-save-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
@@ -753,7 +779,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Clonar presupuesto
     document.getElementById('btn-clone-budget')?.addEventListener('click', async () => {
         const selector = document.getElementById('global-month-selector');
         const currentPeriodo = selector ? selector.value : getLocalDateString().substring(0, 7);
@@ -784,10 +809,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Edición modal de transacciones
+    // CORRECCIÓN CRÍTICA 2B: Edición sincronizada de la partida doble
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!state.editingTransactionId) return;
+
+        const t = state.globalTransData.find(item => item.id === state.editingTransactionId);
+        if (!t) return;
 
         const payload = {
             fecha: document.getElementById('edit-form-fecha').value,
@@ -799,17 +827,31 @@ document.addEventListener('DOMContentLoaded', () => {
             moneda: document.getElementById('edit-form-moneda').value
         };
 
+        const isGroup = !!t.transfer_group_id;
         const { error } = await _supabase.from('transacciones').update(payload).eq('id', state.editingTransactionId);
+
         if (error) {
             window.UI.showAppAlert("Error", error.message);
-        } else {
-            window.UI.closeModal('edit-transaction-modal');
-            window.UI.showToast("Registro actualizado correctamente");
-            loadUserDataFromDatabase();
+            return;
         }
+
+        if (isGroup) {
+            const peer = state.globalTransData.find(item => item.transfer_group_id === t.transfer_group_id && item.id !== t.id);
+            if (peer) {
+                const peerPayload = { fecha: payload.fecha };
+                if (t.categoria !== 'Compra/Venta Divisas') {
+                    peerPayload.monto = payload.monto;
+                    peerPayload.moneda = payload.moneda;
+                }
+                await _supabase.from('transacciones').update(peerPayload).eq('id', peer.id);
+            }
+        }
+
+        window.UI.closeModal('edit-transaction-modal');
+        window.UI.showToast(isGroup ? "Transferencia sincronizada con éxito" : "Registro actualizado correctamente");
+        loadUserDataFromDatabase();
     });
 
-    // Reconciliación contable
     document.getElementById('form-audit-adjust')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const tipoAjuste = document.getElementById('audit-tipo').value;
@@ -843,7 +885,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Categoría maestra
     document.getElementById('form-new-category')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = document.getElementById('new-cat-name');
@@ -860,7 +901,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Filtros de búsqueda
     const applyFilters = () => {
         const query = document.getElementById('filter-search')?.value.toLowerCase() || '';
         const fTipo = document.getElementById('filter-tipo')?.value || 'TODOS';
