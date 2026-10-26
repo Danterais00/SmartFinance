@@ -105,6 +105,35 @@ window.UI = {
         if (typeof window.updateUnifiedFormUI === 'function') {
             window.updateUnifiedFormUI();
         }
+    },
+
+    // FALLA 5: Abrir modal estilizado de edición de presupuesto
+    editBudgetDirect(catName, currentMeta) {
+        const titleEl = document.getElementById('modal-edit-budget-title');
+        const hiddenCat = document.getElementById('edit-budget-cat-name');
+        const inputAmount = document.getElementById('edit-budget-amount');
+
+        if (titleEl) titleEl.innerText = `Ajustar: ${catName}`;
+        if (hiddenCat) hiddenCat.value = catName;
+        if (inputAmount) inputAmount.value = currentMeta;
+
+        window.UI.openModal('modal-edit-budget');
+    },
+
+    // FALLA 6: Acción activa de pago desde notificación
+    payPendingAlert(categoria, monto) {
+        window.UI.closeModal('notifications-modal-center');
+        switchView('view-rapido', 'btn-nav-rapido');
+        window.UI.selectActionType('GASTO');
+
+        const elCat = document.getElementById('uni-categoria');
+        const elMonto = document.getElementById('uni-monto');
+        const elConcepto = document.getElementById('uni-concepto');
+
+        if (elCat) elCat.value = categoria;
+        if (elMonto) elMonto.value = monto;
+        if (elConcepto) elConcepto.value = `Pago vencimiento: ${categoria}`;
+        if (typeof window.updateUnifiedFormUI === 'function') window.updateUnifiedFormUI();
     }
 };
 
@@ -190,6 +219,7 @@ function populateSelectOptions() {
     fillSelect('audit-cuenta', CUENTAS_OPERATIVAS);
     fillSelect('edit-form-metodo', CUENTAS_SISTEMA_TOTAL);
     fillSelect('edit-form-categoria', state.misCategoriasUnificadas);
+    fillSelect('close-card-select', CUENTAS_TARJETAS);
 
     fillSelect('filter-cuenta', CUENTAS_SISTEMA_TOTAL, true);
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
@@ -278,8 +308,6 @@ function recalculateFinancialMetrics() {
         if (catMetaMap[b.nombre] !== undefined) catMetaMap[b.nombre] = val;
     });
 
-    // CORRECCIÓN CRÍTICA 1: Deduplicación matemática estricta de activos
-    // Se itera sobre el conjunto único de cuentas operativas e inversiones para que Mercado Pago no compute doble
     const cuentasActivoUnicas = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES])];
     let totalActivos = 0;
     cuentasActivoUnicas.forEach(acc => {
@@ -291,7 +319,6 @@ function recalculateFinancialMetrics() {
         liquidezDisponible += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO);
     });
 
-    // CORRECCIÓN CRÍTICA 3: Cómputo algebraico de deuda y saldos a favor
     let deudaTarjetasTotal = 0;
     CUENTAS_TARJETAS.forEach(c => {
         const dARS = state.creditCardDebtARS[c] || 0;
@@ -299,7 +326,6 @@ function recalculateFinancialMetrics() {
         deudaTarjetasTotal += dARS + (dUSD * TIPO_CAMBIO_PRESUPUESTO);
     });
 
-    // Patrimonio neto = Total Activos - Pasivo Neto (si es saldo a favor en tarjeta, suma al patrimonio)
     let patrimonioNeto = totalActivos - deudaTarjetasTotal;
     let ahorroMes = totalIngresosMes - totalGastosMes;
 
@@ -484,7 +510,12 @@ function checkRemindersAndAlerts() {
                             <div style="font-weight:700; font-size:13px; color:#fff;">${a.categoria}</div>
                             <div style="font-size:11px; color:var(--text-muted);">Vencimiento: ${a.fechaFormateada}</div>
                         </div>
-                        <div style="font-weight:700; color:var(--warning); font-size:14px;">$${Number(a.monto).toLocaleString('es-AR')}</div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="font-weight:700; color:var(--warning); font-size:14px;">$${Number(a.monto).toLocaleString('es-AR')}</div>
+                            <button type="button" class="btn btn-sm" onclick="window.UI.payPendingAlert('${a.categoria}', ${a.monto})" style="padding: 6px 12px; height: auto; width: auto; font-size: 11px; background: var(--blue);">
+                                <i class="fa-solid fa-arrow-right"></i> Pagar
+                            </button>
+                        </div>
                     </div>`;
             });
         }
@@ -522,29 +553,6 @@ async function loadUserDataFromDatabase() {
     }
 }
 
-window.UI.editBudgetDirect = (catName, currentMeta) => {
-    const selector = document.getElementById('global-month-selector');
-    const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
-
-    const input = prompt(`Asignar nuevo presupuesto mensual para "${catName}" ($):`, currentMeta);
-    if (input === null) return;
-    const num = parseFloat(input);
-    if (isNaN(num) || num < 0) {
-        window.UI.showAppAlert("Entrada inválida", "Ingresá un monto numérico positivo.");
-        return;
-    }
-
-    _supabase.from('categorias')
-        .upsert([{ user_id: state.currentUser.id, nombre: catName, presupuesto_mensual: num, periodo }], { onConflict: 'user_id, nombre, periodo' })
-        .then(({ error }) => {
-            if (error) throw error;
-            window.UI.showToast(`Presupuesto de ${catName} actualizado`);
-            loadUserDataFromDatabase();
-        })
-        .catch(err => window.UI.showAppAlert("Error", err.message));
-};
-
-// CORRECCIÓN CRÍTICA 2A: Eliminación protegida por partida doble
 window.UI.deleteTransaction = (id) => {
     const t = state.globalTransData.find(item => item.id === id);
     if (!t) return;
@@ -715,6 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const hoyIso = getLocalDateString();
     if (document.getElementById('uni-fecha')) document.getElementById('uni-fecha').value = hoyIso;
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
+    if (document.getElementById('close-card-fecha')) document.getElementById('close-card-fecha').value = hoyIso;
 
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -779,6 +788,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Envío del Modal Estilizado de Presupuesto RAG (Falla 5)
+    document.getElementById('form-modal-edit-budget')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const selector = document.getElementById('global-month-selector');
+        const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
+        const catName = document.getElementById('edit-budget-cat-name').value;
+        const num = parseFloat(document.getElementById('edit-budget-amount').value);
+
+        if (isNaN(num) || num < 0) {
+            window.UI.showAppAlert("Entrada inválida", "Ingresá un monto numérico positivo.");
+            return;
+        }
+
+        const { error } = await _supabase.from('categorias')
+            .upsert([{ user_id: state.currentUser.id, nombre: catName, presupuesto_mensual: num, periodo }], { onConflict: 'user_id, nombre, periodo' });
+
+        if (error) {
+            window.UI.showAppAlert("Error", error.message);
+        } else {
+            window.UI.closeModal('modal-edit-budget');
+            window.UI.showToast(`Presupuesto de "${catName}" actualizado`);
+            loadUserDataFromDatabase();
+        }
+    });
+
+    // Envío del Modal de Liquidación de Cierre de Tarjeta (Falla 4)
+    document.getElementById('form-card-closing')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const tarjeta = document.getElementById('close-card-select').value;
+        const fecha = document.getElementById('close-card-fecha').value;
+        const moneda = document.getElementById('close-card-moneda').value;
+        const sellos = parseFloat(document.getElementById('close-card-sellos').value) || 0;
+        const intereses = parseFloat(document.getElementById('close-card-intereses').value) || 0;
+        const otros = parseFloat(document.getElementById('close-card-otros').value) || 0;
+
+        if (sellos === 0 && intereses === 0 && otros === 0) {
+            window.UI.showAppAlert("Sin Conceptos", "Ingresá al menos un valor en impuestos, intereses o comisiones.");
+            return;
+        }
+
+        const batch = buildCreditCardClosingBatch({
+            tarjeta,
+            fecha,
+            impuestosSellos: sellos,
+            intereses: intereses,
+            otrosCargos: otros,
+            moneda
+        });
+
+        const { error } = await _supabase.from('transacciones').insert(batch);
+        if (error) {
+            window.UI.showAppAlert("Error", "No se pudieron imputar los cargos: " + error.message);
+        } else {
+            window.UI.closeModal('modal-card-closing');
+            window.UI.showToast(`Resumen liquidado en ${tarjeta} (+${batch.length} cargos)`);
+            document.getElementById('close-card-sellos').value = "";
+            document.getElementById('close-card-intereses').value = "";
+            document.getElementById('close-card-otros').value = "";
+            loadUserDataFromDatabase();
+        }
+    });
+
     document.getElementById('btn-clone-budget')?.addEventListener('click', async () => {
         const selector = document.getElementById('global-month-selector');
         const currentPeriodo = selector ? selector.value : getLocalDateString().substring(0, 7);
@@ -809,7 +880,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // CORRECCIÓN CRÍTICA 2B: Edición sincronizada de la partida doble
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!state.editingTransactionId) return;
