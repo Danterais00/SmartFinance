@@ -32,10 +32,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=4.2">
+    <link rel="stylesheet" href="css/styles.css?v=4.3">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=4.2"></script>
+    <script type="module" src="js/app.js?v=4.3"></script>
 </head>
 <body>
 
@@ -46,7 +46,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V4.2</span>
+            <span class="app-ver-tag">PWA CONSOLE V4.3</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -95,58 +95,65 @@
         <!-- VISTA 1: INICIO (DASHBOARD) -->
         <main class="view-container active" id="view-inicio">
             
-            <!-- Barra Restaurada: Mercado Macro & Divisas en Vivo -->
-            <div class="macro-section-container">
+            <!-- BLOQUE 1: MERCADO MACRO & DIVISAS EN VIVO (Contenedor Independiente) -->
+            <section class="macro-section-container">
                 <div class="macro-header-row">
                     <div class="macro-header-title">
                         <span class="macro-indicator-bar"></span>
-                        <h2>MERCADO MACRO & DIVISAS EN VIVO</h2>
+                        <h2>MERCADO MACRO &amp; DIVISAS EN VIVO</h2>
                     </div>
                     <span id="market-status-tag" class="macro-status-badge">
                         <span class="status-pulse-dot"></span> EN VIVO
                     </span>
                 </div>
                 <div class="market-bar-grid" id="market-bar-container"></div>
-            </div>
+            </section>
 
-            <div class="metrics-grid">
-                <div class="card">
-                    <span class="card-title">Patrimonio Neto</span>
-                    <div class="card-value" id="metric-patrimonio"><span class="main-val">$0</span></div>
+            <!-- BLOQUE 2: MÉTRICAS PATRIMONIALES Y MENSUALES (Contenedor Independiente de 6 KPIs) -->
+            <section class="metrics-section-container">
+                <div class="metrics-grid">
+                    <div class="card">
+                        <span class="card-title">Patrimonio Neto</span>
+                        <div class="card-value" id="metric-patrimonio"><span class="main-val">$0</span></div>
+                    </div>
+                    <div class="card">
+                        <span class="card-title">Ingresos Mes</span>
+                        <div class="card-value" id="metric-ingresos"><span class="main-val">$0</span></div>
+                    </div>
+                    <div class="card">
+                        <span class="card-title">Presupuesto Mes</span>
+                        <div class="card-value" id="metric-presupuesto"><span class="main-val">$0</span></div>
+                    </div>
+                    <div class="card">
+                        <span class="card-title">Gastos Reales Mes</span>
+                        <div class="card-value" id="metric-gastos"><span class="main-val">$0</span></div>
+                    </div>
+                    <div class="card">
+                        <span class="card-title">Ahorro Neto Mes</span>
+                        <div class="card-value" id="metric-ahorro"><span class="main-val">$0</span></div>
+                    </div>
+                    <div class="card">
+                        <span class="card-title">Liquidez Inmediata</span>
+                        <div class="card-value" id="metric-disponible"><span class="main-val">$0</span></div>
+                    </div>
                 </div>
-                <div class="card">
-                    <span class="card-title">Ingresos Mes</span>
-                    <div class="card-value" id="metric-ingresos"><span class="main-val">$0</span></div>
-                </div>
-                <div class="card">
-                    <span class="card-title">Presupuesto Mes</span>
-                    <div class="card-value" id="metric-presupuesto"><span class="main-val">$0</span></div>
-                </div>
-                <div class="card">
-                    <span class="card-title">Gastos Reales Mes</span>
-                    <div class="card-value" id="metric-gastos"><span class="main-val">$0</span></div>
-                </div>
-                <div class="card">
-                    <span class="card-title">Ahorro Neto Mes</span>
-                    <div class="card-value" id="metric-ahorro"><span class="main-val">$0</span></div>
-                </div>
-                <div class="card">
-                    <span class="card-title">Liquidez Inmediata</span>
-                    <div class="card-value" id="metric-disponible"><span class="main-val">$0</span></div>
-                </div>
-            </div>
+            </section>
 
-            <div class="chart-frame">
-                <h3 style="font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 15px; text-transform: uppercase;">Distribución de Liquidez Operativa</h3>
+            <!-- BLOQUE 3: DISTRIBUCIÓN DE LIQUIDEZ OPERATIVA (Contenedor Independiente) -->
+            <section class="chart-frame">
+                <div class="chart-frame-header">
+                    <span class="macro-indicator-bar"></span>
+                    <h3>DISTRIBUCIÓN DE LIQUIDEZ OPERATIVA</h3>
+                </div>
                 <div class="svg-pie-container" id="pie-chart-container"></div>
                 <div class="legend-grid" id="pie-chart-legend"></div>
-            </div>
+            </section>
         </main>
 
         <!-- VISTA 2: INVERSIONES -->
         <main class="view-container" id="view-inversiones">
             <div class="section-box">
-                <h3>Cuentas Comitentes & Plataformas de Ahorro</h3>
+                <h3>Cuentas Comitentes &amp; Plataformas de Ahorro</h3>
                 <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Tenencias consolidadas y rendimientos netos acumulados en el mes seleccionado.</p>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px;" id="brokers-cards-area"></div>
             </div>
@@ -236,7 +243,7 @@
         <!-- VISTA 4: REPORTES Y SEGUIMIENTO -->
         <main class="view-container" id="view-mas">
             <div class="subtabs-nav">
-                <button class="subtab-link active" id="subtab-btn-presupuestos"><i class="fa-solid fa-list-check"></i> Presupuestos & RAG</button>
+                <button class="subtab-link active" id="subtab-btn-presupuestos"><i class="fa-solid fa-list-check"></i> Presupuestos &amp; RAG</button>
                 <button class="subtab-link" id="subtab-btn-historial"><i class="fa-solid fa-clock-rotate-left"></i> Historial de Movimientos</button>
                 <button class="subtab-link" id="subtab-btn-graficos"><i class="fa-solid fa-chart-line"></i> Gráficos Analíticos</button>
             </div>
