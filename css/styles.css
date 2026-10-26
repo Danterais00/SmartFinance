@@ -72,6 +72,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .subview-content.active { display: block; }
 
 .chart-frame { background: var(--bg-card); border: 2px solid var(--border-color); border-radius: 14px; padding: 25px; text-align: center; width: 100%; }
+.chart-frame canvas { touch-action: pan-y; } /* Permite hacer scroll vertical natural en móviles sin que el lienzo lo bloquee */
 .svg-pie-container { width: 295px; height: 295px; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
 
 .legend-grid { display: grid; grid-template-columns: 1fr; gap: 10px; width: 100%; margin: 25px auto 0 auto; }
@@ -210,4 +211,43 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
     border-color: var(--blue) !important;
     color: #ffffff !important;
     box-shadow: 0 4px 15px var(--blue-glow) !important;
+}
+
+/* BOTONES DE ZOOM DISCRETO TÁCTIL */
+.zoom-btn-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--bg-input);
+    padding: 3px 6px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+.zoom-tag {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 0 4px;
+}
+.btn-zoom-action {
+    background: transparent;
+    border: none;
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.btn-zoom-action:hover {
+    background-color: var(--bg-card);
+}
+.btn-zoom-action:active {
+    background-color: var(--blue);
 }
