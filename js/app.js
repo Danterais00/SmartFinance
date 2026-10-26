@@ -107,7 +107,6 @@ window.UI = {
         }
     },
 
-    // FALLA 5: Abrir modal estilizado de edición de presupuesto
     editBudgetDirect(catName, currentMeta) {
         const titleEl = document.getElementById('modal-edit-budget-title');
         const hiddenCat = document.getElementById('edit-budget-cat-name');
@@ -120,7 +119,6 @@ window.UI = {
         window.UI.openModal('modal-edit-budget');
     },
 
-    // FALLA 6: Acción activa de pago desde notificación
     payPendingAlert(categoria, monto) {
         window.UI.closeModal('notifications-modal-center');
         switchView('view-rapido', 'btn-nav-rapido');
@@ -597,8 +595,22 @@ window.UI.openEditTransactionModal = (id) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    // FALLA 7: Registro del Service Worker para funcionamiento PWA offline
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').then(() => {
+            console.log("Service Worker PWA registrado con éxito.");
+        }).catch(err => {
+            console.warn("Fallo al registrar Service Worker:", err);
+        });
+    }
+
     initMonthSelector();
     fetchMarketData();
+
+    // FALLA 9: Escuchar actualización del Dólar Dinámico para recalcular activos
+    window.addEventListener('market-fx-updated', () => {
+        if (state.currentUser) recalculateFinancialMetrics();
+    });
 
     _supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
@@ -788,7 +800,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Envío del Modal Estilizado de Presupuesto RAG (Falla 5)
     document.getElementById('form-modal-edit-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
@@ -813,7 +824,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Envío del Modal de Liquidación de Cierre de Tarjeta (Falla 4)
     document.getElementById('form-card-closing')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const tarjeta = document.getElementById('close-card-select').value;
