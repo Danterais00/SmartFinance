@@ -483,16 +483,24 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
     border-color: var(--blue) !important;
 }
 
-.btn-delete-row {
-    color: var(--danger);
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 15px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    transition: 0.2s;
+/* BOTÓN X ROJO CLARO PARA DESCARTAR LÍNEA */
+.btn-staging-remove {
+    background: rgba(239, 68, 68, 0.18) !important;
+    border: 1px solid #ef4444 !important;
+    color: #ef4444 !important;
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    transition: all 0.2s ease !important;
 }
-.btn-delete-row:hover {
-    background: rgba(239, 68, 68, 0.15);
+.btn-staging-remove:hover {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    transform: scale(1.05);
 }
