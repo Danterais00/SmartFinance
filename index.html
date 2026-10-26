@@ -31,11 +31,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
+    <!-- SheetJS (Excel Parser) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=4.3">
+    <link rel="stylesheet" href="css/styles.css?v=4.4">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=4.3"></script>
+    <script type="module" src="js/app.js?v=4.4"></script>
 </head>
 <body>
 
@@ -46,7 +49,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V4.3</span>
+            <span class="app-ver-tag">PWA CONSOLE V4.4</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -95,7 +98,7 @@
         <!-- VISTA 1: INICIO (DASHBOARD) -->
         <main class="view-container active" id="view-inicio">
             
-            <!-- BLOQUE 1: MERCADO MACRO & DIVISAS EN VIVO (Contenedor Independiente) -->
+            <!-- BLOQUE 1: MERCADO MACRO & DIVISAS EN VIVO -->
             <section class="macro-section-container">
                 <div class="macro-header-row">
                     <div class="macro-header-title">
@@ -109,7 +112,7 @@
                 <div class="market-bar-grid" id="market-bar-container"></div>
             </section>
 
-            <!-- BLOQUE 2: MÉTRICAS PATRIMONIALES Y MENSUALES (Contenedor Independiente de 6 KPIs) -->
+            <!-- BLOQUE 2: MÉTRICAS PATRIMONIALES Y MENSUALES -->
             <section class="metrics-section-container">
                 <div class="metrics-grid">
                     <div class="card">
@@ -139,7 +142,7 @@
                 </div>
             </section>
 
-            <!-- BLOQUE 3: DISTRIBUCIÓN DE LIQUIDEZ OPERATIVA (Contenedor Independiente) -->
+            <!-- BLOQUE 3: DISTRIBUCIÓN DE LIQUIDEZ OPERATIVA -->
             <section class="chart-frame">
                 <div class="chart-frame-header">
                     <span class="macro-indicator-bar"></span>
@@ -297,12 +300,17 @@
                 </div>
             </div>
 
-            <!-- SUBVISTA B: HISTORIAL COMPLETO -->
+            <!-- SUBVISTA B: HISTORIAL COMPLETO CON BOTÓN DE IMPORTACIÓN -->
             <div class="subview-content" id="subview-historial">
                 <div class="section-box">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                         <h3>Historial de Movimientos</h3>
-                        <span id="historial-period-badge" style="font-size: 11px; font-weight: 700; color: var(--blue); background: var(--bg-input); padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border-color);"></span>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <span id="historial-period-badge" style="font-size: 11px; font-weight: 700; color: var(--blue); background: var(--bg-input); padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border-color);"></span>
+                            <button type="button" class="btn btn-sm" id="btn-open-statement-importer" style="background-color: var(--primary); padding: 6px 14px; font-weight: 700; gap: 6px;">
+                                <i class="fa-solid fa-file-excel"></i> Importar Consumos
+                            </button>
+                        </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px;">
@@ -344,7 +352,7 @@
                 </div>
             </div>
 
-            <!-- SUBVISTA C: GRÁFICOS DESACOPLADOS CON CONTROLES TÁCTILES -->
+            <!-- SUBVISTA C: GRÁFICOS DESACOPLADOS -->
             <div class="subview-content" id="subview-graficos">
                 <div class="chart-frame" style="margin-bottom: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
@@ -466,6 +474,75 @@
                 <span>Ajustes</span>
             </div>
         </nav>
+    </div>
+
+    <!-- MODAL: IMPORTADOR DE EXTRACTOS Y CONSUMOS DE TARJETA -->
+    <div class="modal" id="modal-import-statement">
+        <div class="modal-content" style="max-width: 820px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3>Importar Consumos Bancarios (.xlsx)</h3>
+                <button class="modal-close" onclick="window.UI.closeModal('modal-import-statement')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <!-- Paso 1: Selección de Tarjeta y Archivo -->
+            <div id="import-step-upload" style="display: block;">
+                <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 15px;">Seleccioná la tarjeta de crédito registrada en el sistema y subí la descarga de consumos de tu app bancaria.</p>
+                <div class="input-group">
+                    <label>Tarjeta Receptora</label>
+                    <select id="import-target-card"></select>
+                </div>
+                <div id="import-dropzone" class="statement-dropzone">
+                    <i class="fa-solid fa-file-excel" style="font-size: 38px; color: var(--primary); margin-bottom: 12px;"></i>
+                    <div style="font-weight: 700; font-size: 14px; color: #fff;">Clic para buscar tu archivo Excel (.xlsx)</div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">El procesamiento es 100% privado en tu navegador.</div>
+                    <input type="file" id="import-file-input" accept=".xlsx, .xls, .csv" style="display: none;">
+                </div>
+            </div>
+
+            <!-- Paso 2: Staging y Revisión previa a inyección -->
+            <div id="import-step-review" style="display: none; flex-direction: column; overflow: hidden; flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="import-check-all" checked style="width: 17px; height: 17px; cursor: pointer;">
+                        <label for="import-check-all" style="font-size: 12px; font-weight: 700; cursor: pointer; color: #fff;">Seleccionar Todos</label>
+                    </div>
+                    <div style="display: flex; gap: 12px; font-size: 11px;">
+                        <span style="color: var(--warning);"><i class="fa-solid fa-triangle-exclamation"></i> Ya Registrado</span>
+                        <span style="color: var(--text-muted);"><i class="fa-solid fa-clock"></i> Pendiente</span>
+                    </div>
+                </div>
+
+                <div class="table-wrapper" style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; min-height: 260px;">
+                    <table style="min-width: 680px; margin: 0;">
+                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 10;">
+                            <tr>
+                                <th style="width: 45px; text-align: center;">Inc</th>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                                <th>Descripción / Memo</th>
+                                <th style="width: 220px;">Categoría Asignada</th>
+                            </tr>
+                        </thead>
+                        <tbody id="import-staging-tbody"></tbody>
+                    </table>
+                </div>
+
+                <div class="statement-summary-bar">
+                    <div>
+                        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Consumos Seleccionados</div>
+                        <div style="font-weight: 700; font-size: 14.5px; font-family: 'Urbanist'; color: #fff;" id="import-totals-label">0 registros | $0 ARS | u$d 0 USD</div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-sm" id="btn-import-reset" style="background: var(--bg-input); color: var(--text-muted);">
+                            Cambiar Archivo
+                        </button>
+                        <button type="button" class="btn btn-sm" id="btn-confirm-import" style="background: var(--primary); font-weight: 700; padding: 10px 18px;">
+                            <i class="fa-solid fa-check-double"></i> Inyectar al Historial
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- MODAL: EDITAR PRESUPUESTO RAG -->
