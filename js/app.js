@@ -25,7 +25,9 @@ import {
     renderSavingsPatrimonialTab, 
     toggleInteractiveScale, 
     resetInteractiveZoom, 
-    resetInteractiveHistoryZoom 
+    resetInteractiveHistoryZoom,
+    zoomPerformanceChart,
+    zoomHistoryChart
 } from './charts.js';
 import { exportAuditPDF } from './pdfReport.js';
 
@@ -86,7 +88,6 @@ window.UI = {
         if (m) m.classList.add('is-open');
     },
 
-    // Selección táctil directa de los 4 botones de carga rápida
     selectActionType(type, buttonEl) {
         const pills = document.querySelectorAll('#action-type-selector-group .btn-type-pill');
         pills.forEach(b => b.classList.remove('active'));
@@ -617,9 +618,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('subtab-btn-historial')?.addEventListener('click', () => switchSubTab('subview-historial', 'subtab-btn-historial'));
     document.getElementById('subtab-btn-graficos')?.addEventListener('click', () => switchSubTab('subview-graficos', 'subtab-btn-graficos'));
 
+    // Escala y Resets de Gráficos
     document.getElementById('btn-chart-scale-toggle')?.addEventListener('click', toggleInteractiveScale);
     document.getElementById('btn-chart-zoom-reset')?.addEventListener('click', resetInteractiveZoom);
     document.getElementById('btn-history-zoom-reset')?.addEventListener('click', resetInteractiveHistoryZoom);
+
+    // Controles táctiles discretos para móviles (Zoom X / Y)
+    document.getElementById('btn-chart-zoom-in-x')?.addEventListener('click', () => zoomPerformanceChart('x', 0.8));
+    document.getElementById('btn-chart-zoom-out-x')?.addEventListener('click', () => zoomPerformanceChart('x', 1.25));
+    document.getElementById('btn-chart-zoom-in-y')?.addEventListener('click', () => zoomPerformanceChart('y', 0.8));
+    document.getElementById('btn-chart-zoom-out-y')?.addEventListener('click', () => zoomPerformanceChart('y', 1.25));
+
+    document.getElementById('btn-history-zoom-in')?.addEventListener('click', () => zoomHistoryChart(0.8));
+    document.getElementById('btn-history-zoom-out')?.addEventListener('click', () => zoomHistoryChart(1.25));
 
     // Auditoría Pre-Flight antes de emitir PDF
     document.getElementById('btn-trigger-report')?.addEventListener('click', () => {
@@ -708,7 +719,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('uni-monto').value = "";
             document.getElementById('uni-concepto').value = "";
             
-            // Restablecer botón activo a GASTO
             window.UI.selectActionType('GASTO');
 
             loadUserDataFromDatabase();
