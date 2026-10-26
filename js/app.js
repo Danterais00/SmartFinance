@@ -706,17 +706,19 @@ function renderStagingTable() {
         ).join('');
 
         tr.innerHTML = `
-            <td style="text-align: center;">
-                <input type="checkbox" class="staging-item-checkbox" data-index="${index}" ${item.selected ? 'checked' : ''} style="width: 17px; height: 17px; cursor: pointer;">
+            <td style="text-align: center; vertical-align: middle;">
+                <input type="checkbox" class="staging-item-checkbox" data-index="${index}" ${item.selected ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);">
             </td>
-            <td>${item.fecha}</td>
-            <td style="font-weight: 700; color: #fff;">${formattedMonto}</td>
-            <td><div style="font-weight: 500;">${item.descripcion} ${tags}</div></td>
-            <td>
+            <td style="white-space: nowrap; font-size: 12px; vertical-align: middle;">${item.fecha}</td>
+            <td style="white-space: nowrap; font-weight: 700; color: ${item.moneda === 'USD' ? 'var(--primary)' : '#fff'}; font-size: 13px; vertical-align: middle;">${formattedMonto}</td>
+            <td style="vertical-align: middle;"><div style="font-weight: 500; font-size: 12.5px;">${item.descripcion} ${tags}</div></td>
+            <td style="vertical-align: middle;">
                 <select class="staging-category-select" data-index="${index}">${catOptions}</select>
             </td>
-            <td style="text-align: center;">
-                <button type="button" class="btn-delete-row" data-index="${index}" title="Quitar consumo"><i class="fa-solid fa-xmark"></i></button>
+            <td style="text-align: center; vertical-align: middle;">
+                <button type="button" class="btn-staging-remove" data-index="${index}" title="Quitar consumo de la lista">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </td>
         `;
 
@@ -732,7 +734,7 @@ function renderStagingTable() {
         });
     });
 
-    // Asignación de categoría editada por el usuario en la ventana emergente
+    // Asignación de categoría modificada por el usuario en el modal
     tbody.querySelectorAll('.staging-category-select').forEach(sel => {
         sel.addEventListener('change', (e) => {
             const idx = parseInt(e.target.getAttribute('data-index'), 10);
@@ -740,10 +742,10 @@ function renderStagingTable() {
         });
     });
 
-    // Botón X: Quita inmediatamente la fila de la lista
-    tbody.querySelectorAll('.btn-delete-row').forEach(btn => {
+    // Botón X: Elimina inmediatamente la fila de la lista
+    tbody.querySelectorAll('.btn-staging-remove').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const targetBtn = e.target.closest('.btn-delete-row');
+            const targetBtn = e.target.closest('.btn-staging-remove');
             const idx = parseInt(targetBtn.getAttribute('data-index'), 10);
             parsedStatementItems.splice(idx, 1);
             renderStagingTable();
@@ -764,7 +766,8 @@ function processStatementFile(file) {
     reader.onload = async (e) => {
         try {
             const buffer = e.target.result;
-            parsedStatementItems = await parseVisaStatement(buffer, targetCard);
+            // Pasamos las categorías unificadas reales para que coincida de forma óptima
+            parsedStatementItems = await parseVisaStatement(buffer, targetCard, state.misCategoriasUnificadas);
 
             document.getElementById('import-step-upload').style.display = 'none';
             document.getElementById('import-step-review').style.display = 'flex';
@@ -779,8 +782,9 @@ function processStatementFile(file) {
 
 document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').then(() => {
-            console.log("Service Worker PWA registrado con éxito.");
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+            reg.update();
+            console.log("Service Worker PWA registrado y actualizado.");
         }).catch(err => {
             console.warn("Fallo al registrar Service Worker:", err);
         });
@@ -1194,7 +1198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         parsedStatementItems = [];
     });
 
-    // Inyección de consumos seleccionados hacia Supabase
+    // Inyección a Supabase
     document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
         const targetCard = document.getElementById('import-target-card').value;
         const seleccionados = parsedStatementItems.filter(item => item.selected);
