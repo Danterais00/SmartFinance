@@ -1,7 +1,7 @@
 // =========================================================================
 // PEGA AQUÍ TUS DOS LÍNEAS REALES RECUPERADAS DEL HISTORIAL DE GITHUB:
-export const SUPABASE_URL = "https://TU_PROYECTO_REAL.supabase.co";
-export const SUPABASE_ANON_KEY = "TU_CLAVE_ANON_REAL_EYJHBGC...";
+export const SUPABASE_URL = "https://uszneehbjssjractaleh.supabase.co";
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzem5lZWhianNzanJhY3RhbGVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NjE3NzMsImV4cCI6MjA5ODMzNzc3M30.DGRmWfXWcqgfA7FrFuCrBBs9hSLwSqSYyDej4_vaxi4";
 // =========================================================================
 
 export const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
