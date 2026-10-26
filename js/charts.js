@@ -40,6 +40,55 @@ export function resetInteractiveHistoryZoom() {
     }
 }
 
+// Control discreto de Zoom para Pantallas Táctiles Móviles
+export function zoomPerformanceChart(axis, factor) {
+    if (!interactiveChartInstance) return;
+    const chart = interactiveChartInstance;
+
+    if (axis === 'y') {
+        const isLog = (interactiveScaleMode === 'logarithmic');
+        const pMin = isLog ? 500 : 0;
+        let curMax = chart.options.scales.y.max ?? chart.scales.y.max;
+        let newMax = curMax * factor;
+        if (newMax <= pMin + 200) newMax = pMin + 200;
+
+        chart.options.scales.y.min = pMin;
+        chart.options.scales.y.max = newMax;
+        chart.update('none');
+    } else if (axis === 'x') {
+        let xScale = chart.scales.x;
+        let min = chart.options.scales.x.min ?? xScale.min;
+        let max = chart.options.scales.x.max ?? xScale.max;
+        let span = max - min;
+        let change = Math.round(span * (1 - factor) / 2);
+        if (change === 0) change = (factor < 1 ? 1 : -1);
+
+        let newMin = min + change;
+        let newMax = max - change;
+        const maxLimit = chart.data.labels.length - 1;
+
+        if (newMin < 0) newMin = 0;
+        if (newMax > maxLimit) newMax = maxLimit;
+        if (newMax <= newMin) newMax = newMin + 1;
+
+        chart.options.scales.x.min = newMin;
+        chart.options.scales.x.max = newMax;
+        chart.update('none');
+    }
+}
+
+export function zoomHistoryChart(factor) {
+    if (!interactiveHistoryChartInstance) return;
+    const chart = interactiveHistoryChartInstance;
+    let curMax = chart.options.scales.y.max ?? chart.scales.y.max;
+    let newMax = curMax * factor;
+    if (newMax <= 500) newMax = 500;
+
+    chart.options.scales.y.min = 0;
+    chart.options.scales.y.max = newMax;
+    chart.update('none');
+}
+
 function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
     const canvas = document.getElementById(canvasId);
     if (!canvas || canvas.dataset.zoomBound === 'true') return;
@@ -276,7 +325,7 @@ export function renderInteractiveChart(categoriesMes) {
                 },
                 zoom: {
                     pan: { enabled: true, mode: 'x', threshold: 5 },
-                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: false }, mode: 'x' },
                     limits: { y: { min: isLog ? 500 : 0 } }
                 }
             }
@@ -387,7 +436,7 @@ export function renderInteractiveHistoryChart(historicalList) {
                 },
                 zoom: {
                     pan: { enabled: true, mode: 'x', threshold: 5 },
-                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: false }, mode: 'x' },
                     limits: { y: { min: 0 } }
                 }
             }
