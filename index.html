@@ -32,10 +32,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=4.0">
+    <link rel="stylesheet" href="css/styles.css?v=4.2">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=4.0"></script>
+    <script type="module" src="js/app.js?v=4.2"></script>
 </head>
 <body>
 
@@ -46,7 +46,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V4.0</span>
+            <span class="app-ver-tag">PWA CONSOLE V4.2</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -95,10 +95,16 @@
         <!-- VISTA 1: INICIO (DASHBOARD) -->
         <main class="view-container active" id="view-inicio">
             
-            <div style="margin-bottom: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Variables Macroeconómicas</span>
-                    <span id="market-status-tag" style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border-color);">Sincronizando...</span>
+            <!-- Barra Restaurada: Mercado Macro & Divisas en Vivo -->
+            <div class="macro-section-container">
+                <div class="macro-header-row">
+                    <div class="macro-header-title">
+                        <span class="macro-indicator-bar"></span>
+                        <h2>MERCADO MACRO & DIVISAS EN VIVO</h2>
+                    </div>
+                    <span id="market-status-tag" class="macro-status-badge">
+                        <span class="status-pulse-dot"></span> EN VIVO
+                    </span>
                 </div>
                 <div class="market-bar-grid" id="market-bar-container"></div>
             </div>
@@ -421,7 +427,6 @@
                 </form>
             </div>
 
-            <!-- CORRECCIÓN DE DISEÑO: Formulario con grilla responsiva -->
             <div class="section-box" style="margin-top: 20px;">
                 <h3>Crear Nueva Categoría Maestra</h3>
                 <form id="form-new-category" class="new-category-form-grid">
