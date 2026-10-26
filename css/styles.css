@@ -482,3 +482,17 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
 .staging-category-select:focus {
     border-color: var(--blue) !important;
 }
+
+.btn-delete-row {
+    color: var(--danger);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: 0.2s;
+}
+.btn-delete-row:hover {
+    background: rgba(239, 68, 68, 0.15);
+}
