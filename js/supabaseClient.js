@@ -1,9 +1,12 @@
-export const SUPABASE_URL = "https://kvyhbbgxdmrlfdrqrmao.supabase.co";
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2eWhiYmd4ZG1ybGZkcnFybWFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4NTk1MDAsImV4cCI6MjA2NTQzNTUwMH0.8TfJ4b5j3xUv9C4hRz5tq1z9d6l8w7n3y0o1p2q3r4";
+// =========================================================================
+// PEGA AQUÍ TUS DOS LÍNEAS REALES RECUPERADAS DEL HISTORIAL DE GITHUB:
+export const SUPABASE_URL = "https://TU_PROYECTO_REAL.supabase.co";
+export const SUPABASE_ANON_KEY = "TU_CLAVE_ANON_REAL_EYJHBGC...";
+// =========================================================================
 
 export const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// FALLA 9: Tipo de cambio exportado con live-binding dinámico
+// Tipo de cambio dinámico exportado con live-binding
 export let TIPO_CAMBIO_PRESUPUESTO = 1200;
 
 export function setTipoCambioPresupuesto(nuevoValor) {
@@ -62,7 +65,6 @@ export async function fetchMarketData() {
             statusTag.style.color = "var(--primary)";
         }
 
-        // Disparar evento para que el dashboard recalcule si hubo un cambio de cotización
         window.dispatchEvent(new CustomEvent('market-fx-updated'));
 
     } catch (err) {
