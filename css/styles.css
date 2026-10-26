@@ -83,21 +83,102 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .legend-flat-item .label-bank { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .legend-flat-item .value-bank { font-size: 16px; font-weight: 700; color: #fff; font-family: 'Urbanist'; white-space: nowrap; }
 
-.market-bar-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; width: 100%; }
-.market-pill { background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; transition: border-color 0.2s ease; }
-.market-pill:hover { border-color: var(--blue); }
-.market-pill .title { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
-.market-pill .val-group { display: flex; flex-direction: column; gap: 4px; margin: 2px 0; }
-.market-pill .val-row { display: flex; justify-content: space-between; align-items: center; }
-.market-pill .val-row .lbl { color: var(--text-muted); font-size: 10px; font-weight: 600; }
-.market-pill .val-row .num-box { display: flex; align-items: center; gap: 6px; }
-.market-pill .val-row .num { font-size: 13.5px; font-weight: 700; font-family: 'Urbanist'; color: #ffffff !important; }
-.market-pill .sub { font-size: 10px; color: var(--text-muted); opacity: 0.7; }
-
-@media (max-width: 400px) {
-    .market-bar-grid { grid-template-columns: repeat(2, 1fr); }
-    .market-pill.full-mobile { grid-column: span 2; }
+/* SECCIÓN MACROECONÓMICA RESTAURADA */
+.macro-section-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
 }
+.macro-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.macro-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.macro-indicator-bar {
+    width: 3.5px;
+    height: 15px;
+    background: var(--blue);
+    border-radius: 2px;
+    display: inline-block;
+}
+.macro-header-title h2 {
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+.macro-status-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    background: rgba(16, 185, 129, 0.1);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    letter-spacing: 0.5px;
+}
+.status-pulse-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--primary);
+}
+
+.market-bar-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    width: 100%;
+}
+@media (min-width: 600px) {
+    .market-bar-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+@media (min-width: 1024px) {
+    .market-bar-grid {
+        grid-template-columns: repeat(5, 1fr) !important;
+    }
+}
+
+.market-pill {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    transition: border-color 0.2s ease;
+    min-height: 100px;
+}
+.market-pill:hover { border-color: var(--blue); }
+.market-pill .title { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+.market-pill .val-group { display: flex; flex-direction: column; gap: 4px; }
+.market-pill .val-row { display: flex; justify-content: space-between; align-items: center; }
+.market-pill .val-row .lbl { color: var(--text-muted); font-size: 11px; font-weight: 500; }
+.market-pill .val-row .num-box { display: flex; align-items: center; gap: 6px; }
+.market-pill .val-row .num { font-size: 14px; font-weight: 700; font-family: 'Urbanist'; color: #ffffff !important; }
+.market-pill .sub { font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 500; }
+
+.var-badge { font-size: 9.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; padding: 2px 5px; border-radius: 4px; }
+.var-badge.up { color: var(--primary); background: rgba(16, 185, 129, 0.12); }
+.var-badge.down { color: var(--danger); background: rgba(239, 68, 68, 0.12); }
+.var-badge.neutral { color: var(--text-muted); opacity: 0.65; }
 
 .mobile-tab-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 68px; background-color: rgba(20, 20, 31, 0.88); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-top: 1px solid var(--border-color); display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; z-index: 9999; padding-bottom: env(safe-area-inset-bottom); }
 .tab-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); font-size: 9.5px; font-weight: 600; cursor: pointer; transition: 0.2s; height: 100%; }
@@ -247,7 +328,7 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
     background-color: var(--blue);
 }
 
-/* CORRECCIÓN DISEÑO: Grilla de nueva categoría maestra */
+/* GRILLA RESPONSIVA NUEVA CATEGORÍA */
 .new-category-form-grid {
     display: flex;
     gap: 12px;
