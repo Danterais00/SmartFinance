@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smartfinance-cache-v4.2';
+const CACHE_NAME = 'smartfinance-cache-v4.3';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -35,7 +35,6 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
     const url = new URL(e.request.url);
 
-    // Las consultas a Supabase y APIs externas no se cachean
     if (url.origin !== location.origin || url.pathname.includes('/rest/v1/') || url.pathname.includes('/auth/v1/')) {
         return;
     }
