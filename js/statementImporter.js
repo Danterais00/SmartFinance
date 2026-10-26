@@ -1,40 +1,58 @@
 import { state, getLocalDateString } from './state.js';
 
-// Diccionario predictivo de autocompletado de categorías
-const PREDICTIVE_CATEGORIES = [
-    { pattern: /telepeaje|corresur|autopista|ausol|aubasa|camino.*pque|peaje/i, cat: 'Transporte / Peajes' },
-    { pattern: /movistar|claro|personal|telecentro|fibertel/i, cat: 'Comunicaciones / Telefonía' },
-    { pattern: /caja.*seguro|sancor|mercantil|seguro/i, cat: 'Seguros' },
-    { pattern: /mcdonald|burger|mostaza|starbucks|cafe|parrill|restaurante|heladeria|rappi|pedidosya/i, cat: 'Salidas / Gastronomía' },
-    { pattern: /apple|google|netflix|spotify|prime.*video|disney|max|youtube/i, cat: 'Suscripciones / Streaming' },
-    { pattern: /farmacity|farmacia|osde|swiss.*medical/i, cat: 'Salud y Cuidado Personal' },
-    { pattern: /coto|carrefour|jumbo|disco|vea|dia%/i, cat: 'Supermercado' },
-    { pattern: /ypf|shell|axion|puma/i, cat: 'Nafta / Combustible' },
-    { pattern: /dash.*deportes|sport|nike|adidas|indumentaria|ropa|zapat/i, cat: 'Indumentaria' },
-    { pattern: /pbkids|brinquedos|juguete|jugueteria/i, cat: 'Juguetería / Niños' },
-    { pattern: /beleza|perfum|cosmet/i, cat: 'Cuidado Personal y Belleza' },
-    { pattern: /prosegur|alarma/i, cat: 'Seguridad y Hogar' },
-    { pattern: /merpago|mercado.*pago/i, cat: 'Mercado Pago (Revisar)' }
-];
-
-export function predictCategory(desc) {
-    if (!desc) return 'Otros Gastos (Sin Categorizar)';
-    for (let rule of PREDICTIVE_CATEGORIES) {
-        if (rule.pattern.test(desc)) return rule.cat;
+// Mapeo inteligente contra las categorías reales del usuario
+export function matchUserCategory(desc, userCategories) {
+    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Varios';
+    
+    const d = desc.toLowerCase();
+    
+    // 1. Coincidencia directa con nombres de tus categorías
+    for (let cat of userCategories) {
+        if (cat.length >= 3 && d.includes(cat.toLowerCase())) {
+            return cat;
+        }
     }
-    return 'Otros Gastos (Sin Categorizar)';
+    
+    // 2. Diccionario de conceptos a categorías maestras comunes
+    const rules = [
+        { keywords: ['telepeaje', 'corresur', 'autopista', 'ausol', 'aubasa', 'camino', 'peaje'], targets: ['peaje', 'transporte', 'auto', 'vehiculo'] },
+        { keywords: ['movistar', 'claro', 'personal', 'telecentro', 'fibertel', 'internet'], targets: ['telefono', 'telefonia', 'comunicacion', 'servicios', 'internet'] },
+        { keywords: ['caja.*seguro', 'lacaja', 'seguro', 'sancor', 'mercantil'], targets: ['seguro', 'auto'] },
+        { keywords: ['mcdonald', 'burger', 'mostaza', 'starbucks', 'cafe', 'parrill', 'restaurante', 'heladeria', 'homeroparrill'], targets: ['salidas', 'gastronomia', 'comida', 'restaurante'] },
+        { keywords: ['apple', 'google', 'netflix', 'spotify', 'prime', 'disney', 'max', 'youtube'], targets: ['apple', 'suscripcion', 'streaming', 'servicios'] },
+        { keywords: ['farmacity', 'farmacia', 'osde', 'swiss'], targets: ['salud', 'farmacia', 'medicina'] },
+        { keywords: ['coto', 'carrefour', 'jumbo', 'disco', 'vea', 'dia%'], targets: ['supermercado', 'super', 'alimentos'] },
+        { keywords: ['ypf', 'shell', 'axion', 'puma', 'combustible'], targets: ['nafta', 'combustible', 'auto'] },
+        { keywords: ['dash', 'sport', 'nike', 'adidas', 'indumentaria', 'ropa', 'zapat'], targets: ['indumentaria', 'ropa', 'deporte'] },
+        { keywords: ['pbkids', 'brinquedos', 'juguete'], targets: ['juguete', 'niño', 'hijos'] },
+        { keywords: ['beleza', 'perfum', 'cosmet'], targets: ['cuidado', 'belleza', 'farmacia'] },
+        { keywords: ['prosegur', 'alarma'], targets: ['seguridad', 'hogar', 'servicios'] },
+        { keywords: ['merpago', 'mercado.*pago'], targets: ['mercado pago', 'varios', 'gastos varios'] }
+    ];
+    
+    for (let r of rules) {
+        if (r.keywords.some(k => new RegExp(k, 'i').test(d))) {
+            for (let t of r.targets) {
+                const found = userCategories.find(c => c.toLowerCase().includes(t));
+                if (found) return found;
+            }
+        }
+    }
+    
+    // 3. Fallback: categoría genérica o la primera disponible
+    const generic = userCategories.find(c => /varios|otros|general/i.test(c));
+    return generic || userCategories[0];
 }
 
 function parseMonto(val) {
     if (!val || val === '') return 0;
-    // Remueve 'U$S' antes que '$' para proteger el parseo de montos en dólares
     let s = String(val).replace(/U\$S/gi, '').replace(/\$/g, '').replace(/\s+/g, '').replace(/\xa0/g, '');
     s = s.replace(/\./g, '').replace(',', '.');
     const num = parseFloat(s);
     return isNaN(num) ? 0 : num;
 }
 
-export function parseVisaStatement(excelFileBuffer, selectedAccount) {
+export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategories = []) {
     return new Promise((resolve, reject) => {
         try {
             if (!window.XLSX) {
@@ -49,55 +67,49 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount) {
             
             let consumos = [];
             let lastValidDate = getLocalDateString();
-            let inConsumosTable = false;
-            let inPagosSection = false;
+            let foundTitularSection = false;
+            let tableStarted = false;
 
             for (let i = 0; i < rawData.length; i++) {
+                // REGLA ESTRICTA: Las filas 1 a 19 (índices 0 a 18) quedan 100% excluidas
+                if (i < 19) {
+                    continue;
+                }
+
                 const row = rawData[i];
                 if (!row || row.length < 5) continue;
 
                 const col0 = String(row[0] || '').trim();
                 const col1 = String(row[1] || '').trim();
 
-                // 1. Excluir el bloque completo de "Pago de tarjeta y devoluciones"
-                if (col0.toLowerCase().includes('pago de tarjeta y devoluciones')) {
-                    inPagosSection = true;
-                    inConsumosTable = false;
-                    continue;
-                }
-
-                // 2. Identificar el inicio de los consumos del titular
+                // Identificar el bloque de consumos del titular (Fila 20 en adelante)
                 if (col0.toLowerCase().includes('tarjeta de') && col0.toLowerCase().includes('terminada en')) {
-                    inPagosSection = false;
+                    foundTitularSection = true;
                     continue;
                 }
 
-                // 3. Saltear al llegar a los subtotales finales
-                if (col0.toLowerCase().startsWith('subtotal')) {
-                    inConsumosTable = false;
-                    continue;
-                }
+                if (!foundTitularSection) continue;
 
-                // 4. Detectar la fila de cabecera "Fecha", "Descripción"...
+                // Detectar cabecera real de los consumos del titular
                 if (col0.toLowerCase() === 'fecha' && col1.toLowerCase().includes('descrip')) {
-                    if (inPagosSection) {
-                        inConsumosTable = false; // Ignorar tabla de pagos y devoluciones
-                    } else {
-                        inConsumosTable = true;  // Tabla real de consumos
-                    }
+                    tableStarted = true;
                     continue;
                 }
 
-                if (!inConsumosTable) continue;
-                if (col0 === '' && col1 === '') continue;
+                if (!tableStarted) continue;
+
+                // Frenar al llegar al subtotal de la tarjeta
+                if (col0.toLowerCase().startsWith('subtotal') || (col0 === '' && col1 === '')) {
+                    break;
+                }
 
                 const descripcion = col1;
-                // Exclusión de seguridad si aparece un pago o crédito de percepción
+                // Exclusión de seguridad por si apareciera un pago o crédito
                 if (/su pago en|pago por|cr\.rg 5617/i.test(descripcion)) {
                     continue;
                 }
 
-                // Forward-fill: hereda la fecha de la fila anterior cuando hay consumos en el mismo día
+                // Forward-fill: Asignar fecha previa cuando el banco agrupa compras del mismo día
                 let currentDate = col0;
                 if (currentDate === "") {
                     currentDate = lastValidDate;
@@ -121,7 +133,7 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount) {
                 const moneda = isPesos ? 'ARS' : 'USD';
                 const esPendiente = descripcion.toLowerCase().includes('pendiente');
 
-                // Detección automática de duplicados ya cargados en la base de datos
+                // Detección de consumos duplicados en el historial
                 const isDuplicate = state.globalTransData.some(t => {
                     return t.fecha === currentDate && 
                            t.cuenta === selectedAccount && 
@@ -138,7 +150,7 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount) {
                     monto: montoAbsoluto,
                     moneda: moneda,
                     descripcion: memoFinal,
-                    categoria: predictCategory(descripcion),
+                    categoria: matchUserCategory(descripcion, userCategories),
                     esPendiente: esPendiente,
                     isDuplicate: isDuplicate,
                     selected: !isDuplicate
