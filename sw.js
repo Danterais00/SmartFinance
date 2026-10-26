@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smartfinance-cache-v4.3';
+const CACHE_NAME = 'smartfinance-cache-v4.4';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -9,7 +9,8 @@ const ASSETS_TO_CACHE = [
     './js/supabaseClient.js',
     './js/financeEngine.js',
     './js/charts.js',
-    './js/pdfReport.js'
+    './js/pdfReport.js',
+    './js/statementImporter.js'
 ];
 
 self.addEventListener('install', (e) => {
