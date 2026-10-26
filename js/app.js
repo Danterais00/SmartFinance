@@ -30,6 +30,10 @@ import {
     zoomHistoryChart
 } from './charts.js';
 import { exportAuditPDF } from './pdfReport.js';
+import { parseVisaStatement } from './statementImporter.js';
+
+// ESTADO TEMPORAL DEL IMPORTADOR DE EXTRACTOS
+let parsedStatementItems = [];
 
 // EXPOSICIÓN GLOBAL DE UTILIDADES DE INTERFAZ (UI)
 window.UI = {
@@ -119,7 +123,6 @@ window.UI = {
         window.UI.openModal('modal-edit-budget');
     },
 
-    // ERROR 1 RESUELTO: Eliminación directa de meta presupuestaria
     deleteBudgetDirect(catName) {
         const selector = document.getElementById('global-month-selector');
         const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
@@ -188,16 +191,15 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
     }
 }
 
-// ERROR 2 RESUELTO: Proyección de 12 meses futuros en el selector global
+// INICIALIZACIÓN DE SELECTORES
 function initMonthSelector() {
     const selector = document.getElementById('global-month-selector');
     if (!selector) return;
     const prevVal = selector.value;
     selector.innerHTML = "";
 
-    const fechaBase = new Date(2026, 6, 1); // Julio 2026
+    const fechaBase = new Date(2026, 6, 1);
     const fechaActual = new Date();
-    // Proyectar 12 meses hacia el futuro desde la fecha actual para permitir planificar presupuestos
     const fechaLimiteFutura = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 12, 1);
 
     let currentIter = new Date(fechaBase);
@@ -250,6 +252,7 @@ function populateSelectOptions() {
     fillSelect('edit-form-metodo', CUENTAS_SISTEMA_TOTAL);
     fillSelect('edit-form-categoria', state.misCategoriasUnificadas);
     fillSelect('close-card-select', CUENTAS_TARJETAS);
+    fillSelect('import-target-card', CUENTAS_TARJETAS);
 
     fillSelect('filter-cuenta', CUENTAS_SISTEMA_TOTAL, true);
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
@@ -407,7 +410,6 @@ function recalculateFinancialMetrics() {
     checkRemindersAndAlerts();
 }
 
-// ERROR 1 RESUELTO: Botón editar y botón eliminar en la tabla RAG
 function renderAccuracyTable(categoriesMes) {
     const tbody = document.getElementById('accuracy-body-real');
     if (!tbody) return;
@@ -461,7 +463,6 @@ function buildHistoricalChartData() {
     renderInteractiveHistoryChart(historicalList);
 }
 
-// ERROR 3 RESUELTO: Renderizado y filtrado estrictamente mes a mes
 function renderTransactionHistoryTable(dataset) {
     const tbody = document.getElementById('table-body-real-movs');
     if (!tbody) return;
@@ -655,6 +656,112 @@ window.UI.openEditTransactionModal = (id) => {
 
     window.UI.openModal('edit-transaction-modal');
 };
+
+// =========================================================================
+// GESTIÓN DEL IMPORTADOR INTELIGENTE DE EXTRACTOS
+// =========================================================================
+function updateStagingTotals() {
+    let count = 0;
+    let totalARS = 0;
+    let totalUSD = 0;
+
+    parsedStatementItems.forEach(item => {
+        if (item.selected) {
+            count++;
+            if (item.moneda === 'USD') totalUSD += item.monto;
+            else totalARS += item.monto;
+        }
+    });
+
+    const lbl = document.getElementById('import-totals-label');
+    if (lbl) {
+        lbl.innerText = `${count} consumos | $${Math.round(totalARS).toLocaleString('es-AR')} ARS | u$d ${totalUSD.toFixed(2)} USD`;
+    }
+}
+
+function renderStagingTable() {
+    const tbody = document.getElementById('import-staging-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (parsedStatementItems.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">No se detectaron consumos en el archivo cargado.</td></tr>`;
+        return;
+    }
+
+    parsedStatementItems.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        tr.className = `staging-row ${item.isDuplicate ? 'is-duplicate' : ''}`;
+        
+        const sym = item.moneda === 'USD' ? 'u$d' : '$';
+        const formattedMonto = `${sym} ${item.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+
+        let tags = '';
+        if (item.isDuplicate) tags += `<span style="font-size:9.5px; font-weight:700; color:var(--warning); margin-left:6px;"><i class="fa-solid fa-triangle-exclamation"></i> Ya Registrado</span>`;
+        if (item.esPago) tags += `<span style="font-size:9.5px; font-weight:700; color:var(--blue); margin-left:6px;">[Pago]</span>`;
+        if (item.esPendiente) tags += `<span style="font-size:9.5px; font-weight:700; color:var(--text-muted); margin-left:6px;">[Pendiente]</span>`;
+
+        let catOptions = state.misCategoriasUnificadas.map(c => 
+            `<option value="${c}" ${c === item.categoria ? 'selected' : ''}>${c}</option>`
+        ).join('');
+
+        tr.innerHTML = `
+            <td style="text-align: center;">
+                <input type="checkbox" class="staging-item-checkbox" data-index="${index}" ${item.selected ? 'checked' : ''} style="width: 17px; height: 17px; cursor: pointer;">
+            </td>
+            <td>${item.fecha}</td>
+            <td style="font-weight: 700; color: ${item.esPago ? 'var(--primary)' : '#fff'};">${formattedMonto}</td>
+            <td><div style="font-weight: 500;">${item.descripcion} ${tags}</div></td>
+            <td>
+                <select class="staging-category-select" data-index="${index}">${catOptions}</select>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+
+    // Escuchadores de eventos para checkboxes y selectores de categoría
+    tbody.querySelectorAll('.staging-item-checkbox').forEach(chk => {
+        chk.addEventListener('change', (e) => {
+            const idx = parseInt(e.target.getAttribute('data-index'), 10);
+            parsedStatementItems[idx].selected = e.target.checked;
+            updateStagingTotals();
+        });
+    });
+
+    tbody.querySelectorAll('.staging-category-select').forEach(sel => {
+        sel.addEventListener('change', (e) => {
+            const idx = parseInt(e.target.getAttribute('data-index'), 10);
+            parsedStatementItems[idx].categoria = e.target.value;
+        });
+    });
+
+    updateStagingTotals();
+}
+
+function processStatementFile(file) {
+    const targetCard = document.getElementById('import-target-card').value;
+    if (!targetCard) {
+        window.UI.showAppAlert("Atención", "Seleccioná primero la tarjeta de crédito a la que deseas imputar los consumos.");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const buffer = e.target.result;
+            parsedStatementItems = await parseVisaStatement(buffer, targetCard);
+
+            document.getElementById('import-step-upload').style.display = 'none';
+            document.getElementById('import-step-review').style.display = 'flex';
+            renderStagingTable();
+        } catch (err) {
+            console.error("Error parseando extracto bancario:", err);
+            window.UI.showAppAlert("Error de Lectura", "No se pudo interpretar el archivo bancario: " + err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) {
@@ -1037,6 +1144,77 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             window.UI.showToast(`Categoría "${catName}" añadida con éxito`);
             input.value = "";
+            loadUserDataFromDatabase();
+        }
+    });
+
+    // EVENTOS DEL IMPORTADOR DE EXTRACTOS BANCARIOS
+    document.getElementById('btn-open-statement-importer')?.addEventListener('click', () => {
+        document.getElementById('import-step-upload').style.display = 'block';
+        document.getElementById('import-step-review').style.display = 'none';
+        document.getElementById('import-file-input').value = "";
+        parsedStatementItems = [];
+        window.UI.openModal('modal-import-statement');
+    });
+
+    document.getElementById('import-dropzone')?.addEventListener('click', () => {
+        document.getElementById('import-file-input').click();
+    });
+
+    document.getElementById('import-file-input')?.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            processStatementFile(e.target.files[0]);
+        }
+    });
+
+    document.getElementById('import-check-all')?.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        parsedStatementItems.forEach(item => { item.selected = checked; });
+        renderStagingTable();
+    });
+
+    document.getElementById('btn-import-reset')?.addEventListener('click', () => {
+        document.getElementById('import-step-upload').style.display = 'block';
+        document.getElementById('import-step-review').style.display = 'none';
+        document.getElementById('import-file-input').value = "";
+        parsedStatementItems = [];
+    });
+
+    document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
+        const targetCard = document.getElementById('import-target-card').value;
+        const seleccionados = parsedStatementItems.filter(item => item.selected);
+
+        if (seleccionados.length === 0) {
+            window.UI.showAppAlert("Sin selección", "No has seleccionado ningún consumo para inyectar.");
+            return;
+        }
+
+        const btn = document.getElementById('btn-confirm-import');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Inyectando...`;
+
+        const batch = seleccionados.map(item => ({
+            user_id: state.currentUser.id,
+            fecha: item.fecha,
+            monto: item.monto,
+            descripcion: item.descripcion,
+            cuenta: targetCard,
+            categoria: item.categoria,
+            tipo: (item.esPago || item.esCredito) ? 'ingreso' : 'gasto',
+            presupuestado: item.esPago ? 'NO_COMPUTA' : 'SI',
+            moneda: item.moneda,
+            autor: state.currentUser.email
+        }));
+
+        const { error } = await _supabase.from('transacciones').insert(batch);
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-check-double"></i> Inyectar al Historial`;
+
+        if (error) {
+            window.UI.showAppAlert("Error", "Fallo al inyectar consumos: " + error.message);
+        } else {
+            window.UI.closeModal('modal-import-statement');
+            window.UI.showToast(`Se inyectaron ${batch.length} movimientos a ${targetCard}`);
             loadUserDataFromDatabase();
         }
     });
