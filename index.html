@@ -8,6 +8,9 @@
     <meta name="theme-color" content="#0a0a0f">
     <title>SmartFinanceAI</title>
 
+    <!-- PWA Web App Manifest -->
+    <link rel="manifest" href="manifest.json">
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,10 +32,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=3.8">
+    <link rel="stylesheet" href="css/styles.css?v=3.9">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=3.8"></script>
+    <script type="module" src="js/app.js?v=3.9"></script>
 </head>
 <body>
 
@@ -43,7 +46,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V3.8</span>
+            <span class="app-ver-tag">PWA CONSOLE V3.9</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -369,8 +372,6 @@
 
         <!-- VISTA 5: CONFIGURACIÓN Y AUDITORÍA -->
         <main class="view-container" id="view-config">
-            
-            <!-- PANEL: LIQUIDACIÓN DE CIERRE DE TARJETAS -->
             <div class="section-box">
                 <h3>Cierre y Liquidación de Resumen de Tarjetas</h3>
                 <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">Imputa en un solo paso los sellos, intereses y comisiones bancarias del resumen emitido antes de su pago.</p>
@@ -451,7 +452,7 @@
         </nav>
     </div>
 
-    <!-- MODAL: EDITAR PRESUPUESTO RAG (Reemplazo de window.prompt) -->
+    <!-- MODAL: EDITAR PRESUPUESTO RAG -->
     <div class="modal" id="modal-edit-budget">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
