@@ -119,6 +119,32 @@ window.UI = {
         window.UI.openModal('modal-edit-budget');
     },
 
+    // ERROR 1 RESUELTO: Eliminación directa de meta presupuestaria
+    deleteBudgetDirect(catName) {
+        const selector = document.getElementById('global-month-selector');
+        const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
+
+        window.UI.showAppConfirm(
+            "Eliminar Presupuesto",
+            `¿Deseas quitar la meta asignada a "${catName}" para el período ${periodo}?`,
+            async () => {
+                const { error } = await _supabase
+                    .from('categorias')
+                    .delete()
+                    .eq('user_id', state.currentUser.id)
+                    .eq('nombre', catName)
+                    .eq('periodo', periodo);
+
+                if (error) {
+                    window.UI.showAppAlert("Error", "No se pudo eliminar la meta: " + error.message);
+                } else {
+                    window.UI.showToast(`Presupuesto de "${catName}" eliminado`);
+                    loadUserDataFromDatabase();
+                }
+            }
+        );
+    },
+
     payPendingAlert(categoria, monto) {
         window.UI.closeModal('notifications-modal-center');
         switchView('view-rapido', 'btn-nav-rapido');
@@ -162,18 +188,22 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
     }
 }
 
-// INICIALIZACIÓN DE SELECTORES
+// ERROR 2 RESUELTO: Proyección de 12 meses futuros en el selector global
 function initMonthSelector() {
     const selector = document.getElementById('global-month-selector');
     if (!selector) return;
+    const prevVal = selector.value;
     selector.innerHTML = "";
 
-    const fechaBase = new Date(2026, 6, 1);
+    const fechaBase = new Date(2026, 6, 1); // Julio 2026
     const fechaActual = new Date();
-    let currentIter = new Date(fechaBase);
+    // Proyectar 12 meses hacia el futuro desde la fecha actual para permitir planificar presupuestos
+    const fechaLimiteFutura = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 12, 1);
 
+    let currentIter = new Date(fechaBase);
     let opciones = [];
-    while (currentIter <= fechaActual || (currentIter.getFullYear() === fechaActual.getFullYear() && currentIter.getMonth() <= fechaActual.getMonth() + 1)) {
+
+    while (currentIter <= fechaLimiteFutura) {
         const y = currentIter.getFullYear();
         const m = String(currentIter.getMonth() + 1).padStart(2, '0');
         const val = `${y}-${m}`;
@@ -190,7 +220,9 @@ function initMonthSelector() {
     });
 
     const mesActualStr = getLocalDateString().substring(0, 7);
-    if (Array.from(selector.options).some(o => o.value === mesActualStr)) {
+    if (prevVal && Array.from(selector.options).some(o => o.value === prevVal)) {
+        selector.value = prevVal;
+    } else if (Array.from(selector.options).some(o => o.value === mesActualStr)) {
         selector.value = mesActualStr;
     }
 }
@@ -375,6 +407,7 @@ function recalculateFinancialMetrics() {
     checkRemindersAndAlerts();
 }
 
+// ERROR 1 RESUELTO: Botón editar y botón eliminar en la tabla RAG
 function renderAccuracyTable(categoriesMes) {
     const tbody = document.getElementById('accuracy-body-real');
     if (!tbody) return;
@@ -393,8 +426,9 @@ function renderAccuracyTable(categoriesMes) {
                 <td style="text-align:right;">$${c.meta.toLocaleString('es-AR')}</td>
                 <td style="text-align:right; font-weight:700;">$${c.gasto.toLocaleString('es-AR')}</td>
                 <td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${c.estado}</span></td>
-                <td style="text-align:center;">
-                    <button class="btn-action" onclick="window.UI.editBudgetDirect('${c.nombre}', ${c.meta})"><i class="fa-solid fa-pen-to-square"></i></button>
+                <td style="text-align:center; white-space:nowrap;">
+                    <button class="btn-action" onclick="window.UI.editBudgetDirect('${c.nombre}', ${c.meta})" title="Modificar Presupuesto"><i class="fa-solid fa-pen-to-square"></i></button>
+                    <button class="btn-delete" onclick="window.UI.deleteBudgetDirect('${c.nombre}')" title="Eliminar Presupuesto"><i class="fa-solid fa-trash"></i></button>
                 </td>
             </tr>`;
     });
@@ -427,14 +461,15 @@ function buildHistoricalChartData() {
     renderInteractiveHistoryChart(historicalList);
 }
 
+// ERROR 3 RESUELTO: Renderizado y filtrado estrictamente mes a mes
 function renderTransactionHistoryTable(dataset) {
     const tbody = document.getElementById('table-body-real-movs');
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    const list = dataset || state.globalTransData;
+    const list = dataset || [];
     if (list.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">No se encontraron movimientos registrados con esos filtros.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">No se encontraron movimientos registrados para este mes.</td></tr>`;
         return;
     }
 
@@ -460,6 +495,33 @@ function renderTransactionHistoryTable(dataset) {
             </tr>`;
     });
 }
+
+const applyFilters = () => {
+    const selector = document.getElementById('global-month-selector');
+    const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
+    const badge = document.getElementById('historial-period-badge');
+    if (badge && selector && selector.selectedIndex >= 0) {
+        badge.innerText = `Período: ${selector.options[selector.selectedIndex].text}`;
+    }
+
+    const query = document.getElementById('filter-search')?.value.toLowerCase() || '';
+    const fTipo = document.getElementById('filter-tipo')?.value || 'TODOS';
+    const fCuenta = document.getElementById('filter-cuenta')?.value || 'TODOS';
+    const fCat = document.getElementById('filter-categoria')?.value || 'TODOS';
+    const fAutor = document.getElementById('filter-autor')?.value || 'TODOS';
+
+    const filtrados = state.globalTransData.filter(t => {
+        const matchMonth = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
+        const matchQuery = (t.descripcion || '').toLowerCase().includes(query) || (t.categoria || '').toLowerCase().includes(query) || String(t.monto).includes(query);
+        const matchTipo = (fTipo === 'TODOS') || (t.tipo === fTipo);
+        const matchCuenta = (fCuenta === 'TODOS') || (t.cuenta === fCuenta);
+        const matchCat = (fCat === 'TODOS') || (t.categoria === fCat);
+        const matchAutor = (fAutor === 'TODOS') || (fAutor === 'dante' && (t.autor || '').includes('dante')) || (fAutor === 'lore' && (t.autor || '').includes('lore'));
+        return matchMonth && matchQuery && matchTipo && matchCuenta && matchCat && matchAutor;
+    });
+
+    renderTransactionHistoryTable(filtrados);
+};
 
 function checkRemindersAndAlerts() {
     const today = getLocalDateString();
@@ -544,7 +606,7 @@ async function loadUserDataFromDatabase() {
         state.allBudgetDataHistorico = bHistRes.data || [];
 
         recalculateFinancialMetrics();
-        renderTransactionHistoryTable(state.globalTransData);
+        applyFilters();
     } catch (err) {
         console.error("Error cargando datos de Supabase:", err);
         window.UI.showToast("Error de conexión al cargar datos", true);
@@ -595,7 +657,6 @@ window.UI.openEditTransactionModal = (id) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // FALLA 7: Registro del Service Worker para funcionamiento PWA offline
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').then(() => {
             console.log("Service Worker PWA registrado con éxito.");
@@ -607,7 +668,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initMonthSelector();
     fetchMarketData();
 
-    // FALLA 9: Escuchar actualización del Dólar Dinámico para recalcular activos
     window.addEventListener('market-fx-updated', () => {
         if (state.currentUser) recalculateFinancialMetrics();
     });
@@ -980,25 +1040,6 @@ document.addEventListener('DOMContentLoaded', () => {
             loadUserDataFromDatabase();
         }
     });
-
-    const applyFilters = () => {
-        const query = document.getElementById('filter-search')?.value.toLowerCase() || '';
-        const fTipo = document.getElementById('filter-tipo')?.value || 'TODOS';
-        const fCuenta = document.getElementById('filter-cuenta')?.value || 'TODOS';
-        const fCat = document.getElementById('filter-categoria')?.value || 'TODOS';
-        const fAutor = document.getElementById('filter-autor')?.value || 'TODOS';
-
-        const filtrados = state.globalTransData.filter(t => {
-            const matchQuery = (t.descripcion || '').toLowerCase().includes(query) || (t.categoria || '').toLowerCase().includes(query) || String(t.monto).includes(query);
-            const matchTipo = (fTipo === 'TODOS') || (t.tipo === fTipo);
-            const matchCuenta = (fCuenta === 'TODOS') || (t.cuenta === fCuenta);
-            const matchCat = (fCat === 'TODOS') || (t.categoria === fCat);
-            const matchAutor = (fAutor === 'TODOS') || (fAutor === 'dante' && (t.autor || '').includes('dante')) || (fAutor === 'lore' && (t.autor || '').includes('lore'));
-            return matchQuery && matchTipo && matchCuenta && matchCat && matchAutor;
-        });
-
-        renderTransactionHistoryTable(filtrados);
-    };
 
     document.getElementById('filter-search')?.addEventListener('input', applyFilters);
     document.getElementById('filter-tipo')?.addEventListener('change', applyFilters);
