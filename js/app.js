@@ -658,7 +658,7 @@ window.UI.openEditTransactionModal = (id) => {
 };
 
 // =========================================================================
-// GESTIÓN DEL IMPORTADOR INTELIGENTE DE EXTRACTOS
+// GESTIÓN DEL IMPORTADOR DE EXTRACTOS CON EDICIÓN DE CATEGORÍA Y BOTÓN X
 // =========================================================================
 function updateStagingTotals() {
     let count = 0;
@@ -675,7 +675,7 @@ function updateStagingTotals() {
 
     const lbl = document.getElementById('import-totals-label');
     if (lbl) {
-        lbl.innerText = `${count} consumos | $${Math.round(totalARS).toLocaleString('es-AR')} ARS | u$d ${totalUSD.toFixed(2)} USD`;
+        lbl.innerText = `${count} seleccionados | $${Math.round(totalARS).toLocaleString('es-AR')} ARS | u$d ${totalUSD.toFixed(2)} USD`;
     }
 }
 
@@ -685,7 +685,8 @@ function renderStagingTable() {
     tbody.innerHTML = "";
 
     if (parsedStatementItems.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">No se detectaron consumos en el archivo cargado.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:25px; color:var(--text-muted);">No hay consumos en la lista.</td></tr>`;
+        updateStagingTotals();
         return;
     }
 
@@ -698,7 +699,6 @@ function renderStagingTable() {
 
         let tags = '';
         if (item.isDuplicate) tags += `<span style="font-size:9.5px; font-weight:700; color:var(--warning); margin-left:6px;"><i class="fa-solid fa-triangle-exclamation"></i> Ya Registrado</span>`;
-        if (item.esPago) tags += `<span style="font-size:9.5px; font-weight:700; color:var(--blue); margin-left:6px;">[Pago]</span>`;
         if (item.esPendiente) tags += `<span style="font-size:9.5px; font-weight:700; color:var(--text-muted); margin-left:6px;">[Pendiente]</span>`;
 
         let catOptions = state.misCategoriasUnificadas.map(c => 
@@ -710,17 +710,20 @@ function renderStagingTable() {
                 <input type="checkbox" class="staging-item-checkbox" data-index="${index}" ${item.selected ? 'checked' : ''} style="width: 17px; height: 17px; cursor: pointer;">
             </td>
             <td>${item.fecha}</td>
-            <td style="font-weight: 700; color: ${item.esPago ? 'var(--primary)' : '#fff'};">${formattedMonto}</td>
+            <td style="font-weight: 700; color: #fff;">${formattedMonto}</td>
             <td><div style="font-weight: 500;">${item.descripcion} ${tags}</div></td>
             <td>
                 <select class="staging-category-select" data-index="${index}">${catOptions}</select>
+            </td>
+            <td style="text-align: center;">
+                <button type="button" class="btn-delete-row" data-index="${index}" title="Quitar consumo"><i class="fa-solid fa-xmark"></i></button>
             </td>
         `;
 
         tbody.appendChild(tr);
     });
 
-    // Escuchadores de eventos para checkboxes y selectores de categoría
+    // Control de selección por checkbox
     tbody.querySelectorAll('.staging-item-checkbox').forEach(chk => {
         chk.addEventListener('change', (e) => {
             const idx = parseInt(e.target.getAttribute('data-index'), 10);
@@ -729,10 +732,21 @@ function renderStagingTable() {
         });
     });
 
+    // Asignación de categoría editada por el usuario en la ventana emergente
     tbody.querySelectorAll('.staging-category-select').forEach(sel => {
         sel.addEventListener('change', (e) => {
             const idx = parseInt(e.target.getAttribute('data-index'), 10);
             parsedStatementItems[idx].categoria = e.target.value;
+        });
+    });
+
+    // Botón X: Quita inmediatamente la fila de la lista
+    tbody.querySelectorAll('.btn-delete-row').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetBtn = e.target.closest('.btn-delete-row');
+            const idx = parseInt(targetBtn.getAttribute('data-index'), 10);
+            parsedStatementItems.splice(idx, 1);
+            renderStagingTable();
         });
     });
 
@@ -1148,7 +1162,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // EVENTOS DEL IMPORTADOR DE EXTRACTOS BANCARIOS
+    // EVENTOS DEL IMPORTADOR
     document.getElementById('btn-open-statement-importer')?.addEventListener('click', () => {
         document.getElementById('import-step-upload').style.display = 'block';
         document.getElementById('import-step-review').style.display = 'none';
@@ -1180,6 +1194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         parsedStatementItems = [];
     });
 
+    // Inyección de consumos seleccionados hacia Supabase
     document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
         const targetCard = document.getElementById('import-target-card').value;
         const seleccionados = parsedStatementItems.filter(item => item.selected);
@@ -1200,8 +1215,8 @@ document.addEventListener('DOMContentLoaded', () => {
             descripcion: item.descripcion,
             cuenta: targetCard,
             categoria: item.categoria,
-            tipo: (item.esPago || item.esCredito) ? 'ingreso' : 'gasto',
-            presupuestado: item.esPago ? 'NO_COMPUTA' : 'SI',
+            tipo: 'gasto',
+            presupuestado: 'SI',
             moneda: item.moneda,
             autor: state.currentUser.email
         }));
@@ -1214,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.UI.showAppAlert("Error", "Fallo al inyectar consumos: " + error.message);
         } else {
             window.UI.closeModal('modal-import-statement');
-            window.UI.showToast(`Se inyectaron ${batch.length} movimientos a ${targetCard}`);
+            window.UI.showToast(`Se inyectaron ${batch.length} consumos a ${targetCard}`);
             loadUserDataFromDatabase();
         }
     });
