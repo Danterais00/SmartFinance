@@ -17,7 +17,7 @@ const PREDICTIVE_CATEGORIES = [
     { pattern: /merpago|mercado.*pago/i, cat: 'Mercado Pago (Revisar)' }
 ];
 
-function predictCategory(desc) {
+export function predictCategory(desc) {
     if (!desc) return 'Otros Gastos (Sin Categorizar)';
     for (let rule of PREDICTIVE_CATEGORIES) {
         if (rule.pattern.test(desc)) return rule.cat;
@@ -27,7 +27,7 @@ function predictCategory(desc) {
 
 function parseMonto(val) {
     if (!val || val === '') return 0;
-    // IMPORTANTE: Primero se remueve 'U$S' y luego '$' para no romper importes en moneda extranjera
+    // Remueve 'U$S' antes que '$' para proteger el parseo de montos en dólares
     let s = String(val).replace(/U\$S/gi, '').replace(/\$/g, '').replace(/\s+/g, '').replace(/\xa0/g, '');
     s = s.replace(/\./g, '').replace(',', '.');
     const num = parseFloat(s);
@@ -45,12 +45,12 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount) {
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
-            // raw: false asegura que las celdas conserven el formato textual como DD/MM/YYYY y $X.XXX,XX
             const rawData = window.XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
             
             let consumos = [];
             let lastValidDate = getLocalDateString();
-            let foundHeader = false;
+            let inConsumosTable = false;
+            let inPagosSection = false;
 
             for (let i = 0; i < rawData.length; i++) {
                 const row = rawData[i];
@@ -58,25 +58,46 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount) {
 
                 const col0 = String(row[0] || '').trim();
                 const col1 = String(row[1] || '').trim();
-                
-                // Detectar fila de cabecera de tabla bancaria
+
+                // 1. Excluir el bloque completo de "Pago de tarjeta y devoluciones"
+                if (col0.toLowerCase().includes('pago de tarjeta y devoluciones')) {
+                    inPagosSection = true;
+                    inConsumosTable = false;
+                    continue;
+                }
+
+                // 2. Identificar el inicio de los consumos del titular
+                if (col0.toLowerCase().includes('tarjeta de') && col0.toLowerCase().includes('terminada en')) {
+                    inPagosSection = false;
+                    continue;
+                }
+
+                // 3. Saltear al llegar a los subtotales finales
+                if (col0.toLowerCase().startsWith('subtotal')) {
+                    inConsumosTable = false;
+                    continue;
+                }
+
+                // 4. Detectar la fila de cabecera "Fecha", "Descripción"...
                 if (col0.toLowerCase() === 'fecha' && col1.toLowerCase().includes('descrip')) {
-                    foundHeader = true;
+                    if (inPagosSection) {
+                        inConsumosTable = false; // Ignorar tabla de pagos y devoluciones
+                    } else {
+                        inConsumosTable = true;  // Tabla real de consumos
+                    }
                     continue;
                 }
 
-                // Saltear metadatos superiores o subtotales
-                if (!foundHeader || col0.toLowerCase().startsWith('subtotal') || (col0 === '' && col1 === '')) {
+                if (!inConsumosTable) continue;
+                if (col0 === '' && col1 === '') continue;
+
+                const descripcion = col1;
+                // Exclusión de seguridad si aparece un pago o crédito de percepción
+                if (/su pago en|pago por|cr\.rg 5617/i.test(descripcion)) {
                     continue;
                 }
 
-                // Si se encuentra una nueva sección de titular, se aguarda a la cabecera correspondiente
-                if (col0.toLowerCase().includes('terminada en') || col0.toLowerCase().includes('pago de tarjeta')) {
-                    foundHeader = false;
-                    continue;
-                }
-
-                // Forward-fill: Heredar fecha de la fila anterior cuando hay consumos agrupados en el mismo día
+                // Forward-fill: hereda la fecha de la fila anterior cuando hay consumos en el mismo día
                 let currentDate = col0;
                 if (currentDate === "") {
                     currentDate = lastValidDate;
@@ -90,7 +111,6 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount) {
                     lastValidDate = currentDate;
                 }
 
-                const descripcion = col1;
                 const cuotas = String(row[2] || '').trim();
                 const pesos = parseMonto(row[4]);
                 const dolares = parseMonto(row[5]);
@@ -99,12 +119,9 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount) {
                 const montoRaw = isPesos ? pesos : dolares;
                 const montoAbsoluto = Math.abs(montoRaw);
                 const moneda = isPesos ? 'ARS' : 'USD';
-                
-                const esPago = descripcion.toLowerCase().includes('su pago') || descripcion.toLowerCase().includes('pago por');
-                const esCreditoDevolucion = (montoRaw < 0 && !esPago);
                 const esPendiente = descripcion.toLowerCase().includes('pendiente');
 
-                // Detección automática de duplicados en la base de datos actual
+                // Detección automática de duplicados ya cargados en la base de datos
                 const isDuplicate = state.globalTransData.some(t => {
                     return t.fecha === currentDate && 
                            t.cuenta === selectedAccount && 
@@ -122,12 +139,9 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount) {
                     moneda: moneda,
                     descripcion: memoFinal,
                     categoria: predictCategory(descripcion),
-                    esPago: esPago,
-                    esCredito: esCreditoDevolucion,
                     esPendiente: esPendiente,
                     isDuplicate: isDuplicate,
-                    // Si ya está registrado o es un pago de resumen, entra desmarcado por defecto
-                    selected: (!isDuplicate && !esPago)
+                    selected: !isDuplicate
                 });
             }
 
