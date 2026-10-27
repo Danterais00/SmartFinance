@@ -35,10 +35,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=4.7">
+    <link rel="stylesheet" href="css/styles.css?v=4.8">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=4.7"></script>
+    <script type="module" src="js/app.js?v=4.8"></script>
 </head>
 <body>
 
@@ -49,7 +49,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V4.7</span>
+            <span class="app-ver-tag">PWA CONSOLE V4.8</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -85,7 +85,6 @@
                 <div class="input-wrapper" style="width: auto;">
                     <select id="global-month-selector" style="padding: 6px 30px 6px 12px; font-size: 12px; font-weight: 600; height: 36px; border-radius: 8px;"></select>
                 </div>
-                <!-- NUEVO BOTÓN: CHAT DE SOPORTE AI -->
                 <button class="btn-bell-global" onclick="window.UI.toggleChat()" title="Soporte AI">
                     <i class="fa-solid fa-message"></i>
                 </button>
@@ -163,7 +162,7 @@
             </div>
         </main>
 
-        <!-- VISTA 3: CENTRO RÁPIDO DE CARGA -->
+        <!-- VISTA 3: CENTRO RÁPIDO DE CARGA (FORMULARIO RESTABLECIDO) -->
         <main class="view-container" id="view-rapido">
             <div class="section-box" style="max-width: 650px; margin: 0 auto;">
                 <h3>Centro Único de Carga Financiera</h3>
@@ -208,9 +207,10 @@
                         <input type="text" id="uni-concepto" placeholder="Ej: Compra Coto, Nafta YPF, Pago resumen..." required>
                     </div>
 
-                    <div class="input-group" id="lbl-uni-origen">
-                        <label>Cuenta Débito / Origen</label>
-                        <select id="uni-origen"></select>
+                    <!-- CORRECCIÓN CLAVE: id="lbl-uni-origen" en el label, preservando el select -->
+                    <div class="input-group">
+                        <label id="lbl-uni-origen">Cuenta Débito / Origen</label>
+                        <select id="uni-origen" required></select>
                     </div>
 
                     <div class="input-group" id="box-uni-destino" style="display: none;">
@@ -237,7 +237,7 @@
                         <label for="uni-excluir" style="margin: 0; cursor: pointer; text-transform: none;">No computar dentro del presupuesto mensual</label>
                     </div>
 
-                    <button type="submit" class="btn" style="margin-top: 15px;">
+                    <button type="submit" class="btn" id="btn-unified-submit" style="margin-top: 15px;">
                         <i class="fa-solid fa-check"></i> Procesar Movimiento
                     </button>
                 </form>
@@ -509,7 +509,7 @@
         </div>
     </div>
 
-    <!-- RESTO DE LOS MODALES GLOBALES -->
+    <!-- MODAL DE IMPORTACIÓN CON REVISIÓN STAGING -->
     <div class="modal" id="modal-import-statement">
         <div class="modal-content" style="max-width: 880px; max-height: 90vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -577,7 +577,7 @@
         </div>
     </div>
 
-    <!-- DEMÁS MODALES EXISTENTES (Presupuesto, Liquidación, Notificaciones, etc.) -->
+    <!-- DEMÁS MODALES EXISTENTES -->
     <div class="modal" id="modal-edit-budget"><div class="modal-content" style="max-width:400px;"><div class="modal-header"><h3 id="modal-edit-budget-title">Ajustar Presupuesto</h3><button class="modal-close" onclick="window.UI.closeModal('modal-edit-budget')"><i class="fa-solid fa-xmark"></i></button></div><form id="form-modal-edit-budget"><input type="hidden" id="edit-budget-cat-name"><div class="input-group"><label>Nueva Meta Mensual ($)</label><input type="number" step="0.01" id="edit-budget-amount" required placeholder="0.00"></div><div style="display:flex; gap:10px; margin-top:15px;"><button type="submit" class="btn"><i class="fa-solid fa-floppy-disk"></i> Guardar Meta</button><button type="button" class="btn" onclick="window.UI.closeModal('modal-edit-budget')" style="background-color:var(--bg-input); color:var(--text-muted);">Cancelar</button></div></form></div></div>
     <div class="modal" id="modal-card-closing"><div class="modal-content" style="max-width:480px;"><div class="modal-header"><h3>Liquidar Resumen de Tarjeta</h3><button class="modal-close" onclick="window.UI.closeModal('modal-card-closing')"><i class="fa-solid fa-xmark"></i></button></div><form id="form-card-closing"><div class="input-group"><label>Tarjeta de Crédito</label><select id="close-card-select"></select></div><div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;"><div class="input-group"><label>Fecha de Cierre / Emisión</label><input type="date" id="close-card-fecha" required></div><div class="input-group"><label>Moneda</label><select id="close-card-moneda"><option value="ARS">Pesos (ARS)</option><option value="USD">Dólares (USD)</option></select></div></div><div class="input-group"><label>Impuestos y Sellos ($)</label><input type="number" step="0.01" id="close-card-sellos" placeholder="0.00"></div><div class="input-group"><label>Intereses Financieros ($)</label><input type="number" step="0.01" id="close-card-intereses" placeholder="0.00"></div><div class="input-group"><label>Cargos de Renovación / Emisión ($)</label><input type="number" step="0.01" id="close-card-otros" placeholder="0.00"></div><div style="display:flex; gap:10px; margin-top:15px;"><button type="submit" class="btn"><i class="fa-solid fa-file-invoice-dollar"></i> Imputar Cargos</button><button type="button" class="btn" onclick="window.UI.closeModal('modal-card-closing')" style="background-color:var(--bg-input); color:var(--text-muted);">Cancelar</button></div></form></div></div>
     <div class="modal" id="notifications-modal-center"><div class="modal-content"><div class="modal-header"><h3>Compromisos y Vencimientos</h3><button class="modal-close" onclick="window.UI.closeModal('notifications-modal-center')"><i class="fa-solid fa-xmark"></i></button></div><div id="notifications-center-list-container" style="max-height:380px; overflow-y:auto;"></div></div></div>
