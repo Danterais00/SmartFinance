@@ -278,8 +278,8 @@ function recalculateFinancialMetrics() {
     CUENTAS_TARJETAS.forEach(c => { state.creditCardDebtARS[c] = 0; state.creditCardDebtUSD[c] = 0; });
 
     let totalIngresosMes = 0;
-    let totalGastosPresupuestados = 0; // Solo afecta al Semáforo RAG
-    let totalEgresosRealesMes = 0;      // Egresos reales que afectan caja y Ahorro Neto (H-01)
+    let totalGastosPresupuestados = 0; 
+    let totalEgresosRealesMes = 0;      
     let totalPlanificadoMes = 0;
     let catGastosMap = {}; 
     state.misCategoriasUnificadas.forEach(c => { catGastosMap[c] = 0; });
@@ -288,12 +288,10 @@ function recalculateFinancialMetrics() {
         const monto = parseFloat(t.monto) || 0;
         const isCurrentMonth = t.fecha && t.fecha.substring(0, 7) === activeMonth;
         
-        // H-02: Tipo de cambio inmutable histórico si existe en la fila
         const appliedFx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
         const convUSD = (t.moneda === 'USD') ? monto * appliedFx : monto;
         const esTarjeta = CUENTAS_TARJETAS.includes(t.cuenta);
 
-        // H-03: Cómputo contable de pasivos de tarjetas (montos negativos por reintegros reducen pasivo)
         if (esTarjeta) {
             if (t.moneda === 'USD') { 
                 if (t.tipo === 'gasto') state.creditCardDebtUSD[t.cuenta] += monto; 
@@ -328,10 +326,8 @@ function recalculateFinancialMetrics() {
             if (t.tipo === 'ingreso' && !esTransferenciaOPago) {
                 totalIngresosMes += convUSD;
             } else if (t.tipo === 'gasto' && !esTransferenciaOPago) {
-                // H-01: Todos los egresos reales afectan el flujo de caja
                 totalEgresosRealesMes += convUSD;
 
-                // Solo gastos no excluidos afectan el presupuesto mensual
                 if (t.presupuestado !== 'NO_COMPUTA') {
                     totalGastosPresupuestados += convUSD;
                     if (catGastosMap[t.categoria] !== undefined) {
@@ -366,8 +362,6 @@ function recalculateFinancialMetrics() {
     });
 
     let patrimonioNeto = totalActivos - deudaTarjetasTotal;
-    
-    // H-01: Ahorro Real = Ingresos Netos - Egresos Totales Reales
     let ahorroMes = totalIngresosMes - totalEgresosRealesMes;
 
     const setCard = (id, mainText, subText = '', subColor = '') => {
@@ -519,7 +513,6 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
             const tCat = (t.categoria || '').toLowerCase();
             const tCuenta = (t.cuenta || '').toLowerCase();
 
-            // H-05: Coincidencia dentro de ventana móvil o en el mismo mes
             const matchFecha = isDateWithinRange(t.fecha, b.fecha_vencimiento, 20, 15) || 
                                (t.fecha && t.fecha.substring(0, 7) === activeMonth);
 
@@ -854,7 +847,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
     if (document.getElementById('close-card-fecha')) document.getElementById('close-card-fecha').value = hoyIso;
 
-    // REGISTRO DE MOVIMIENTOS CON TIPO DE CAMBIO INMUTABLE (H-02)
+    // REGISTRO DE MOVIMIENTOS
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btnSubmit = document.getElementById('btn-unified-submit');
@@ -950,18 +943,96 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // GUARDAR PRESUPUESTO ROBUSTO (SIN CONFLICTO DE POSTGRES)
     document.getElementById('form-save-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const selector = document.getElementById('global-month-selector'); const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
-        const { error } = await _supabase.from('categorias').upsert([{ user_id: state.currentUser.id, nombre: document.getElementById('pre-cat').value, presupuesto_mensual: parseFloat(document.getElementById('pre-mon').value), periodo, fecha_vencimiento: document.getElementById('pre-fecha').value || null }], { onConflict: 'user_id, nombre, periodo' });
-        if (error) window.UI.showAppAlert("Error", error.message); else { window.UI.showToast("Planificación guardada"); document.getElementById('pre-mon').value = ""; document.getElementById('pre-fecha').value = ""; loadUserDataFromDatabase(); }
+        const selector = document.getElementById('global-month-selector');
+        const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
+        const cat = document.getElementById('pre-cat').value;
+        const monto = parseFloat(document.getElementById('pre-mon').value);
+        const vencimiento = document.getElementById('pre-fecha').value || null;
+
+        try {
+            const { data: existing, error: selErr } = await _supabase.from('categorias')
+                .select('id')
+                .eq('user_id', state.currentUser.id)
+                .eq('nombre', cat)
+                .eq('periodo', periodo)
+                .maybeSingle();
+
+            if (selErr) throw selErr;
+
+            if (existing) {
+                const { error: updErr } = await _supabase.from('categorias')
+                    .update({ presupuesto_mensual: monto, fecha_vencimiento: vencimiento })
+                    .eq('id', existing.id);
+                if (updErr) throw updErr;
+            } else {
+                const { error: insErr } = await _supabase.from('categorias')
+                    .insert([{
+                        user_id: state.currentUser.id,
+                        nombre: cat,
+                        presupuesto_mensual: monto,
+                        periodo,
+                        fecha_vencimiento: vencimiento
+                    }]);
+                if (insErr) throw insErr;
+            }
+
+            window.UI.showToast("Planificación guardada");
+            document.getElementById('pre-mon').value = "";
+            document.getElementById('pre-fecha').value = "";
+            loadUserDataFromDatabase();
+        } catch (err) {
+            window.UI.showAppAlert("Error al Guardar Presupuesto", err.message);
+        }
     });
 
+    // MODAL EDITAR PRESUPUESTO ROBUSTO
     document.getElementById('form-modal-edit-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const selector = document.getElementById('global-month-selector'); const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
-        const { error } = await _supabase.from('categorias').upsert([{ user_id: state.currentUser.id, nombre: document.getElementById('edit-budget-cat-name').value, presupuesto_mensual: parseFloat(document.getElementById('edit-budget-amount').value), periodo }], { onConflict: 'user_id, nombre, periodo' });
-        if (error) window.UI.showAppAlert("Error", error.message); else { window.UI.closeModal('modal-edit-budget'); window.UI.showToast("Presupuesto actualizado"); loadUserDataFromDatabase(); }
+        const selector = document.getElementById('global-month-selector');
+        const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
+        const catName = document.getElementById('edit-budget-cat-name').value;
+        const num = parseFloat(document.getElementById('edit-budget-amount').value);
+
+        if (isNaN(num) || num < 0) {
+            window.UI.showAppAlert("Entrada inválida", "Ingresá un monto numérico positivo.");
+            return;
+        }
+
+        try {
+            const { data: existing, error: selErr } = await _supabase.from('categorias')
+                .select('id')
+                .eq('user_id', state.currentUser.id)
+                .eq('nombre', catName)
+                .eq('periodo', periodo)
+                .maybeSingle();
+
+            if (selErr) throw selErr;
+
+            if (existing) {
+                const { error: updErr } = await _supabase.from('categorias')
+                    .update({ presupuesto_mensual: num })
+                    .eq('id', existing.id);
+                if (updErr) throw updErr;
+            } else {
+                const { error: insErr } = await _supabase.from('categorias')
+                    .insert([{
+                        user_id: state.currentUser.id,
+                        nombre: catName,
+                        presupuesto_mensual: num,
+                        periodo
+                    }]);
+                if (insErr) throw insErr;
+            }
+
+            window.UI.closeModal('modal-edit-budget');
+            window.UI.showToast(`Presupuesto de "${catName}" actualizado`);
+            loadUserDataFromDatabase();
+        } catch (err) {
+            window.UI.showAppAlert("Error", err.message);
+        }
     });
 
     // LIQUIDACIÓN DE TARJETA CON PREVENCIÓN DE DUPLICADOS (H-04)
@@ -1024,15 +1095,81 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // DUPLICAR MES ANTERIOR CON RECONCILIACIÓN POR ID (CORRECCIÓN DEFINITIVA DEL ERROR ON CONFLICT)
     document.getElementById('btn-clone-budget')?.addEventListener('click', async () => {
         const currentPeriodo = document.getElementById('global-month-selector') ? document.getElementById('global-month-selector').value : getLocalDateString().substring(0, 7);
         const prevPeriodo = getPreviousMonthStr(currentPeriodo);
-        window.UI.showAppConfirm("Copiar Presupuesto", `¿Deseas duplicar la asignación de ${prevPeriodo}?`, async () => {
-            const { data, error } = await _supabase.from('categorias').select('*').eq('periodo', prevPeriodo);
-            if (error || !data || data.length === 0) { window.UI.showAppAlert("Sin Registros", "No hay presupuestos previos."); return; }
-            const clones = data.map(b => ({ user_id: state.currentUser.id, nombre: b.nombre, presupuesto_mensual: b.presupuesto_mensual, periodo: currentPeriodo, fecha_vencimiento: null }));
-            const { error: insErr } = await _supabase.from('categorias').upsert(clones, { onConflict: 'user_id, nombre, periodo' });
-            if (insErr) window.UI.showAppAlert("Error", insErr.message); else { window.UI.showToast("Presupuestos duplicados"); loadUserDataFromDatabase(); }
+        
+        window.UI.showAppConfirm("Copiar Presupuesto", `¿Deseas duplicar la asignación de ${prevPeriodo} en ${currentPeriodo}?`, async () => {
+            const btn = document.getElementById('btn-clone-budget');
+            if (btn) btn.disabled = true;
+
+            try {
+                // 1. Obtener presupuestos del mes anterior
+                const { data: prevBudgets, error: prevErr } = await _supabase.from('categorias')
+                    .select('*')
+                    .eq('user_id', state.currentUser.id)
+                    .eq('periodo', prevPeriodo);
+
+                if (prevErr) throw prevErr;
+                if (!prevBudgets || prevBudgets.length === 0) {
+                    window.UI.showAppAlert("Sin Registros", `No hay presupuestos previos registrados en ${prevPeriodo} para duplicar.`);
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+
+                // 2. Obtener presupuestos existentes en el periodo destino
+                const { data: existingTarget, error: exErr } = await _supabase.from('categorias')
+                    .select('id, nombre')
+                    .eq('user_id', state.currentUser.id)
+                    .eq('periodo', currentPeriodo);
+
+                if (exErr) throw exErr;
+
+                const existingMap = new Map((existingTarget || []).map(item => [item.nombre, item.id]));
+                const updatePromises = [];
+                const insertBatch = [];
+
+                // 3. Si ya existe la categoría en el periodo destino, actualiza por ID; si no, inserta
+                prevBudgets.forEach(b => {
+                    const targetId = existingMap.get(b.nombre);
+                    if (targetId) {
+                        updatePromises.push(
+                            _supabase.from('categorias')
+                                .update({
+                                    presupuesto_mensual: b.presupuesto_mensual,
+                                    fecha_vencimiento: null
+                                })
+                                .eq('id', targetId)
+                        );
+                    } else {
+                        insertBatch.push({
+                            user_id: state.currentUser.id,
+                            nombre: b.nombre,
+                            presupuesto_mensual: b.presupuesto_mensual,
+                            periodo: currentPeriodo,
+                            fecha_vencimiento: null
+                        });
+                    }
+                });
+
+                if (insertBatch.length > 0) {
+                    const { error: insError } = await _supabase.from('categorias').insert(insertBatch);
+                    if (insError) throw insError;
+                }
+
+                if (updatePromises.length > 0) {
+                    await Promise.all(updatePromises);
+                }
+
+                window.UI.showToast(`Presupuesto de ${prevPeriodo} duplicado a ${currentPeriodo}`);
+                await loadUserDataFromDatabase();
+            } catch (err) {
+                console.error("Error al duplicar presupuestos:", err);
+                window.UI.showAppAlert("Error", "No se pudo duplicar el presupuesto: " + err.message);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         });
     });
 
@@ -1056,7 +1193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isGroup = !!t.transfer_group_id;
         const updates = [_supabase.from('transacciones').update(payload).eq('id', state.editingTransactionId)];
 
-        // H-06: Si es transferencia simétrica (no arbitraje FX), fuerza sincronización de monto, fecha y moneda
         if (isGroup) { 
             const peer = state.globalTransData.find(item => item.transfer_group_id === t.transfer_group_id && item.id !== t.id); 
             if (peer) { 
@@ -1129,7 +1265,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true; 
         btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Inyectando...`;
 
-        // H-03: Reintegros ingresan como gasto negativo (contra-gasto). H-02: Tipo de cambio congelado
         const batch = seleccionados.map(item => ({ 
             user_id: state.currentUser.id, 
             fecha: item.fecha, 
