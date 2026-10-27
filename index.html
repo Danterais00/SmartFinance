@@ -35,10 +35,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=4.9">
+    <link rel="stylesheet" href="css/styles.css?v=5.2">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=4.9"></script>
+    <script type="module" src="js/app.js?v=5.2"></script>
 </head>
 <body>
 
@@ -49,7 +49,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V4.9</span>
+            <span class="app-ver-tag">PWA CONSOLE V5.2</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -98,9 +98,10 @@
             </div>
         </header>
 
-        <!-- VISTA 1: INICIO (DASHBOARD) -->
+        <!-- VISTA 1: INICIO (DASHBOARD SIN SCROLL) -->
         <main class="view-container active" id="view-inicio">
             
+            <!-- BLOQUE 1: MACROECONOMÍA -->
             <section class="macro-section-container">
                 <div class="macro-header-row">
                     <div class="macro-header-title">
@@ -114,6 +115,7 @@
                 <div class="market-bar-grid" id="market-bar-container"></div>
             </section>
 
+            <!-- BLOQUE 2: MÉTRICAS PATRIMONIALES Y MENSUALES -->
             <section class="metrics-section-container">
                 <div class="metrics-grid">
                     <div class="card">
@@ -143,13 +145,16 @@
                 </div>
             </section>
 
+            <!-- BLOQUE 3: DISTRIBUCIÓN DE LIQUIDEZ (SPLIT: TORTA A LA IZQUIERDA, CAJAS VERTICALES A LA DERECHA) -->
             <section class="chart-frame">
                 <div class="chart-frame-header">
                     <span class="macro-indicator-bar"></span>
                     <h3>DISTRIBUCIÓN DE LIQUIDEZ OPERATIVA</h3>
                 </div>
-                <div class="svg-pie-container" id="pie-chart-container"></div>
-                <div class="legend-grid" id="pie-chart-legend"></div>
+                <div class="liquidity-split-container">
+                    <div class="svg-pie-container" id="pie-chart-container"></div>
+                    <div class="legend-grid" id="pie-chart-legend"></div>
+                </div>
             </section>
         </main>
 
