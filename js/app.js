@@ -342,7 +342,9 @@ function recalculateFinancialMetrics() {
     renderAccuracyTable(categoriesMes);
     renderInteractiveChart(categoriesMes);
     buildHistoricalChartData();
-    checkRemindersAndAlerts();
+    
+    // VERIFICACIÓN CON RECONCILIACIÓN INTELIGENTE DE COMPROMISOS PAGADOS
+    checkRemindersAndAlerts(catGastosMap);
 }
 
 function renderAccuracyTable(categoriesMes) {
@@ -407,22 +409,179 @@ const applyFilters = () => {
     renderTransactionHistoryTable(filtrados);
 };
 
-function checkRemindersAndAlerts() {
+// =========================================================================
+// MOTOR DE ALERTAS CON DETECCIÓN AUTOMÁTICA DE COMPROMISOS PAGADOS
+// =========================================================================
+function checkRemindersAndAlerts(catGastosMap = {}) {
     const today = getLocalDateString();
+    const selector = document.getElementById('global-month-selector');
+    const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
+
     state.currentMonthAlertsCache = [];
+    const paidCommitments = [];
+
     state.globalBudgetData.forEach(b => {
-        if (b.fecha_vencimiento) {
-            let status = 'upcoming'; if (b.fecha_vencimiento < today) status = 'overdue'; else if (b.fecha_vencimiento === today) status = 'today';
-            state.currentMonthAlertsCache.push({ categoria: b.nombre, monto: b.presupuesto_mensual, fechaFormateada: b.fecha_vencimiento, status });
+        if (!b.fecha_vencimiento) return;
+
+        const montoPresupuestado = parseFloat(b.presupuesto_mensual) || 0;
+        const bNombreLower = b.nombre.toLowerCase().trim();
+        let totalPagadoDetectado = 0;
+        let fechaPagoDetectada = null;
+
+        // 1. Rastrear en transacciones del mes si se ejecutó el pago correspondiente
+        state.globalTransData.forEach(t => {
+            if (!t.fecha || t.fecha.substring(0, 7) !== activeMonth) return;
+
+            const tMonto = parseFloat(t.monto) || 0;
+            const tDesc = (t.descripcion || '').toLowerCase();
+            const tCat = (t.categoria || '').toLowerCase();
+            const tCuenta = (t.cuenta || '').toLowerCase();
+
+            // Coincidencia directa de categoría
+            const matchCat = (tCat === bNombreLower);
+            
+            // Coincidencia por concepto memo (ej. "Pago vencimiento: CAFAR", "Edenor", "Naturgy", "Wellspring")
+            const matchDesc = tDesc.includes(bNombreLower) || 
+                              (bNombreLower.includes('cafar') && tDesc.includes('cafar')) ||
+                              (bNombreLower.includes('naturgy') && tDesc.includes('naturgy')) ||
+                              (bNombreLower.includes('edenor') && tDesc.includes('edenor')) ||
+                              (bNombreLower.includes('wellspring') && tDesc.includes('wellspring'));
+
+            // Coincidencia para tarjetas de crédito
+            const matchTarjeta = (bNombreLower.includes('santander') && (tCuenta.includes('santander') || tDesc.includes('santander'))) ||
+                                 (bNombreLower.includes('mercado pago') && (tCuenta.includes('mercado pago') || tDesc.includes('mercado pago')));
+
+            if (t.tipo === 'gasto' && (matchCat || matchDesc)) {
+                totalPagadoDetectado += tMonto;
+                if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
+            } else if (matchTarjeta && (t.categoria === 'Pago Tarjeta de Crédito' || t.categoria === 'Transferencia Interna' || matchDesc)) {
+                totalPagadoDetectado += tMonto;
+                if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
+            }
+        });
+
+        // 2. Consulta adicional de deuda para tarjetas de crédito
+        const esTarjeta = bNombreLower.includes('tarjeta');
+        let deudaTarjeta = 999999;
+        if (esTarjeta) {
+            CUENTAS_TARJETAS.forEach(c => {
+                if (bNombreLower.includes(c.toLowerCase()) || c.toLowerCase().includes(bNombreLower)) {
+                    deudaTarjeta = (state.creditCardDebtARS[c] || 0) + ((state.creditCardDebtUSD[c] || 0) * TIPO_CAMBIO_PRESUPUESTO);
+                }
+            });
+        }
+
+        // Criterio de Pago:
+        // A) Se registraron pagos para el concepto (totalPagadoDetectado > 0)
+        // B) El presupuesto asignado es $0
+        // C) Es tarjeta y la deuda actual en el sistema es menor o igual a $0
+        const isPaid = (totalPagadoDetectado > 0) || 
+                       (montoPresupuestado <= 0) || 
+                       (esTarjeta && deudaTarjeta <= 0);
+
+        if (isPaid) {
+            // Compromiso pagado: se excluye de las alertas activas
+            paidCommitments.push({
+                categoria: b.nombre,
+                monto: montoPresupuestado > 0 ? montoPresupuestado : totalPagadoDetectado,
+                fechaVto: b.fecha_vencimiento,
+                fechaPago: fechaPagoDetectada,
+                totalPagado: totalPagadoDetectado
+            });
+        } else {
+            // Compromiso pendiente: genera alerta
+            let status = 'upcoming';
+            if (b.fecha_vencimiento < today) status = 'overdue';
+            else if (b.fecha_vencimiento === today) status = 'today';
+
+            state.currentMonthAlertsCache.push({
+                categoria: b.nombre,
+                monto: montoPresupuestado,
+                fechaRaw: b.fecha_vencimiento,
+                fechaFormateada: b.fecha_vencimiento,
+                status
+            });
         }
     });
-    const badge = document.getElementById('global-bell-badge'); const bellIcon = document.getElementById('global-bell-vector'); const listContainer = document.getElementById('notifications-center-list-container');
-    if (state.currentMonthAlertsCache.length > 0) { if (badge) { badge.style.display = 'flex'; badge.innerText = state.currentMonthAlertsCache.length; } if (bellIcon) bellIcon.classList.add('fa-shake'); } 
-    else { if (badge) badge.style.display = 'none'; if (bellIcon) bellIcon.classList.remove('fa-shake'); }
+
+    // Control de la insignia y animación de la campana en el Header
+    const badge = document.getElementById('global-bell-badge');
+    const bellIcon = document.getElementById('global-bell-vector');
+    const listContainer = document.getElementById('notifications-center-list-container');
+
+    if (state.currentMonthAlertsCache.length > 0) {
+        if (badge) {
+            badge.style.display = 'flex';
+            badge.innerText = state.currentMonthAlertsCache.length;
+        }
+        if (bellIcon) bellIcon.classList.add('fa-shake');
+    } else {
+        if (badge) badge.style.display = 'none';
+        if (bellIcon) bellIcon.classList.remove('fa-shake');
+    }
+
+    // Renderizado del Modal con separación de Pendientes vs Pagados
     if (listContainer) {
         listContainer.innerHTML = "";
-        if (state.currentMonthAlertsCache.length === 0) listContainer.innerHTML = `<p style="font-size:13px; color:var(--text-muted); text-align:center; padding:20px;">Sin compromisos pendientes.</p>`;
-        else state.currentMonthAlertsCache.forEach(a => { listContainer.innerHTML += `<div class="alert-item-row ${a.status}"><div><div style="font-weight:700; font-size:13px; color:#fff;">${a.categoria}</div><div style="font-size:11px; color:var(--text-muted);">Vto: ${a.fechaFormateada}</div></div><div style="display:flex; align-items:center; gap:10px;"><div style="font-weight:700; color:var(--warning); font-size:14px;">$${Number(a.monto).toLocaleString('es-AR')}</div><button type="button" class="btn btn-sm" onclick="window.UI.payPendingAlert('${a.categoria}', ${a.monto})" style="background:var(--blue);"><i class="fa-solid fa-arrow-right"></i> Pagar</button></div></div>`; });
+
+        // CASO A: Todos los compromisos del mes están pagados
+        if (state.currentMonthAlertsCache.length === 0 && paidCommitments.length > 0) {
+            listContainer.innerHTML = `
+                <div style="text-align: center; padding: 20px 10px 15px 10px;">
+                    <i class="fa-solid fa-circle-check" style="font-size: 38px; color: var(--primary); margin-bottom: 10px;"></i>
+                    <h4 style="font-size: 15px; color: #fff; margin-bottom: 4px;">¡Todos los compromisos al día!</h4>
+                    <p style="font-size: 12px; color: var(--text-muted);">No tenés vencimientos pendientes para este mes.</p>
+                </div>
+            `;
+        } else if (state.currentMonthAlertsCache.length === 0 && paidCommitments.length === 0) {
+            listContainer.innerHTML = `<p style="font-size:13px; color:var(--text-muted); text-align:center; padding:25px;">Sin compromisos planificados para este mes.</p>`;
+        }
+
+        // 1. Lista de Vencimientos Pendientes (Alertas Reales)
+        if (state.currentMonthAlertsCache.length > 0) {
+            state.currentMonthAlertsCache.forEach(a => {
+                listContainer.innerHTML += `
+                    <div class="alert-item-row ${a.status}">
+                        <div>
+                            <div style="font-weight:700; font-size:13px; color:#fff;">${a.categoria}</div>
+                            <div style="font-size:11px; color:var(--text-muted);">Vencimiento: ${a.fechaFormateada}</div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="font-weight:700; color:var(--warning); font-size:14px;">$${Number(a.monto).toLocaleString('es-AR')}</div>
+                            <button type="button" class="btn btn-sm" onclick="window.UI.payPendingAlert('${a.categoria}', ${a.monto})" style="background:var(--blue); padding:6px 12px; font-size:11px;">
+                                <i class="fa-solid fa-arrow-right"></i> Pagar
+                            </button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        // 2. Lista de Compromisos ya Pagados (Constancia visual de tranquilidad)
+        if (paidCommitments.length > 0) {
+            let paidHTML = `
+                <div style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; letter-spacing: 0.5px;">
+                        <i class="fa-solid fa-circle-check"></i> Pagados este mes (${paidCommitments.length})
+                    </div>
+            `;
+            paidCommitments.forEach(p => {
+                const subText = p.fechaPago ? `Abonado el ${p.fechaPago}` : `Vencimiento cubierto (${p.fechaVto})`;
+                paidHTML += `
+                    <div class="alert-item-row paid">
+                        <div>
+                            <div style="font-weight:600; font-size:12.5px; color:#fff;">${p.categoria}</div>
+                            <div style="font-size:10.5px; color:var(--text-muted);">${subText}</div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <div style="font-weight:700; color:var(--primary); font-size:13px;">$${Number(p.monto).toLocaleString('es-AR')}</div>
+                            <span style="font-size:11px; color:var(--primary);"><i class="fa-solid fa-check"></i></span>
+                        </div>
+                    </div>
+                `;
+            });
+            paidHTML += `</div>`;
+            listContainer.innerHTML += paidHTML;
+        }
     }
 }
 
@@ -574,7 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
     if (document.getElementById('close-card-fecha')) document.getElementById('close-card-fecha').value = hoyIso;
 
-    // REGISTRO DE MOVIMIENTOS: PERMANECE EN LA MISMA PANTALLA DE CARGA
+    // REGISTRO DE MOVIMIENTOS
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btnSubmit = document.getElementById('btn-unified-submit');
@@ -639,10 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     btnSubmit.disabled = false;
                     btnSubmit.innerHTML = `<i class="fa-solid fa-check"></i> Procesar Movimiento`;
                 }
-                if (elMonto) {
-                    elMonto.value = "";
-                    elMonto.focus();
-                }
+                if (elMonto) { elMonto.value = ""; elMonto.focus(); }
                 if (elConcepto) elConcepto.value = "";
                 return;
             }
@@ -658,16 +814,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.UI.showAppAlert("Error al Guardar", error.message);
             } else {
                 window.UI.showToast("Movimiento registrado con éxito");
-                
-                // Limpia los campos del monto y concepto para la próxima carga, dejando la cuenta y fecha seleccionadas
-                if (elMonto) {
-                    elMonto.value = "";
-                    elMonto.focus();
-                }
+                if (elMonto) { elMonto.value = ""; elMonto.focus(); }
                 if (elConcepto) elConcepto.value = "";
                 if (elMontoDestino) elMontoDestino.value = "";
 
-                // Actualiza los balances en segundo plano sin cambiar de pestaña
+                // Recalcula y reconcilia alertas automáticamente
                 loadUserDataFromDatabase();
             }
         } catch (err) {
