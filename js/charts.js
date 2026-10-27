@@ -28,8 +28,8 @@ export function renderPortfolioPieChart(balancesARS) {
         return { ...acc, value: val };
     });
 
-    const size = 230;
-    const strokeWidth = 26;
+    const size = 280;
+    const strokeWidth = 34;
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
     let accumulatedOffset = 0;
@@ -64,7 +64,7 @@ export function renderPortfolioPieChart(balancesARS) {
     const formattedTotal = `$${total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     container.innerHTML = `
-        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="transform: rotate(-90deg); overflow: visible;">
+        <svg viewBox="0 0 ${size} ${size}" style="width: 100%; height: 100%; max-width: 360px; max-height: 360px; transform: rotate(-90deg); overflow: visible;">
             ${circlesHTML}
             <text 
                 x="${size/2}" 
@@ -74,17 +74,17 @@ export function renderPortfolioPieChart(balancesARS) {
                 fill="#ffffff" 
                 font-family="Urbanist, sans-serif" 
                 font-weight="800" 
-                font-size="18" 
+                font-size="20" 
                 style="transform: rotate(90deg); transform-origin: ${size/2}px ${size/2}px;"
             >${formattedTotal}</text>
         </svg>
     `;
 
-    // 5 cajas individuales en fila horizontal, apiladas verticalmente una abajo de la otra
+    // 5 cajas en columna vertical que se adaptan a la altura del contenedor
     legend.innerHTML = items.map(item => `
         <div class="legend-flat-item">
             <span class="label-bank">
-                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${item.color}; flex-shrink:0;"></span>
+                <span class="account-dot" style="background:${item.color};"></span>
                 <span>${item.name}</span>
             </span>
             <span class="value-bank">$${item.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
