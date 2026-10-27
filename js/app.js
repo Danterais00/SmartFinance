@@ -536,7 +536,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('btn-confirm-export-pdf')?.addEventListener('click', () => { window.UI.closeModal('audit-preflight-modal'); exportAuditPDF(state.cachedAuditResult); });
 
-    // ACTUALIZACIÓN DE FORMULARIO BLINDADA CONTRA SOBRESCRITURA DE SELECTS
     const updateUnifiedFormUI = () => {
         const uniTipo = document.getElementById('uni-tipo');
         const uniOrigen = document.getElementById('uni-origen');
@@ -557,7 +556,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (boxExcluir) boxExcluir.style.display = (t === 'GASTO' && !esTarjeta) ? 'block' : 'none';
         if (boxMontoDestino) boxMontoDestino.style.display = (t === 'CAMBIO_DIVISAS') ? 'block' : 'none';
         
-        // Protección: solo se modifica el texto si es una etiqueta <label>
         if (lblOrigen) {
             const labelText = (t === 'INGRESO') ? 'Cuenta Receptora' : 'Cuenta Débito / Origen';
             if (lblOrigen.tagName === 'LABEL') {
@@ -576,13 +574,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
     if (document.getElementById('close-card-fecha')) document.getElementById('close-card-fecha').value = hoyIso;
 
-    // PROCESAMIENTO ROBUSTO DE CARGA DE GASTOS
+    // REGISTRO DE MOVIMIENTOS: PERMANECE EN LA MISMA PANTALLA DE CARGA
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btnSubmit = document.getElementById('btn-unified-submit');
         
         try {
-            // Verificación y aseguramiento de sesión
             if (!state.currentUser) {
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session?.user) {
@@ -629,7 +626,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 montoDestino: parseFloat(elMontoDestino ? elMontoDestino.value : 0) || 0
             });
 
-            // Garantizar user_id y autor válidos para RLS
             const batch = (Array.isArray(rawBatch) ? rawBatch : [rawBatch]).map(item => ({
                 ...item,
                 user_id: item.user_id || state.currentUser.id,
@@ -643,6 +639,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     btnSubmit.disabled = false;
                     btnSubmit.innerHTML = `<i class="fa-solid fa-check"></i> Procesar Movimiento`;
                 }
+                if (elMonto) {
+                    elMonto.value = "";
+                    elMonto.focus();
+                }
+                if (elConcepto) elConcepto.value = "";
                 return;
             }
 
@@ -657,12 +658,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.UI.showAppAlert("Error al Guardar", error.message);
             } else {
                 window.UI.showToast("Movimiento registrado con éxito");
-                if (elMonto) elMonto.value = "";
+                
+                // Limpia los campos del monto y concepto para la próxima carga, dejando la cuenta y fecha seleccionadas
+                if (elMonto) {
+                    elMonto.value = "";
+                    elMonto.focus();
+                }
                 if (elConcepto) elConcepto.value = "";
                 if (elMontoDestino) elMontoDestino.value = "";
-                window.UI.selectActionType('GASTO');
-                await loadUserDataFromDatabase();
-                switchView('view-inicio', 'btn-nav-inicio');
+
+                // Actualiza los balances en segundo plano sin cambiar de pestaña
+                loadUserDataFromDatabase();
             }
         } catch (err) {
             console.error("Error en procesamiento de movimiento:", err);
