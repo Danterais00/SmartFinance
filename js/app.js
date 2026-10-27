@@ -145,7 +145,6 @@ window.UI = {
         if (typeof window.updateUnifiedFormUI === 'function') window.updateUnifiedFormUI();
     },
 
-    // FUNCIONES DEL NUEVO PANEL DE CHAT DE SOPORTE
     toggleChat() {
         const panel = document.getElementById('chat-panel');
         const overlay = document.getElementById('chat-overlay');
@@ -155,7 +154,7 @@ window.UI = {
         } else {
             panel.classList.add('is-open');
             overlay.classList.add('is-active');
-            setTimeout(() => document.getElementById('chat-input').focus(), 300);
+            setTimeout(() => document.getElementById('chat-input')?.focus(), 300);
         }
     },
 
@@ -165,8 +164,6 @@ window.UI = {
         if (!text) return;
         
         const chatBody = document.getElementById('chat-body');
-        
-        // Mensaje del usuario
         chatBody.innerHTML += `
             <div class="chat-msg user">
                 <div class="msg-bubble">${text}</div>
@@ -176,7 +173,6 @@ window.UI = {
         input.value = "";
         chatBody.scrollTop = chatBody.scrollHeight;
 
-        // Respuesta simulada del Bot (hasta conectar backend)
         setTimeout(() => {
             chatBody.innerHTML += `
                 <div class="chat-msg bot">
@@ -497,6 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').then((reg) => reg.update());
     initMonthSelector(); fetchMarketData();
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
+    
     _supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
             state.currentUser = session.user; document.getElementById('login-screen').style.display = 'none'; document.getElementById('dashboard-screen').style.display = 'block';
@@ -510,6 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = false; btn.innerText = "Iniciar Sesión";
         if (error) window.UI.showAppAlert("Fallo", error.message); else { state.currentUser = data.user; document.getElementById('login-screen').style.display = 'none'; document.getElementById('dashboard-screen').style.display = 'block'; loadUserDataFromDatabase(); }
     });
+    
     document.getElementById('btn-header-logout')?.addEventListener('click', () => window.UI.showAppConfirm("Salir", "¿Querés cerrar sesión?", async () => { await _supabase.auth.signOut(); window.location.reload(); }));
     document.getElementById('global-month-selector')?.addEventListener('change', loadUserDataFromDatabase);
     document.getElementById('btn-header-bell')?.addEventListener('click', () => window.UI.openModal('notifications-modal-center'));
@@ -538,15 +536,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('btn-confirm-export-pdf')?.addEventListener('click', () => { window.UI.closeModal('audit-preflight-modal'); exportAuditPDF(state.cachedAuditResult); });
 
+    // ACTUALIZACIÓN DE FORMULARIO BLINDADA CONTRA SOBRESCRITURA DE SELECTS
     const updateUnifiedFormUI = () => {
-        const t = document.getElementById('uni-tipo') ? document.getElementById('uni-tipo').value : 'GASTO';
-        const esTarjeta = CUENTAS_TARJETAS.includes(document.getElementById('uni-origen') ? document.getElementById('uni-origen').value : '');
-        if (document.getElementById('box-uni-destino')) document.getElementById('box-uni-destino').style.display = (t === 'TRANSFERENCIA' || t === 'CAMBIO_DIVISAS' || t === 'RENDIMIENTO') ? 'block' : 'none';
-        if (document.getElementById('box-uni-categoria')) document.getElementById('box-uni-categoria').style.display = (t === 'GASTO') ? 'block' : 'none';
-        if (document.getElementById('box-uni-pureza')) document.getElementById('box-uni-pureza').style.display = (t === 'RENDIMIENTO') ? 'block' : 'none';
-        if (document.getElementById('box-uni-excluir')) document.getElementById('box-uni-excluir').style.display = (t === 'GASTO' && !esTarjeta) ? 'block' : 'none';
-        if (document.getElementById('box-uni-monto-destino')) document.getElementById('box-uni-monto-destino').style.display = (t === 'CAMBIO_DIVISAS') ? 'block' : 'none';
-        if (document.getElementById('lbl-uni-origen')) document.getElementById('lbl-uni-origen').innerText = (t === 'INGRESO') ? 'Cuenta Receptora' : 'Cuenta Débito / Origen';
+        const uniTipo = document.getElementById('uni-tipo');
+        const uniOrigen = document.getElementById('uni-origen');
+        const t = uniTipo ? uniTipo.value : 'GASTO';
+        const origenVal = uniOrigen ? uniOrigen.value : '';
+        const esTarjeta = CUENTAS_TARJETAS.includes(origenVal);
+
+        const boxDestino = document.getElementById('box-uni-destino');
+        const boxCat = document.getElementById('box-uni-categoria');
+        const boxPureza = document.getElementById('box-uni-pureza');
+        const boxExcluir = document.getElementById('box-uni-excluir');
+        const boxMontoDestino = document.getElementById('box-uni-monto-destino');
+        const lblOrigen = document.getElementById('lbl-uni-origen');
+
+        if (boxDestino) boxDestino.style.display = (t === 'TRANSFERENCIA' || t === 'CAMBIO_DIVISAS' || t === 'RENDIMIENTO') ? 'block' : 'none';
+        if (boxCat) boxCat.style.display = (t === 'GASTO') ? 'block' : 'none';
+        if (boxPureza) boxPureza.style.display = (t === 'RENDIMIENTO') ? 'block' : 'none';
+        if (boxExcluir) boxExcluir.style.display = (t === 'GASTO' && !esTarjeta) ? 'block' : 'none';
+        if (boxMontoDestino) boxMontoDestino.style.display = (t === 'CAMBIO_DIVISAS') ? 'block' : 'none';
+        
+        // Protección: solo se modifica el texto si es una etiqueta <label>
+        if (lblOrigen) {
+            const labelText = (t === 'INGRESO') ? 'Cuenta Receptora' : 'Cuenta Débito / Origen';
+            if (lblOrigen.tagName === 'LABEL') {
+                lblOrigen.innerText = labelText;
+            } else {
+                const innerLabel = lblOrigen.querySelector('label');
+                if (innerLabel) innerLabel.innerText = labelText;
+            }
+        }
     };
     window.updateUnifiedFormUI = updateUnifiedFormUI;
     document.getElementById('uni-origen')?.addEventListener('change', updateUnifiedFormUI);
@@ -556,12 +576,102 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
     if (document.getElementById('close-card-fecha')) document.getElementById('close-card-fecha').value = hoyIso;
 
+    // PROCESAMIENTO ROBUSTO DE CARGA DE GASTOS
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const batch = buildUnifiedTransactionBatch({ type: document.getElementById('uni-tipo').value, fecha: document.getElementById('uni-fecha').value, monto: parseFloat(document.getElementById('uni-monto').value), concepto: document.getElementById('uni-concepto').value.trim(), origen: document.getElementById('uni-origen').value, destino: document.getElementById('uni-destino').value, categoria: document.getElementById('uni-categoria').value, moneda: document.getElementById('uni-moneda').value, pureza: document.getElementById('uni-pureza').value, excluirGasto: document.getElementById('uni-excluir').checked, montoDestino: parseFloat(document.getElementById('uni-monto-destino').value) || 0 });
-        if (!navigator.onLine) { saveOfflineQueue(batch); window.UI.showToast("Operación encolada offline"); return; }
-        const { error } = await _supabase.from('transacciones').insert(batch);
-        if (error) window.UI.showAppAlert("Error", error.message); else { window.UI.showToast("Operación registrada"); document.getElementById('uni-monto').value = ""; document.getElementById('uni-concepto').value = ""; window.UI.selectActionType('GASTO'); loadUserDataFromDatabase(); switchView('view-inicio', 'btn-nav-inicio'); }
+        const btnSubmit = document.getElementById('btn-unified-submit');
+        
+        try {
+            // Verificación y aseguramiento de sesión
+            if (!state.currentUser) {
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (session?.user) {
+                    state.currentUser = session.user;
+                } else {
+                    window.UI.showAppAlert("Sesión Expirada", "Por favor, cerrá sesión y volvé a ingresar.");
+                    return;
+                }
+            }
+
+            const elTipo = document.getElementById('uni-tipo');
+            const elFecha = document.getElementById('uni-fecha');
+            const elMonto = document.getElementById('uni-monto');
+            const elConcepto = document.getElementById('uni-concepto');
+            const elOrigen = document.getElementById('uni-origen');
+            const elDestino = document.getElementById('uni-destino');
+            const elCat = document.getElementById('uni-categoria');
+            const elMoneda = document.getElementById('uni-moneda');
+            const elPureza = document.getElementById('uni-pureza');
+            const elExcluir = document.getElementById('uni-excluir');
+            const elMontoDestino = document.getElementById('uni-monto-destino');
+
+            if (!elOrigen || !elOrigen.value) {
+                window.UI.showAppAlert("Atención", "Por favor, seleccioná una cuenta de origen.");
+                return;
+            }
+
+            if (btnSubmit) {
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Procesando...`;
+            }
+
+            const rawBatch = buildUnifiedTransactionBatch({
+                type: elTipo ? elTipo.value : 'GASTO',
+                fecha: elFecha ? elFecha.value : getLocalDateString(),
+                monto: parseFloat(elMonto ? elMonto.value : 0),
+                concepto: elConcepto ? elConcepto.value.trim() : '',
+                origen: elOrigen.value,
+                destino: elDestino ? elDestino.value : '',
+                categoria: elCat ? elCat.value : '',
+                moneda: elMoneda ? elMoneda.value : 'ARS',
+                pureza: elPureza ? elPureza.value : 'REINVERSION',
+                excluirGasto: elExcluir ? elExcluir.checked : false,
+                montoDestino: parseFloat(elMontoDestino ? elMontoDestino.value : 0) || 0
+            });
+
+            // Garantizar user_id y autor válidos para RLS
+            const batch = (Array.isArray(rawBatch) ? rawBatch : [rawBatch]).map(item => ({
+                ...item,
+                user_id: item.user_id || state.currentUser.id,
+                autor: item.autor || state.currentUser.email
+            }));
+
+            if (!navigator.onLine) {
+                saveOfflineQueue(batch);
+                window.UI.showToast("Operación encolada offline");
+                if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = `<i class="fa-solid fa-check"></i> Procesar Movimiento`;
+                }
+                return;
+            }
+
+            const { error } = await _supabase.from('transacciones').insert(batch);
+            
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `<i class="fa-solid fa-check"></i> Procesar Movimiento`;
+            }
+
+            if (error) {
+                window.UI.showAppAlert("Error al Guardar", error.message);
+            } else {
+                window.UI.showToast("Movimiento registrado con éxito");
+                if (elMonto) elMonto.value = "";
+                if (elConcepto) elConcepto.value = "";
+                if (elMontoDestino) elMontoDestino.value = "";
+                window.UI.selectActionType('GASTO');
+                await loadUserDataFromDatabase();
+                switchView('view-inicio', 'btn-nav-inicio');
+            }
+        } catch (err) {
+            console.error("Error en procesamiento de movimiento:", err);
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `<i class="fa-solid fa-check"></i> Procesar Movimiento`;
+            }
+            window.UI.showAppAlert("Error Inesperado", "Ocurrió un error al procesar el movimiento: " + err.message);
+        }
     });
 
     document.getElementById('form-save-budget')?.addEventListener('submit', async (e) => {
