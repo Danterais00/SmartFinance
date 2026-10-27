@@ -61,6 +61,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     display: block !important; 
     width: 100% !important; 
     box-shadow: 0 4px 15px rgba(0,0,0,0.25); 
+    flex: 0 0 auto !important;
 }
 .macro-header-row { display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 8px !important; width: 100% !important; }
 .macro-header-title { display: flex !important; align-items: center !important; gap: 8px !important; }
@@ -82,7 +83,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     flex-direction: column !important; 
     justify-content: space-between !important; 
     gap: 3px !important; 
-    min-height: 84px !important; 
+    min-height: 80px !important; 
     transition: border-color 0.2s ease; 
 }
 .market-pill:hover { border-color: var(--blue) !important; }
@@ -99,7 +100,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .var-badge.neutral { color: var(--text-muted); opacity: 0.65; }
 
 /* 2. SECCIÓN MÉTRICAS PATRIMONIALES */
-.metrics-section-container { width: 100% !important; margin-bottom: 10px !important; display: block !important; }
+.metrics-section-container { width: 100% !important; margin-bottom: 10px !important; display: block !important; flex: 0 0 auto !important; }
 .metrics-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; width: 100% !important; }
 @media (min-width: 768px) { .metrics-grid { grid-template-columns: repeat(3, 1fr) !important; } }
 @media (min-width: 1100px) { .metrics-grid { grid-template-columns: repeat(6, 1fr) !important; } }
@@ -112,8 +113,8 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     display: flex !important; 
     flex-direction: column !important; 
     justify-content: space-between !important; 
-    min-height: 94px !important; 
-    height: 94px !important; 
+    min-height: 90px !important; 
+    height: 90px !important; 
     width: 100% !important; 
     transition: transform 0.2s ease, border-color 0.2s ease; 
 }
@@ -123,22 +124,24 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .card-value .main-val { font-size: clamp(15px, 1.6vw, 19px); font-weight: 700; font-family: 'Urbanist'; display: block; line-height: 1.2; white-space: nowrap; }
 .card-value .sub-val { font-size: clamp(10px, 1vw, 11.5px); font-family: 'Urbanist'; display: block; line-height: 1.2; min-height: 14px; white-space: nowrap; font-weight: 700; }
 
-/* 3. SECCIÓN DISTRIBUCIÓN DE LIQUIDEZ: DOS COLUMNAS EN ESCRITORIO */
+/* 3. SECCIÓN DISTRIBUCIÓN DE LIQUIDEZ: SE EXTIENDE HASTA ABAJO */
 .chart-frame { 
     background: var(--bg-card) !important; 
     border: 1px solid var(--border-color) !important; 
     border-radius: 14px !important; 
-    padding: 14px 18px !important; 
+    padding: 14px 20px !important; 
     text-align: center !important; 
     width: 100% !important; 
-    margin-bottom: 10px !important; 
+    margin-bottom: 0 !important; 
     box-shadow: 0 4px 15px rgba(0,0,0,0.25); 
+    display: flex !important;
+    flex-direction: column !important;
 }
-.chart-frame-header { display: flex !important; align-items: center !important; gap: 8px !important; margin-bottom: 10px !important; text-align: left !important; }
+.chart-frame-header { display: flex !important; align-items: center !important; gap: 8px !important; margin-bottom: 8px !important; text-align: left !important; flex: 0 0 auto !important; }
 .chart-frame-header h3 { font-size: 11px !important; font-weight: 800 !important; color: #ffffff !important; text-transform: uppercase !important; letter-spacing: 0.8px !important; line-height: 1 !important; }
 .chart-frame canvas { touch-action: pan-y; }
 
-/* Contenedor flexible de dos columnas (Torta izquierda, Cajas verticales derecha) */
+/* Contenedor dividido en 2 columnas */
 .liquidity-split-container {
     display: flex !important;
     flex-direction: column !important;
@@ -146,85 +149,119 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     justify-content: center !important;
     gap: 14px !important;
     width: 100% !important;
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
 }
 
 .svg-pie-container { 
-    width: 230px !important; 
-    height: 230px !important; 
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 380px !important;
     display: flex !important; 
     align-items: center !important; 
     justify-content: center !important; 
     margin: 0 auto !important; 
-    flex: 0 0 230px !important;
+    flex: 0 1 45% !important;
+    min-width: 0 !important;
 }
 
-/* Columna vertical de cajas de cuentas: NUNCA en grilla horizontal de 5 */
+/* Columna vertical de cajas de cuentas */
 .legend-grid { 
     display: flex !important;
     flex-direction: column !important;
-    gap: 6px !important;
+    gap: 8px !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    flex: 1 1 50% !important;
+    max-width: 520px !important;
+    height: 100% !important;
+    max-height: 380px !important;
+    justify-content: space-between !important;
 }
 
-@media (min-width: 768px) {
-    .liquidity-split-container {
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: space-evenly !important;
-        gap: 32px !important;
-    }
-    .svg-pie-container {
-        margin: 0 !important;
-    }
-    .legend-grid {
-        flex: 1 1 360px !important;
-        max-width: 460px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 6px !important;
-    }
-}
-
-/* Cada caja individual: fila horizontal (nombre del banco a la izquierda, saldo a la derecha) */
+/* Cada caja individual: expande verticalmente proporcional al contenedor */
 .legend-flat-item { 
     background: var(--bg-input) !important; 
     border: 1px solid var(--border-color) !important; 
-    border-radius: 10px !important; 
-    padding: 8px 16px !important; 
+    border-radius: 12px !important; 
+    padding: 10px 20px !important; 
     display: flex !important; 
     flex-direction: row !important;
     justify-content: space-between !important;
     align-items: center !important; 
-    min-height: 40px !important; 
-    height: 40px !important;
+    flex: 1 1 0 !important;
+    min-height: 48px !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    transition: border-color 0.2s ease, transform 0.2s ease !important;
+    transition: border-color 0.2s ease, transform 0.2s ease, background-color 0.2s ease !important;
 }
 .legend-flat-item:hover { 
     border-color: var(--blue) !important; 
     transform: translateX(4px) !important; 
+    background: rgba(59, 130, 246, 0.05) !important;
 }
 .legend-flat-item .label-bank { 
     display: flex !important; 
     align-items: center !important; 
-    gap: 10px !important; 
+    gap: 12px !important; 
     color: var(--text-muted) !important; 
-    font-size: 12px !important; 
+    font-size: 13.5px !important; 
     font-weight: 600 !important; 
     white-space: nowrap !important; 
 }
+.legend-flat-item .label-bank .account-dot {
+    display: inline-block !important;
+    width: 10px !important;
+    height: 10px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+}
 .legend-flat-item .value-bank { 
-    font-size: 14.5px !important; 
+    font-size: 16px !important; 
     font-weight: 700 !important; 
     color: #ffffff !important; 
     font-family: 'Urbanist', sans-serif !important; 
     white-space: nowrap !important; 
 }
 
-/* PANELES GENERALES */
+/* CONFIGURACIÓN ESCRITORIO (SIN SCROLL, VISTA COMPLETA 100vh) */
+@media (min-width: 850px) {
+    body { padding-left: 310px !important; padding-bottom: 0 !important; }
+    
+    #view-inicio.active {
+        height: calc(100vh - 58px) !important;
+        max-height: calc(100vh - 58px) !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        padding: 10px 24px 12px 24px !important;
+        overflow: hidden !important;
+    }
+
+    #view-inicio .chart-frame {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+    }
+
+    .liquidity-split-container {
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-evenly !important;
+        gap: 36px !important;
+    }
+
+    .mobile-tab-bar { position: fixed !important; top: 0 !important; left: 0 !important; width: 310px !important; height: 100vh !important; display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: repeat(5, 70px) !important; justify-content: flex-start !important; align-content: flex-start !important; padding-top: 90px !important; border-right: 1px solid var(--border-color) !important; border-top: none !important; background-color: var(--bg-card) !important; right: auto !important; bottom: auto !important; }
+    .tab-item-center .fab-btn { position: static !important; transform: none !important; width: auto !important; height: auto !important; background: none !important; border-radius: 0 !important; box-shadow: none !important; border: none !important; color: inherit !important; font-size: inherit !important; display: inline-block !important; margin-right: 0 !important; }
+    .tab-item-center .fab-btn i { font-size: 18px !important; margin-bottom: 0 !important; width: 22px !important; text-align: center !important; }
+    .tab-item { height: 70px !important; flex-direction: row !important; gap: 14px !important; justify-content: flex-start !important; padding-left: 25px !important; padding-right: 20px !important; font-size: 13.5px !important; white-space: normal !important; text-align: left !important; }
+    .tab-item i { font-size: 18px !important; margin-bottom: 0 !important; width: 22px !important; text-align: center !important; }
+    .tab-label-rapido { display: inline-block !important; font-size: 13.5px !important; font-weight: 600; line-height: 1.2; }
+    .tab-item.active .tab-label-rapido { color: var(--blue) !important; }
+    .tab-item-center span:not(.tab-label-rapido) { display: none !important; }
+}
+
+/* PANELES GENERALES Y REPORTES */
 .section-box { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 20px; margin-bottom: 20px; }
 .section-box h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; color: #fff; border-left: 3px solid var(--blue); padding-left: 8px; text-transform: uppercase; }
 
@@ -239,22 +276,9 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .tab-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); font-size: 9.5px; font-weight: 600; cursor: pointer; transition: 0.2s; height: 100%; }
 .tab-item i { font-size: 17px; margin-bottom: 3px; }
 .tab-item.active { color: var(--blue); text-shadow: 0 0 10px var(--blue-glow); }
-
 .tab-item-center .fab-btn { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); width: 48px; height: 50px; background: linear-gradient(135deg, var(--blue) 0%, #1d4ed8 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; box-shadow: 0 6px 15px var(--blue-glow); border: 3px solid var(--bg-main); }
 .tab-item-center { position: relative; }
 .tab-label-rapido { display: none; }
-
-@media (min-width: 850px) {
-    body { padding-left: 310px !important; padding-bottom: 15px !important; }
-    .mobile-tab-bar { position: fixed !important; top: 0 !important; left: 0 !important; width: 310px !important; height: 100vh !important; display: grid !important; grid-template-columns: 1fr !important; grid-template-rows: repeat(5, 70px) !important; justify-content: flex-start !important; align-content: flex-start !important; padding-top: 90px !important; border-right: 1px solid var(--border-color) !important; border-top: none !important; background-color: var(--bg-card) !important; right: auto !important; bottom: auto !important; }
-    .tab-item-center .fab-btn { position: static !important; transform: none !important; width: auto !important; height: auto !important; background: none !important; border-radius: 0 !important; box-shadow: none !important; border: none !important; color: inherit !important; font-size: inherit !important; display: inline-block !important; margin-right: 0 !important; }
-    .tab-item-center .fab-btn i { font-size: 18px !important; margin-bottom: 0 !important; width: 22px !important; text-align: center !important; }
-    .tab-item { height: 70px !important; flex-direction: row !important; gap: 14px !important; justify-content: flex-start !important; padding-left: 25px !important; padding-right: 20px !important; font-size: 13.5px !important; white-space: normal !important; text-align: left !important; }
-    .tab-item i { font-size: 18px !important; margin-bottom: 0 !important; width: 22px !important; text-align: center !important; }
-    .tab-label-rapido { display: inline-block !important; font-size: 13.5px !important; font-weight: 600; line-height: 1.2; }
-    .tab-item.active .tab-label-rapido { color: var(--blue) !important; }
-    .tab-item-center span:not(.tab-label-rapido) { display: none !important; }
-}
 
 .table-wrapper { overflow-x: auto; padding-bottom: 10px; }
 table { width: 100%; border-collapse: separate; border-spacing: 0 5px; text-align: left; min-width: 750px; }
