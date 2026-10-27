@@ -1,195 +1,277 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js';
 import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js';
+import { state } from './state.js';
 
+/**
+ * Evalúa el desempeño presupuestario en 3 estados: Target, Riesgo, Fuera.
+ */
 export function calcularEstadoRAG(meta, gasto) {
-    if (gasto <= meta) return 'Target'; 
-    let desvioPct = meta > 0 ? ((gasto - meta) / meta) * 100 : 100;
-    if (parseFloat(desvioPct.toFixed(1)) <= 0) return 'Target';
-    if (desvioPct <= 10) return 'Riesgo'; 
-    return 'Fuera'; 
+    if (!meta || meta <= 0) {
+        return gasto > 0 ? 'Fuera' : 'Target';
+    }
+    const ratio = gasto / meta;
+    if (ratio <= 1.0) return 'Target';
+    if (ratio <= 1.10) return 'Riesgo';
+    return 'Fuera';
 }
 
-export function executeFinancialAuditEngine() {
-    const selector = document.getElementById('global-month-selector');
-    const activeMonthFilter = selector ? selector.value : getLocalDateString().substring(0, 7);
-    
-    let currentMonthTxs = state.globalTransData.filter(t => t.fecha && t.fecha.substring(0, 7) === activeMonthFilter);
-    
-    let auditFindings = {
-        score: 100,
-        ratingText: "Excelente (Auditado)",
-        ratingColor: "var(--primary)",
-        transferenciasHuerfanas: [],
-        cuentasEnRojo: [],
-        tarjetasConDeuda: [],
-        posiblesDuplicados: [],
-        vencimientosImpagos: []
-    };
+/**
+ * Construye el lote de transacciones unificadas con congelamiento de tipo de cambio (H-02).
+ */
+export function buildUnifiedTransactionBatch(params) {
+    const {
+        type,
+        fecha,
+        monto,
+        concepto,
+        origen,
+        destino,
+        categoria,
+        moneda,
+        pureza,
+        excluirGasto,
+        montoDestino
+    } = params;
 
-    // 1. Auditoría de Partida Doble en Transferencias y Cancelaciones de Pasivo
-    let transferGroups = {};
-    currentMonthTxs.forEach(t => {
-        if (t.categoria === 'Transferencia Interna' || t.categoria === 'Compra/Venta Divisas' || t.categoria === 'Pago Tarjeta de Crédito') {
-            let grp = t.transfer_group_id || `${t.fecha}_${t.monto}_${t.descripcion}`;
-            if (!transferGroups[grp]) transferGroups[grp] = [];
-            transferGroups[grp].push(t);
-        }
-    });
+    const baseGroupId = (type === 'TRANSFERENCIA' || type === 'CAMBIO_DIVISAS')
+        ? `grp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+        : null;
 
-    for (let gId in transferGroups) {
-        let txs = transferGroups[gId];
-        let hasGasto = txs.some(t => t.tipo === 'gasto');
-        let hasIngreso = txs.some(t => t.tipo === 'ingreso');
-        if (!hasGasto || !hasIngreso) {
-            auditFindings.transferenciasHuerfanas.push(txs[0]);
-            auditFindings.score -= 15;
-        }
-    }
-
-    // 2. Auditoría de Cajas Operativas en Rojo (Excluye cuentas de Pasivo / Tarjetas)
-    CUENTAS_OPERATIVAS.forEach(acc => {
-        let sARS = state.currentAccountBalancesARS[acc] || 0;
-        let sUSD = state.currentAccountBalancesUSD[acc] || 0;
-        if (sARS < 0) {
-            auditFindings.cuentasEnRojo.push(`${acc} ($${sARS.toLocaleString('es-AR')})`);
-            auditFindings.score -= 10;
-        }
-        if (sUSD < 0) {
-            auditFindings.cuentasEnRojo.push(`${acc} (u$d ${sUSD.toLocaleString('es-AR')})`);
-            auditFindings.score -= 10;
-        }
-    });
-
-    // 3. Relevamiento de Pasivos Acumulados en Tarjetas de Crédito
-    CUENTAS_TARJETAS.forEach(card => {
-        let deudaARS = state.creditCardDebtARS[card] || 0;
-        let deudaUSD = state.creditCardDebtUSD[card] || 0;
-        if (deudaARS > 0) {
-            auditFindings.tarjetasConDeuda.push(`${card}: $${deudaARS.toLocaleString('es-AR')}`);
-        }
-        if (deudaUSD > 0) {
-            auditFindings.tarjetasConDeuda.push(`${card}: u$d ${deudaUSD.toLocaleString('es-AR')}`);
-        }
-    });
-
-    // 4. Auditoría de Gastos Duplicados
-    let gastosMes = currentMonthTxs.filter(t => t.tipo === 'gasto' && t.presupuestado !== 'NO_COMPUTA' && t.categoria !== 'Transferencia Interna' && t.categoria !== 'Compra/Venta Divisas' && t.categoria !== 'Pago Tarjeta de Crédito');
-    for (let i = 0; i < gastosMes.length; i++) {
-        for (let j = i + 1; j < gastosMes.length; j++) {
-            let t1 = gastosMes[i];
-            let t2 = gastosMes[j];
-            if (t1.monto === t2.monto && t1.categoria === t2.categoria && t1.cuenta === t2.cuenta && t1.fecha === t2.fecha) {
-                auditFindings.posiblesDuplicados.push(`$${t1.monto.toLocaleString('es-AR')} en ${t1.categoria} (${t1.fecha})`);
-                auditFindings.score -= 5;
-            }
-        }
-    }
-
-    // 5. Auditoría de Compromisos Fijos Impagos
-    const todayIso = getLocalDateString();
-    state.currentMonthAlertsCache.forEach(al => {
-        if (al.status === 'overdue' || (al.status === 'today' && al.fechaRaw < todayIso)) {
-            auditFindings.vencimientosImpagos.push(`${al.categoria} (Venció ${al.fechaFormateada})`);
-            auditFindings.score -= 5;
-        }
-    });
-
-    auditFindings.score = Math.max(0, Math.min(100, auditFindings.score));
-    if (auditFindings.score >= 90) {
-        auditFindings.ratingText = "Excelente (Sólida)";
-        auditFindings.ratingColor = "var(--primary)";
-    } else if (auditFindings.score >= 70) {
-        auditFindings.ratingText = "Aceptable con Observaciones";
-        auditFindings.ratingColor = "var(--warning)";
-    } else {
-        auditFindings.ratingText = "Atención: Inconsistencias Detectadas";
-        auditFindings.ratingColor = "var(--danger)";
-    }
-
-    state.cachedAuditResult = auditFindings;
-    return auditFindings;
-}
-
-export function buildUnifiedTransactionBatch({ type, fecha, monto, concepto, origen, destino, categoria, moneda, pureza, excluirGasto, montoDestino }) {
-    const isTransferLike = (type === 'TRANSFERENCIA' || type === 'CAMBIO_DIVISAS' || type === 'PAGO_TARJETA' || (type === 'RENDIMIENTO' && pureza !== 'METRICA'));
-    const transferGroupId = isTransferLike ? crypto.randomUUID() : null;
-    let batch = [];
+    const fxRate = (moneda === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1;
 
     if (type === 'GASTO') {
-        const esTarjeta = CUENTAS_TARJETAS.includes(origen);
-        // En compras con tarjeta nunca se excluye el gasto: computa de inmediato en el presupuesto del mes
-        const etiquetaPresupuesto = (excluirGasto && !esTarjeta) ? 'NO_COMPUTA' : (state.globalBudgetData.some(b => b.nombre === categoria && parseFloat(b.presupuesto_mensual) > 0) ? 'SI' : 'NO');
-        
-        batch.push({
-            user_id: state.currentUser.id, tipo: 'gasto', monto, fecha, categoria,
-            cuenta: origen, descripcion: concepto, presupuestado: etiquetaPresupuesto,
-            moneda, autor: state.currentUser.email,
-            tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null
-        });
-    } else if (type === 'INGRESO') {
-        batch.push({
-            user_id: state.currentUser.id, tipo: 'ingreso', monto, fecha, categoria: 'Ingreso',
-            cuenta: origen, descripcion: concepto, presupuestado: 'NO',
-            moneda, autor: state.currentUser.email,
-            tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null
-        });
-    } else if (type === 'TRANSFERENCIA' || type === 'PAGO_TARJETA') {
-        const catName = CUENTAS_TARJETAS.includes(destino) ? 'Pago Tarjeta de Crédito' : 'Transferencia Interna';
-        batch.push(
-            { user_id: state.currentUser.id, tipo: 'gasto', monto, fecha, categoria: catName, cuenta: origen, descripcion: `Cancelación / Pase hacia ${destino}`, presupuestado: 'NO_COMPUTA', moneda, autor: state.currentUser.email, tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null, transfer_group_id: transferGroupId },
-            { user_id: state.currentUser.id, tipo: 'ingreso', monto, fecha, categoria: catName, cuenta: destino, descripcion: `Cancelación / Pase desde ${origen}`, presupuestado: 'NO_COMPUTA', moneda, autor: state.currentUser.email, tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null, transfer_group_id: transferGroupId }
-        );
-    } else if (type === 'RENDIMIENTO') {
-        if (pureza === 'METRICA') { 
-            batch.push({ user_id: state.currentUser.id, tipo: 'ingreso', monto, fecha, categoria: 'Rendimiento Inversiones', cuenta: origen, descripcion: concepto, presupuestado: 'NO', moneda, autor: state.currentUser.email, tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null }); 
-        } else {
-            batch.push(
-                { user_id: state.currentUser.id, tipo: 'ingreso', monto, fecha, categoria: 'Rendimiento Inversiones', cuenta: origen, descripcion: 'Interés neto líquido', presupuestado: 'NO', moneda, autor: state.currentUser.email, tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null },
-                { user_id: state.currentUser.id, tipo: 'gasto', monto, fecha, categoria: 'Transferencia Interna', cuenta: origen, descripcion: `Pase hacia ${destino}`, presupuestado: 'NO', moneda, autor: state.currentUser.email, tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null, transfer_group_id: transferGroupId },
-                { user_id: state.currentUser.id, tipo: 'ingreso', monto, fecha, categoria: 'Transferencia Interna', cuenta: destino, descripcion: `Pase desde ${origen}`, presupuestado: 'NO', moneda, autor: state.currentUser.email, tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null, transfer_group_id: transferGroupId }
-            );
-        }
-    } else if (type === 'CAMBIO_DIVISAS') {
-        const monedaDestino = moneda === 'ARS' ? 'USD' : 'ARS';
-        batch.push(
-            { user_id: state.currentUser.id, tipo: 'gasto', monto: monto, fecha, categoria: 'Compra/Venta Divisas', cuenta: origen, descripcion: concepto, presupuestado: 'NO_COMPUTA', moneda: moneda, autor: state.currentUser.email, tipo_cambio: moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null, transfer_group_id: transferGroupId },
-            { user_id: state.currentUser.id, tipo: 'ingreso', monto: montoDestino, fecha, categoria: 'Compra/Venta Divisas', cuenta: destino, descripcion: concepto, presupuestado: 'NO_COMPUTA', moneda: monedaDestino, autor: state.currentUser.email, tipo_cambio: monedaDestino === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null, transfer_group_id: transferGroupId }
-        );
+        return [{
+            fecha,
+            monto: Math.abs(monto),
+            descripcion: concepto,
+            cuenta: origen,
+            categoria: categoria || 'Otros Gastos (Sin Categorizar)',
+            tipo: 'gasto',
+            presupuestado: excluirGasto ? 'NO_COMPUTA' : 'SI',
+            moneda: moneda || 'ARS',
+            tipo_cambio: fxRate
+        }];
     }
 
-    return batch;
+    if (type === 'INGRESO') {
+        return [{
+            fecha,
+            monto: Math.abs(monto),
+            descripcion: concepto,
+            cuenta: origen,
+            categoria: 'Ingresos Laborales / Honorarios',
+            tipo: 'ingreso',
+            presupuestado: 'NO_COMPUTA',
+            moneda: moneda || 'ARS',
+            tipo_cambio: fxRate
+        }];
+    }
+
+    if (type === 'TRANSFERENCIA') {
+        const esPagoTarjeta = state.CUENTAS_TARJETAS?.includes(destino);
+        const catAsignada = esPagoTarjeta ? 'Pago Tarjeta de Crédito' : 'Transferencia Interna';
+
+        return [
+            {
+                fecha,
+                monto: Math.abs(monto),
+                descripcion: esPagoTarjeta ? `Cancelación: ${concepto}` : `Envío: ${concepto}`,
+                cuenta: origen,
+                categoria: catAsignada,
+                tipo: 'gasto',
+                presupuestado: 'NO_COMPUTA',
+                moneda: moneda || 'ARS',
+                tipo_cambio: fxRate,
+                transfer_group_id: baseGroupId
+            },
+            {
+                fecha,
+                monto: Math.abs(monto),
+                descripcion: esPagoTarjeta ? `Pago recibido: ${concepto}` : `Recepción: ${concepto}`,
+                cuenta: destino,
+                categoria: catAsignada,
+                tipo: 'ingreso',
+                presupuestado: 'NO_COMPUTA',
+                moneda: moneda || 'ARS',
+                tipo_cambio: fxRate,
+                transfer_group_id: baseGroupId
+            }
+        ];
+    }
+
+    if (type === 'CAMBIO_DIVISAS') {
+        const esVentaDolares = (moneda === 'USD');
+        const monedaSalida = moneda;
+        const monedaEntrada = esVentaDolares ? 'ARS' : 'USD';
+        const montoSalida = Math.abs(monto);
+        const montoEntrada = Math.abs(montoDestino);
+
+        const implicitFx = (esVentaDolares && montoSalida > 0) 
+            ? (montoEntrada / montoSalida) 
+            : (montoEntrada > 0 ? montoSalida / montoEntrada : TIPO_CAMBIO_PRESUPUESTO);
+
+        return [
+            {
+                fecha,
+                monto: montoSalida,
+                descripcion: `Entrega Divisa: ${concepto}`,
+                cuenta: origen,
+                categoria: 'Compra/Venta Divisas',
+                tipo: 'gasto',
+                presupuestado: 'NO_COMPUTA',
+                moneda: monedaSalida,
+                tipo_cambio: implicitFx,
+                transfer_group_id: baseGroupId
+            },
+            {
+                fecha,
+                monto: montoEntrada,
+                descripcion: `Recepción Divisa: ${concepto}`,
+                cuenta: destino,
+                categoria: 'Compra/Venta Divisas',
+                tipo: 'ingreso',
+                presupuestado: 'NO_COMPUTA',
+                moneda: monedaEntrada,
+                tipo_cambio: implicitFx,
+                transfer_group_id: baseGroupId
+            }
+        ];
+    }
+
+    return [];
 }
 
-export function buildCreditCardClosingBatch({ tarjeta, fecha, impuestosSellos = 0, intereses = 0, otrosCargos = 0, moneda = 'ARS' }) {
-    let batch = [];
-    const tc = moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : null;
+/**
+ * Genera cargos de liquidación de tarjeta con congelamiento cambiario y marcas antifraude (H-02, H-04).
+ */
+export function buildCreditCardClosingBatch(params) {
+    const {
+        tarjeta,
+        fecha,
+        impuestosSellos,
+        intereses,
+        otrosCargos,
+        moneda
+    } = params;
+
+    const fxRate = (moneda === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1;
+    const batch = [];
 
     if (impuestosSellos > 0) {
         batch.push({
-            user_id: state.currentUser.id, tipo: 'gasto', monto: impuestosSellos, fecha,
-            categoria: 'Impuestos y Sellos Tarjeta', cuenta: tarjeta,
-            descripcion: `Cierre Resumen ${tarjeta} - Impuestos / Sellos`,
-            presupuestado: 'SI', moneda, autor: state.currentUser.email, tipo_cambio: tc
+            fecha,
+            monto: Math.abs(impuestosSellos),
+            descripcion: `Liquidación Resumen: Impuesto de Sellos (${tarjeta})`,
+            cuenta: tarjeta,
+            categoria: 'Impuestos y Sellos',
+            tipo: 'gasto',
+            presupuestado: 'SI',
+            moneda: moneda || 'ARS',
+            tipo_cambio: fxRate
         });
     }
 
     if (intereses > 0) {
         batch.push({
-            user_id: state.currentUser.id, tipo: 'gasto', monto: intereses, fecha,
-            categoria: 'Intereses y Financiación Tarjeta', cuenta: tarjeta,
-            descripcion: `Cierre Resumen ${tarjeta} - Intereses Financieros`,
-            presupuestado: 'SI', moneda, autor: state.currentUser.email, tipo_cambio: tc
+            fecha,
+            monto: Math.abs(intereses),
+            descripcion: `Liquidación Resumen: Intereses Financieros (${tarjeta})`,
+            cuenta: tarjeta,
+            categoria: 'Intereses Financieros',
+            tipo: 'gasto',
+            presupuestado: 'SI',
+            moneda: moneda || 'ARS',
+            tipo_cambio: fxRate
         });
     }
 
     if (otrosCargos > 0) {
         batch.push({
-            user_id: state.currentUser.id, tipo: 'gasto', monto: otrosCargos, fecha,
-            categoria: 'Impuestos cuentas bancarias', cuenta: tarjeta,
-            descripcion: `Cierre Resumen ${tarjeta} - Comisiones y Cargos de Emisión`,
-            presupuestado: 'SI', moneda, autor: state.currentUser.email, tipo_cambio: tc
+            fecha,
+            monto: Math.abs(otrosCargos),
+            descripcion: `Liquidación Resumen: Comisiones y Renovación (${tarjeta})`,
+            cuenta: tarjeta,
+            categoria: 'Comisiones y Cargos Bancarios',
+            tipo: 'gasto',
+            presupuestado: 'SI',
+            moneda: moneda || 'ARS',
+            tipo_cambio: fxRate
         });
     }
 
     return batch;
+}
+
+/**
+ * Motor de Auditoría Financiera Contable Integral.
+ */
+export function executeFinancialAuditEngine() {
+    let score = 100;
+    const transferenciasHuerfanas = [];
+    const cuentasEnRojo = [];
+    const tarjetasConDeuda = [];
+    const posiblesDuplicados = [];
+
+    const mapGrupos = {};
+    state.globalTransData.forEach(t => {
+        if (t.transfer_group_id) {
+            mapGrupos[t.transfer_group_id] = (mapGrupos[t.transfer_group_id] || 0) + 1;
+        }
+    });
+
+    Object.keys(mapGrupos).forEach(grpId => {
+        if (mapGrupos[grpId] !== 2) {
+            transferenciasHuerfanas.push(grpId);
+            score -= 15;
+        }
+    });
+
+    Object.keys(state.currentAccountBalancesARS).forEach(acc => {
+        if (state.currentAccountBalancesARS[acc] < 0) {
+            cuentasEnRojo.push(`${acc} (ARS $${Math.round(state.currentAccountBalancesARS[acc]).toLocaleString('es-AR')})`);
+            score -= 10;
+        }
+    });
+
+    Object.keys(state.creditCardDebtARS).forEach(card => {
+        const d = (state.creditCardDebtARS[card] || 0) + ((state.creditCardDebtUSD[card] || 0) * TIPO_CAMBIO_PRESUPUESTO);
+        if (d > 0) {
+            tarjetasConDeuda.push(`${card} ($${Math.round(d).toLocaleString('es-AR')})`);
+        }
+    });
+
+    const signatures = new Set();
+    state.globalTransData.slice(0, 100).forEach(t => {
+        const sig = `${t.fecha}_${t.cuenta}_${t.monto}_${t.descripcion}`;
+        if (signatures.has(sig)) {
+            posiblesDuplicados.push(t.descripcion);
+            score -= 5;
+        } else {
+            signatures.add(sig);
+        }
+    });
+
+    score = Math.max(0, Math.min(100, score));
+
+    let ratingText = 'Excelente Cuadre Contable';
+    let ratingColor = 'var(--primary)';
+    if (score < 80 && score >= 50) {
+        ratingText = 'Observaciones Moderadas';
+        ratingColor = 'var(--warning)';
+    } else if (score < 50) {
+        ratingText = 'Descuadre Contable Severo';
+        ratingColor = 'var(--danger)';
+    }
+
+    const auditResult = {
+        score,
+        ratingText,
+        ratingColor,
+        transferenciasHuerfanas,
+        cuentasEnRojo,
+        tarjetasConDeuda,
+        posiblesDuplicados
+    };
+
+    state.cachedAuditResult = auditResult;
+    return auditResult;
 }
