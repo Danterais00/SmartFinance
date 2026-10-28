@@ -7,7 +7,6 @@ let currentScaleMode = 'linear';
 
 /**
  * Gráfico Donut de Liquidez Operativa + Cajas en columna vertical a la derecha.
- * Consolida saldos bimonetarios (ARS + USD * TIPO_CAMBIO).
  */
 export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = TIPO_CAMBIO_PRESUPUESTO) {
     const container = document.getElementById('pie-chart-container');
@@ -110,7 +109,7 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = 
 }
 
 /**
- * Fichas de Inversiones: Construye las cajas de forma dinámica en base a CUENTAS_COMITENTES reales.
+ * Fichas de Inversiones: Basadas estrictamente en CUENTAS_COMITENTES reales.
  */
 export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS, brokerUSD) {
     const area = document.getElementById('brokers-cards-area');
@@ -123,7 +122,6 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
         let rendARS = brokerARS[b] || 0;
         let rendUSD = brokerUSD[b] || 0;
 
-        // Migración retroactiva: si hay saldos guardados como "Balanz Capital", los transfiere a la vista de "Balanz"
         if (b === 'Balanz' && !saldoARS && !saldoUSD) {
             saldoARS = (balancesARS['Balanz Capital'] || 0) || saldoARS;
             saldoUSD = (balancesUSD['Balanz Capital'] || 0) || saldoUSD;
@@ -152,82 +150,128 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
 }
 
 /**
- * Gráfico Interactivo de Barras RAG (Desempeño por Categoría).
+ * GRÁFICO 1 ORIGINAL RESTAURADO: Desempeño por Categoría (Puntos Desacoplados / Scatter).
  */
-export function renderInteractiveChart(categoriesData) {
-    state.cachedCategoriesDataForChart = categoriesData;
+export function renderInteractiveChart(categoriesMes) {
+    state.cachedCategoriesDataForChart = categoriesMes || [];
     const canvas = document.getElementById('interactive-performance-canvas');
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
 
     if (performanceChart) {
         performanceChart.destroy();
     }
 
-    if (!categoriesData || categoriesData.length === 0) {
-        return;
-    }
+    if (!categoriesMes || categoriesMes.length === 0) return;
 
-    const labels = categoriesData.map(c => c.nombre);
-    const presupuestos = categoriesData.map(c => c.meta);
-    const reales = categoriesData.map(c => c.gasto);
+    const isLog = (currentScaleMode === 'logarithmic');
+    const labels = categoriesMes.map(c => c.nombre);
 
+    const metaPoints = categoriesMes.map(c => ({
+        x: c.nombre,
+        y: (isLog && c.meta <= 0) ? 500 : c.meta,
+        realVal: c.meta,
+        estado: c.estado
+    }));
+
+    const gastoPoints = categoriesMes.map(c => ({
+        x: c.nombre,
+        y: (isLog && c.gasto <= 0) ? 500 : c.gasto,
+        realVal: c.gasto,
+        estado: c.estado
+    }));
+
+    const ctx = canvas.getContext('2d');
     performanceChart = new Chart(ctx, {
-        type: 'bar',
+        type: 'line',
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: 'Presupuesto Asignado',
-                    data: presupuestos,
-                    backgroundColor: 'rgba(59, 130, 246, 0.4)',
+                    label: 'Presupuesto Meta ($)',
+                    data: metaPoints,
                     borderColor: '#3b82f6',
-                    borderWidth: 1.5,
-                    borderRadius: 6
+                    backgroundColor: '#3b82f6',
+                    showLine: false,
+                    pointRadius: 5.5,
+                    pointHoverRadius: 8
                 },
                 {
-                    label: 'Gasto Real Ejecutado',
-                    data: reales,
-                    backgroundColor: categoriesData.map(c => {
-                        if (c.estado === 'Target') return 'rgba(16, 185, 129, 0.7)';
-                        if (c.estado === 'Riesgo') return 'rgba(245, 158, 11, 0.7)';
-                        return 'rgba(239, 68, 68, 0.7)';
-                    }),
-                    borderColor: categoriesData.map(c => {
-                        if (c.estado === 'Target') return '#10b981';
-                        if (c.estado === 'Riesgo') return '#f59e0b';
-                        return '#ef4444';
-                    }),
-                    borderWidth: 1.5,
-                    borderRadius: 6
+                    label: 'Gasto Real ($)',
+                    data: gastoPoints,
+                    borderColor: '#ef4444',
+                    backgroundColor: '#ef4444',
+                    showLine: false,
+                    pointRadius: 5.5,
+                    pointStyle: 'rectRot',
+                    pointHoverRadius: 8
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            animation: { duration: 300 },
             scales: {
                 x: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#9ca3af', font: { size: 11 } }
+                    ticks: {
+                        color: '#9ca3af',
+                        autoSkip: false,
+                        maxRotation: 90,
+                        minRotation: 45,
+                        font: { size: 9, weight: '600' }
+                    },
+                    grid: { color: 'rgba(37, 37, 56, 0.6)' }
                 },
                 y: {
                     type: currentScaleMode,
-                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    min: isLog ? 500 : 0,
                     ticks: {
                         color: '#9ca3af',
-                        font: { size: 11 },
-                        callback: val => `$${Number(val).toLocaleString('es-AR')}`
-                    }
+                        font: { size: 10 },
+                        callback: function(val) {
+                            if (isLog && val === 500) return '$0 (Piso)';
+                            return '$' + Number(val).toLocaleString('es-AR');
+                        }
+                    },
+                    grid: { color: 'rgba(37, 37, 56, 0.6)' }
                 }
             },
             plugins: {
                 legend: {
-                    labels: { color: '#ffffff', font: { size: 12, weight: '600' } }
+                    labels: {
+                        color: '#f3f4f6',
+                        font: { family: 'Inter', weight: '600', size: 11 },
+                        usePointStyle: true,
+                        boxWidth: 8
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(20, 20, 31, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#e5e7eb',
+                    borderColor: '#252538',
+                    borderWidth: 1,
+                    padding: 12,
+                    titleFont: { size: 13, weight: '700' },
+                    bodyFont: { size: 12 },
+                    callbacks: {
+                        label: function(context) {
+                            const raw = context.raw;
+                            const label = context.dataset.label || '';
+                            const val = (raw && raw.realVal !== undefined) ? raw.realVal : context.parsed.y;
+                            return ` ${label}: $${val.toLocaleString('es-AR')}`;
+                        },
+                        afterBody: function(context) {
+                            if (!context || context.length === 0) return '';
+                            const raw = context[0].raw;
+                            return ` Semáforo: ${raw.estado || 'N/D'}`;
+                        }
+                    }
                 },
                 zoom: {
-                    pan: { enabled: true, mode: 'xy' },
-                    zoom: { wheel: { enabled: false }, pinch: { enabled: true }, mode: 'xy' }
+                    pan: { enabled: true, mode: 'x', threshold: 5 },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+                    limits: { y: { min: isLog ? 500 : 0 } }
                 }
             }
         }
@@ -235,73 +279,113 @@ export function renderInteractiveChart(categoriesData) {
 }
 
 /**
- * Gráfico Interactivo Multimensual de Evolución Histórica.
+ * GRÁFICO 2 ORIGINAL RESTAURADO: Tendencia Histórica Mes a Mes (Líneas sólidas originales).
  */
-export function renderInteractiveHistoryChart(historyData) {
-    state.cachedHistoricalDataForChart = historyData;
+export function renderInteractiveHistoryChart(historicalList) {
+    state.cachedHistoricalDataForChart = historicalList || [];
     const canvas = document.getElementById('interactive-history-canvas');
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
 
     if (historyChart) {
         historyChart.destroy();
     }
 
-    if (!historyData || historyData.length === 0) return;
+    if (!historicalList || historicalList.length === 0) return;
 
-    const labels = historyData.map(h => h.mes);
-    const metas = historyData.map(h => h.metaTotal);
-    const gastos = historyData.map(h => h.gastoTotal);
+    const labels = historicalList.map(h => h.mes);
+    const gastos = historicalList.map(h => h.gastoTotal);
+    const presupuestos = historicalList.map(h => h.metaTotal);
 
+    const ctx = canvas.getContext('2d');
     historyChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: 'Presupuesto Total ($)',
-                    data: metas,
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    borderWidth: 2,
-                    tension: 0.3,
-                    fill: true
+                    label: 'Gasto Total ($)',
+                    data: gastos,
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: true,
+                    tension: 0.25,
+                    pointRadius: 6,
+                    pointHoverRadius: 9,
+                    pointBackgroundColor: '#ef4444'
                 },
                 {
-                    label: 'Gasto Real Total ($)',
-                    data: gastos,
-                    borderColor: '#10b981',
-                    backgroundColor: 'transparent',
-                    borderWidth: 2.5,
-                    tension: 0.3,
-                    borderDash: [4, 4]
+                    label: 'Presupuesto Total ($)',
+                    data: presupuestos,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                    fill: true,
+                    tension: 0.25,
+                    pointRadius: 6,
+                    pointHoverRadius: 9,
+                    pointBackgroundColor: '#3b82f6'
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            animation: { duration: 300 },
             scales: {
                 x: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
-                    ticks: { color: '#9ca3af', font: { size: 11 } }
-                },
-                y: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
                     ticks: {
                         color: '#9ca3af',
-                        font: { size: 11 },
-                        callback: val => `$${Number(val).toLocaleString('es-AR')}`
-                    }
+                        font: { size: 10, weight: '600' }
+                    },
+                    grid: { color: 'rgba(37, 37, 56, 0.6)' }
+                },
+                y: {
+                    min: 0,
+                    ticks: {
+                        color: '#9ca3af',
+                        font: { size: 10 },
+                        callback: function(val) {
+                            return '$' + Number(val).toLocaleString('es-AR');
+                        }
+                    },
+                    grid: { color: 'rgba(37, 37, 56, 0.6)' }
                 }
             },
             plugins: {
                 legend: {
-                    labels: { color: '#ffffff', font: { size: 12, weight: '600' } }
+                    labels: {
+                        color: '#f3f4f6',
+                        font: { family: 'Inter', weight: '600', size: 11 },
+                        usePointStyle: true,
+                        boxWidth: 8
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(20, 20, 31, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#e5e7eb',
+                    borderColor: '#252538',
+                    borderWidth: 1,
+                    padding: 12,
+                    titleFont: { size: 13, weight: '700' },
+                    bodyFont: { size: 12 },
+                    callbacks: {
+                        label: function(context) {
+                            return ` ${context.dataset.label}: $${Number(context.parsed.y).toLocaleString('es-AR')}`;
+                        },
+                        afterBody: function(contexts) {
+                            if (!contexts || contexts.length < 2) return '';
+                            const gasto = contexts[0].parsed.y;
+                            const meta = contexts[1].parsed.y;
+                            const dif = meta - gasto;
+                            const signo = dif >= 0 ? '🟢 Ahorro neto' : '🔴 Déficit neto';
+                            return ` ${signo}: $${Math.abs(dif).toLocaleString('es-AR')}`;
+                        }
+                    }
                 },
                 zoom: {
-                    pan: { enabled: true, mode: 'y' },
-                    zoom: { wheel: { enabled: false }, pinch: { enabled: true }, mode: 'y' }
+                    pan: { enabled: true, mode: 'x', threshold: 5 },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+                    limits: { y: { min: 0 } }
                 }
             }
         }
@@ -311,19 +395,33 @@ export function renderInteractiveHistoryChart(historyData) {
 export function toggleInteractiveScale() {
     currentScaleMode = (currentScaleMode === 'linear') ? 'logarithmic' : 'linear';
     const lbl = document.getElementById('lbl-scale-mode');
-    if (lbl) lbl.innerText = currentScaleMode === 'linear' ? 'Lineal' : 'Logarítmica';
+    if (lbl) {
+        lbl.innerText = (currentScaleMode === 'linear') ? 'Lineal' : 'Logarítmica';
+        lbl.style.color = (currentScaleMode === 'linear') ? 'var(--blue)' : 'var(--warning)';
+    }
+    renderInteractiveChart(state.cachedCategoriesDataForChart);
+}
+
+export function resetInteractiveZoom() {
     if (performanceChart) {
-        performanceChart.options.scales.y.type = currentScaleMode;
+        delete performanceChart.options.scales.x.min;
+        delete performanceChart.options.scales.x.max;
+        delete performanceChart.options.scales.y.max;
+        performanceChart.options.scales.y.min = (currentScaleMode === 'logarithmic') ? 500 : 0;
+        performanceChart.resetZoom();
         performanceChart.update();
     }
 }
 
-export function resetInteractiveZoom() {
-    if (performanceChart) performanceChart.resetZoom();
-}
-
 export function resetInteractiveHistoryZoom() {
-    if (historyChart) historyChart.resetZoom();
+    if (historyChart) {
+        delete historyChart.options.scales.x.min;
+        delete historyChart.options.scales.x.max;
+        delete historyChart.options.scales.y.max;
+        historyChart.options.scales.y.min = 0;
+        historyChart.resetZoom();
+        historyChart.update();
+    }
 }
 
 export function zoomPerformanceChart(axis, factor) {
