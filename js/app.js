@@ -34,7 +34,6 @@ import { parseVisaStatement } from './statementImporter.js';
 
 let parsedStatementItems = [];
 
-// FUNCIÓN AUXILIAR: VENTANA MÓVIL DE FECHAS (H-05)
 function isDateWithinRange(targetDateStr, baseDateStr, daysBefore = 20, daysAfter = 15) {
     if (!targetDateStr || !baseDateStr) return false;
     const target = new Date(targetDateStr + 'T00:00:00');
@@ -216,9 +215,12 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
 
 function initMonthSelector() {
     const selector = document.getElementById('global-month-selector');
+    const importMonthSelector = document.getElementById('import-target-period');
     if (!selector) return;
     const prevVal = selector.value;
     selector.innerHTML = "";
+    if (importMonthSelector) importMonthSelector.innerHTML = "";
+
     const fechaBase = new Date(2026, 6, 1);
     const fechaActual = new Date();
     const fechaLimiteFutura = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 12, 1);
@@ -236,10 +238,22 @@ function initMonthSelector() {
         const o = document.createElement('option');
         o.value = opt.val; o.innerText = opt.label;
         selector.appendChild(o);
+
+        if (importMonthSelector) {
+            const o2 = document.createElement('option');
+            o2.value = opt.val; o2.innerText = opt.label;
+            importMonthSelector.appendChild(o2);
+        }
     });
+
     const mesActualStr = getLocalDateString().substring(0, 7);
-    if (prevVal && Array.from(selector.options).some(o => o.value === prevVal)) selector.value = prevVal;
-    else if (Array.from(selector.options).some(o => o.value === mesActualStr)) selector.value = mesActualStr;
+    if (prevVal && Array.from(selector.options).some(o => o.value === prevVal)) {
+        selector.value = prevVal;
+        if (importMonthSelector) importMonthSelector.value = prevVal;
+    } else if (Array.from(selector.options).some(o => o.value === mesActualStr)) {
+        selector.value = mesActualStr;
+        if (importMonthSelector) importMonthSelector.value = mesActualStr;
+    }
 }
 
 function populateSelectOptions() {
@@ -264,7 +278,6 @@ function populateSelectOptions() {
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
 }
 
-// CÁLCULO CONTABLE EXACTO: SEPARACIÓN DE OPEX Y FLUJO REAL (H-01, H-02, H-03)
 function recalculateFinancialMetrics() {
     const selector = document.getElementById('global-month-selector');
     const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
@@ -490,7 +503,6 @@ const applyFilters = () => {
     renderTransactionHistoryTable(filtrados);
 };
 
-// RECONCILIACIÓN DE VENCIMIENTOS CON VENTANA MÓVIL +/- 20 DÍAS (H-05)
 function checkRemindersAndAlerts(catGastosMap = {}) {
     const today = getLocalDateString();
     const selector = document.getElementById('global-month-selector');
@@ -748,15 +760,23 @@ function renderStagingTable() {
 
 function processStatementFile(file) {
     const targetCard = document.getElementById('import-target-card').value;
-    if (!targetCard) { window.UI.showAppAlert("Atención", "Seleccioná primero la tarjeta de crédito."); return; }
+    const targetPeriod = document.getElementById('import-target-period') ? document.getElementById('import-target-period').value : document.getElementById('global-month-selector').value;
+
+    if (!targetCard) { 
+        window.UI.showAppAlert("Atención", "Seleccioná primero la tarjeta de crédito."); 
+        return; 
+    }
+
     const reader = new FileReader();
     reader.onload = async (e) => {
         try {
-            parsedStatementItems = await parseVisaStatement(e.target.result, targetCard, state.misCategoriasUnificadas);
+            parsedStatementItems = await parseVisaStatement(e.target.result, targetCard, state.misCategoriasUnificadas, targetPeriod);
             document.getElementById('import-step-upload').style.display = 'none';
             document.getElementById('import-step-review').style.display = 'flex';
             renderStagingTable();
-        } catch (err) { window.UI.showAppAlert("Error de Lectura", err.message); }
+        } catch (err) { 
+            window.UI.showAppAlert("Error de Lectura", err.message); 
+        }
     };
     reader.readAsArrayBuffer(file);
 }
@@ -943,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // GUARDAR PRESUPUESTO ROBUSTO (SIN CONFLICTO DE POSTGRES)
+    // GUARDAR PRESUPUESTO
     document.getElementById('form-save-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
@@ -988,7 +1008,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // MODAL EDITAR PRESUPUESTO ROBUSTO
+    // MODAL EDITAR PRESUPUESTO
     document.getElementById('form-modal-edit-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
@@ -1035,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // LIQUIDACIÓN DE TARJETA CON PREVENCIÓN DE DUPLICADOS (H-04)
+    // LIQUIDACIÓN DE TARJETA
     document.getElementById('form-card-closing')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const tarjeta = document.getElementById('close-card-select').value;
@@ -1095,7 +1115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // DUPLICAR MES ANTERIOR CON RECONCILIACIÓN POR ID (CORRECCIÓN DEFINITIVA DEL ERROR ON CONFLICT)
+    // DUPLICAR MES ANTERIOR
     document.getElementById('btn-clone-budget')?.addEventListener('click', async () => {
         const currentPeriodo = document.getElementById('global-month-selector') ? document.getElementById('global-month-selector').value : getLocalDateString().substring(0, 7);
         const prevPeriodo = getPreviousMonthStr(currentPeriodo);
@@ -1105,7 +1125,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn) btn.disabled = true;
 
             try {
-                // 1. Obtener presupuestos del mes anterior
                 const { data: prevBudgets, error: prevErr } = await _supabase.from('categorias')
                     .select('*')
                     .eq('user_id', state.currentUser.id)
@@ -1118,7 +1137,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // 2. Obtener presupuestos existentes en el periodo destino
                 const { data: existingTarget, error: exErr } = await _supabase.from('categorias')
                     .select('id, nombre')
                     .eq('user_id', state.currentUser.id)
@@ -1130,7 +1148,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const updatePromises = [];
                 const insertBatch = [];
 
-                // 3. Si ya existe la categoría en el periodo destino, actualiza por ID; si no, inserta
                 prevBudgets.forEach(b => {
                     const targetId = existingMap.get(b.nombre);
                     if (targetId) {
@@ -1173,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // EDICIÓN CON SINCRONIZACIÓN SIMÉTRICA ESTRICTA DE PARTIDA DOBLE (H-06)
+    // EDICIÓN EN HISTORIAL
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
@@ -1244,14 +1261,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btn-open-statement-importer')?.addEventListener('click', () => {
-        document.getElementById('import-step-upload').style.display = 'block'; document.getElementById('import-step-review').style.display = 'none'; document.getElementById('import-file-input').value = ""; parsedStatementItems = []; window.UI.openModal('modal-import-statement');
+        document.getElementById('import-step-upload').style.display = 'block'; 
+        document.getElementById('import-step-review').style.display = 'none'; 
+        document.getElementById('import-file-input').value = ""; 
+        parsedStatementItems = []; 
+        
+        // Sincroniza el selector del modal con el mes activo del dashboard
+        const currentSelectedMonth = document.getElementById('global-month-selector') ? document.getElementById('global-month-selector').value : '';
+        const importMonthEl = document.getElementById('import-target-period');
+        if (importMonthEl && currentSelectedMonth) {
+            importMonthEl.value = currentSelectedMonth;
+        }
+
+        window.UI.openModal('modal-import-statement');
     });
+
     document.getElementById('import-dropzone')?.addEventListener('click', () => document.getElementById('import-file-input').click());
     document.getElementById('import-file-input')?.addEventListener('change', (e) => { if (e.target.files && e.target.files[0]) processStatementFile(e.target.files[0]); });
     document.getElementById('import-check-all')?.addEventListener('change', (e) => { parsedStatementItems.forEach(item => item.selected = e.target.checked); renderStagingTable(); });
     document.getElementById('btn-import-reset')?.addEventListener('click', () => { document.getElementById('import-step-upload').style.display = 'block'; document.getElementById('import-step-review').style.display = 'none'; document.getElementById('import-file-input').value = ""; parsedStatementItems = []; });
 
-    // INYECCIÓN DE CONSUMOS BANCARIOS CON REINTEGROS (H-02, H-03)
+    // INYECCIÓN DE CONSUMOS BANCARIOS CON FECHA IMPUTADA AL MES DE PAGO
     document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
         const targetCard = document.getElementById('import-target-card').value; 
         const seleccionados = parsedStatementItems.filter(item => item.selected);
