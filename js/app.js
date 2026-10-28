@@ -93,6 +93,9 @@ window.UI = {
     closeModal(modalId) {
         const m = document.getElementById(modalId);
         if (m) m.classList.remove('is-open');
+        if (modalId === 'edit-transaction-modal') {
+            state.editingTransactionId = null;
+        }
     },
 
     openModal(modalId) {
@@ -152,6 +155,74 @@ window.UI = {
         if (elMonto) elMonto.value = monto;
         if (elConcepto) elConcepto.value = `Pago vencimiento: ${categoria}`;
         if (typeof window.updateUnifiedFormUI === 'function') window.updateUnifiedFormUI();
+    },
+
+    openEditTransactionModal(id) {
+        const t = state.globalTransData.find(item => String(item.id) === String(id));
+        if (!t) {
+            window.UI.showAppAlert("Error", "No se encontró el registro seleccionado para editar.");
+            return;
+        }
+
+        state.editingTransactionId = t.id;
+
+        const fFecha = document.getElementById('edit-form-fecha');
+        const fImporte = document.getElementById('edit-form-importe');
+        const fConcepto = document.getElementById('edit-form-concepto');
+        const fMetodo = document.getElementById('edit-form-metodo');
+        const fCategoria = document.getElementById('edit-form-categoria');
+        const fMoneda = document.getElementById('edit-form-moneda');
+        const fPresup = document.getElementById('edit-form-presupuestado');
+        const fEsCredito = document.getElementById('edit-form-es-credito');
+
+        const rawMonto = parseFloat(t.monto) || 0;
+
+        if (fFecha) fFecha.value = t.fecha || getLocalDateString();
+        if (fImporte) fImporte.value = Math.abs(rawMonto);
+        if (fConcepto) fConcepto.value = t.descripcion || '';
+        if (fMetodo) fMetodo.value = t.cuenta || '';
+        if (fCategoria) fCategoria.value = t.categoria || '';
+        if (fMoneda) fMoneda.value = t.moneda || 'ARS';
+        if (fPresup) fPresup.value = t.presupuestado || 'SI';
+        if (fEsCredito) fEsCredito.value = (rawMonto < 0) ? 'true' : 'false';
+
+        window.UI.openModal('edit-transaction-modal');
+    },
+
+    deleteTransaction(id) {
+        const t = state.globalTransData.find(item => String(item.id) === String(id));
+        if (!t) {
+            window.UI.showAppAlert("Error", "No se encontró el movimiento a eliminar.");
+            return;
+        }
+
+        const isTransfer = !!t.transfer_group_id;
+        const montoNum = Math.abs(parseFloat(t.monto) || 0);
+        const sym = t.moneda === 'USD' ? 'u$d' : '$';
+
+        const titulo = isTransfer ? "Eliminar Movimiento Vinculado" : "Eliminar Movimiento";
+        const mensaje = isTransfer
+            ? `Este registro forma parte de una transferencia o cancelación de tarjeta ("${t.descripcion || 'Sin detalle'}"). ¿Deseas eliminar ambas patas de la operación para mantener la partida doble cuadrada?`
+            : `¿Deseas eliminar permanentemente el registro "${t.descripcion || 'Sin detalle'}" por ${sym} ${montoNum.toLocaleString('es-AR')}?`;
+
+        window.UI.showAppConfirm(titulo, mensaje, async () => {
+            try {
+                let res;
+                if (isTransfer) {
+                    res = await _supabase.from('transacciones').delete().eq('transfer_group_id', t.transfer_group_id);
+                } else {
+                    res = await _supabase.from('transacciones').delete().eq('id', t.id);
+                }
+
+                if (res.error) throw res.error;
+
+                window.UI.showToast(isTransfer ? "Operación doble eliminada con éxito" : "Movimiento eliminado con éxito");
+                await loadUserDataFromDatabase();
+            } catch (err) {
+                console.error("Error al eliminar movimiento:", err);
+                window.UI.showAppAlert("Error al Eliminar", err.message);
+            }
+        });
     },
 
     toggleChat() {
@@ -278,6 +349,7 @@ function populateSelectOptions() {
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
 }
 
+// CÁLCULO CONTABLE EXACTO Y CONSOLIDACIÓN BIMONETARIA
 function recalculateFinancialMetrics() {
     const selector = document.getElementById('global-month-selector');
     const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
@@ -405,7 +477,8 @@ function recalculateFinancialMetrics() {
     setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit Real' : 'Déficit Real', ahorroMes >= 0 ? 'var(--primary)' : 'var(--danger)');
     setCard('metric-disponible', `$${Math.round(liquidezDisponible).toLocaleString('es-AR')}`);
 
-    renderPortfolioPieChart(state.currentAccountBalancesARS);
+    // CONSOLIDACIÓN EXACTA BIMONETARIA EN EL DONUT
+    renderPortfolioPieChart(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, TIPO_CAMBIO_PRESUPUESTO);
     renderSavingsPatrimonialTab(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, state.brokerEarningsARS, state.brokerEarningsUSD);
 
     let categoriesMes = [];
@@ -477,7 +550,18 @@ function renderTransactionHistoryTable(dataset) {
         const author = t.autor ? (t.autor.includes('dante') ? 'Dante' : 'Lore') : 'Dante';
         const reintegroBadge = isNegExpense ? `<span style="font-size:9.5px; color:var(--primary); font-weight:700; margin-left:4px;">[Reintegro]</span>` : '';
 
-        tbody.innerHTML += `<tr><td>${t.fecha}</td><td style="font-weight:500;">${t.descripcion || '-'} ${reintegroBadge}</td><td style="color:${color}; font-weight:700;">${sign} ${sym} ${displayMonto}</td><td>${t.cuenta}</td><td><span style="font-size:11px; background:var(--bg-card); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">${t.categoria}</span></td><td>${author}</td><td style="text-align:center;"><button class="btn-action" onclick="window.UI.openEditTransactionModal('${t.id}')"><i class="fa-solid fa-pen-to-square"></i></button><button class="btn-delete" onclick="window.UI.deleteTransaction('${t.id}')"><i class="fa-solid fa-trash"></i></button></td></tr>`;
+        tbody.innerHTML += `<tr>
+            <td>${t.fecha}</td>
+            <td style="font-weight:500;">${t.descripcion || '-'} ${reintegroBadge}</td>
+            <td style="color:${color}; font-weight:700;">${sign} ${sym} ${displayMonto}</td>
+            <td>${t.cuenta}</td>
+            <td><span style="font-size:11px; background:var(--bg-card); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">${t.categoria}</span></td>
+            <td>${author}</td>
+            <td style="text-align:center;">
+                <button class="btn-action" onclick="window.UI.openEditTransactionModal('${t.id}')" title="Editar Movimiento"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button class="btn-delete" onclick="window.UI.deleteTransaction('${t.id}')" title="Eliminar Movimiento"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>`;
     });
 }
 
@@ -928,21 +1012,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!navigator.onLine) {
                 saveOfflineQueue(batch);
                 window.UI.showToast("Operación encolada offline");
-                if (btnSubmit) {
-                    btnSubmit.disabled = false;
-                    btnSubmit.innerHTML = `<i class="fa-solid fa-check"></i> Procesar Movimiento`;
-                }
                 if (elMonto) { elMonto.value = ""; elMonto.focus(); }
                 if (elConcepto) elConcepto.value = "";
                 return;
             }
 
             const { error } = await _supabase.from('transacciones').insert(batch);
-            
-            if (btnSubmit) {
-                btnSubmit.disabled = false;
-                btnSubmit.innerHTML = `<i class="fa-solid fa-check"></i> Procesar Movimiento`;
-            }
 
             if (error) {
                 window.UI.showAppAlert("Error al Guardar", error.message);
@@ -955,11 +1030,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error("Error en procesamiento de movimiento:", err);
+            window.UI.showAppAlert("Error Inesperado", "Ocurrió un error al procesar el movimiento: " + err.message);
+        } finally {
             if (btnSubmit) {
                 btnSubmit.disabled = false;
                 btnSubmit.innerHTML = `<i class="fa-solid fa-check"></i> Procesar Movimiento`;
             }
-            window.UI.showAppAlert("Error Inesperado", "Ocurrió un error al procesar el movimiento: " + err.message);
         }
     });
 
@@ -1055,9 +1131,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // LIQUIDACIÓN DE TARJETA
+    // LIQUIDACIÓN DE TARJETA CON BLINDAJE DE EXCEPCIONES
     document.getElementById('form-card-closing')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btnClosing = document.getElementById('btn-card-closing-submit');
         const tarjeta = document.getElementById('close-card-select').value;
         const fecha = document.getElementById('close-card-fecha').value;
         const sellos = parseFloat(document.getElementById('close-card-sellos').value) || 0;
@@ -1078,29 +1155,42 @@ document.addEventListener('DOMContentLoaded', () => {
         );
 
         const executeClosingInsert = async () => {
-            const batch = buildCreditCardClosingBatch({
-                tarjeta,
-                fecha,
-                impuestosSellos: sellos,
-                intereses,
-                otrosCargos: otros,
-                moneda
-            }).map(item => ({
-                ...item,
-                user_id: state.currentUser.id,
-                autor: state.currentUser.email
-            }));
+            if (btnClosing) {
+                btnClosing.disabled = true;
+                btnClosing.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Liquidando...`;
+            }
 
-            const { error } = await _supabase.from('transacciones').insert(batch);
-            if (error) {
-                window.UI.showAppAlert("Error", error.message);
-            } else {
+            try {
+                const batch = buildCreditCardClosingBatch({
+                    tarjeta,
+                    fecha,
+                    impuestosSellos: sellos,
+                    intereses,
+                    otrosCargos: otros,
+                    moneda
+                }).map(item => ({
+                    ...item,
+                    user_id: state.currentUser.id,
+                    autor: state.currentUser.email
+                }));
+
+                const { error } = await _supabase.from('transacciones').insert(batch);
+                if (error) throw error;
+
                 window.UI.closeModal('modal-card-closing');
                 window.UI.showToast(`Resumen liquidado en ${tarjeta} (+${batch.length} cargos)`);
                 document.getElementById('close-card-sellos').value = "";
                 document.getElementById('close-card-intereses').value = "";
                 document.getElementById('close-card-otros').value = "";
-                loadUserDataFromDatabase();
+                await loadUserDataFromDatabase();
+            } catch (err) {
+                console.error("Error al liquidar resumen:", err);
+                window.UI.showAppAlert("Error al Liquidar", err.message);
+            } finally {
+                if (btnClosing) {
+                    btnClosing.disabled = false;
+                    btnClosing.innerHTML = `<i class="fa-solid fa-file-invoice-dollar"></i> Imputar Cargos`;
+                }
             }
         };
 
@@ -1133,7 +1223,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (prevErr) throw prevErr;
                 if (!prevBudgets || prevBudgets.length === 0) {
                     window.UI.showAppAlert("Sin Registros", `No hay presupuestos previos registrados en ${prevPeriodo} para duplicar.`);
-                    if (btn) btn.disabled = false;
                     return;
                 }
 
@@ -1190,74 +1279,147 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // EDICIÓN EN HISTORIAL
+    // GUARDAR EDICIÓN CON CONTROL ESTRICTO DE SIGNO EN CONTRA-GASTOS / REINTEGROS
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
+        
+        const btnSubmit = document.getElementById('btn-edit-transaction-submit');
         const t = state.globalTransData.find(item => item.id === state.editingTransactionId); 
         if (!t) return;
 
+        let numMonto = parseFloat(document.getElementById('edit-form-importe').value) || 0;
+        const esCredito = (document.getElementById('edit-form-es-credito')?.value === 'true');
+        
+        // Preserva el signo negativo si correspondía a un reintegro o nota de crédito
+        if (esCredito) {
+            numMonto = -Math.abs(numMonto);
+        } else {
+            numMonto = Math.abs(numMonto);
+        }
+
         const payload = { 
             fecha: document.getElementById('edit-form-fecha').value, 
-            monto: parseFloat(document.getElementById('edit-form-importe').value), 
+            monto: numMonto, 
             descripcion: document.getElementById('edit-form-concepto').value.trim(), 
             cuenta: document.getElementById('edit-form-metodo').value, 
             categoria: document.getElementById('edit-form-categoria').value, 
-            presupuestado: document.getElementById('edit-form-presupuestado').value, 
+            presupuestado: document.getElementById('edit-form-presupuestado').value || 'SI', 
             moneda: document.getElementById('edit-form-moneda').value 
         };
 
         const isGroup = !!t.transfer_group_id;
-        const updates = [_supabase.from('transacciones').update(payload).eq('id', state.editingTransactionId)];
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Guardando...`;
+        }
 
-        if (isGroup) { 
-            const peer = state.globalTransData.find(item => item.transfer_group_id === t.transfer_group_id && item.id !== t.id); 
-            if (peer) { 
-                const peerPayload = { fecha: payload.fecha }; 
-                if (t.categoria !== 'Compra/Venta Divisas') { 
-                    peerPayload.monto = payload.monto; 
-                    peerPayload.moneda = payload.moneda; 
+        try {
+            const updates = [_supabase.from('transacciones').update(payload).eq('id', state.editingTransactionId)];
+
+            if (isGroup) { 
+                const peer = state.globalTransData.find(item => item.transfer_group_id === t.transfer_group_id && item.id !== t.id); 
+                if (peer) { 
+                    const peerPayload = { fecha: payload.fecha }; 
+                    if (t.categoria !== 'Compra/Venta Divisas') { 
+                        peerPayload.monto = Math.abs(payload.monto); 
+                        peerPayload.moneda = payload.moneda; 
+                    } 
+                    updates.push(_supabase.from('transacciones').update(peerPayload).eq('id', peer.id)); 
                 } 
-                updates.push(_supabase.from('transacciones').update(peerPayload).eq('id', peer.id)); 
-            } 
-        }
+            }
 
-        const results = await Promise.all(updates);
-        const err = results.find(r => r.error);
+            const results = await Promise.all(updates);
+            const err = results.find(r => r.error);
 
-        if (err) { 
-            window.UI.showAppAlert("Error", err.error.message); 
-            return; 
+            if (err) throw err.error;
+            
+            window.UI.closeModal('edit-transaction-modal'); 
+            window.UI.showToast(isGroup ? "Partida doble sincronizada con éxito" : "Registro actualizado correctamente"); 
+            await loadUserDataFromDatabase();
+        } catch (err) {
+            console.error("Error al actualizar movimiento:", err);
+            window.UI.showAppAlert("Error al Guardar", err.message);
+        } finally {
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Guardar Cambios`;
+            }
         }
-        
-        window.UI.closeModal('edit-transaction-modal'); 
-        window.UI.showToast(isGroup ? "Partida doble sincronizada con éxito" : "Registro actualizado correctamente"); 
-        loadUserDataFromDatabase();
     });
 
+    // AJUSTE TÉCNICO DE SALDOS
     document.getElementById('form-audit-adjust')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const payload = { 
-            user_id: state.currentUser.id, 
-            tipo: document.getElementById('audit-tipo').value === 'AJUSTE_POSITIVO' ? 'ingreso' : 'gasto', 
-            monto: parseFloat(document.getElementById('audit-monto').value), 
-            fecha: document.getElementById('audit-fecha').value, 
-            categoria: 'Ajuste Técnico Saldos', 
-            cuenta: document.getElementById('audit-cuenta').value, 
-            descripcion: `Reconciliación: ${document.getElementById('audit-concepto').value.trim()}`, 
-            presupuestado: 'NO_COMPUTA', 
-            moneda: document.getElementById('audit-moneda').value, 
-            tipo_cambio: (document.getElementById('audit-moneda').value === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1,
-            autor: state.currentUser.email 
-        };
-        const { error } = await _supabase.from('transacciones').insert([payload]);
-        if (error) window.UI.showAppAlert("Error", error.message); else { window.UI.showToast("Ajuste aplicado"); document.getElementById('audit-monto').value = ""; document.getElementById('audit-concepto').value = ""; loadUserDataFromDatabase(); }
+        const btnSubmit = document.getElementById('btn-audit-adjust-submit');
+        const numMonto = parseFloat(document.getElementById('audit-monto').value);
+
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Aplicando...`;
+        }
+
+        try {
+            const payload = { 
+                user_id: state.currentUser.id, 
+                tipo: document.getElementById('audit-tipo').value === 'AJUSTE_POSITIVO' ? 'ingreso' : 'gasto', 
+                monto: Math.abs(numMonto), 
+                fecha: document.getElementById('audit-fecha').value, 
+                categoria: 'Ajuste Técnico Saldos', 
+                cuenta: document.getElementById('audit-cuenta').value, 
+                descripcion: `Reconciliación: ${document.getElementById('audit-concepto').value.trim()}`, 
+                presupuestado: 'NO_COMPUTA', 
+                moneda: document.getElementById('audit-moneda').value, 
+                tipo_cambio: (document.getElementById('audit-moneda').value === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1,
+                autor: state.currentUser.email 
+            };
+
+            const { error } = await _supabase.from('transacciones').insert([payload]);
+            if (error) throw error;
+
+            window.UI.showToast("Ajuste aplicado correctamente"); 
+            document.getElementById('audit-monto').value = ""; 
+            document.getElementById('audit-concepto').value = ""; 
+            await loadUserDataFromDatabase();
+        } catch (err) {
+            console.error("Error en ajuste técnico:", err);
+            window.UI.showAppAlert("Error en Ajuste", err.message);
+        } finally {
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `Aplicar Ajuste Contable`;
+            }
+        }
     });
 
+    // CREACIÓN DE CATEGORÍA
     document.getElementById('form-new-category')?.addEventListener('submit', async (e) => {
-        e.preventDefault(); const catName = document.getElementById('new-cat-name').value.trim(); if (!catName) return;
-        const { error } = await _supabase.from('user_categories').insert([{ user_id: state.currentUser.id, nombre_categoria: catName }]);
-        if (error) window.UI.showAppAlert("Error", error.message); else { window.UI.showToast(`Categoría añadida`); document.getElementById('new-cat-name').value = ""; loadUserDataFromDatabase(); }
+        e.preventDefault(); 
+        const btnSubmit = document.getElementById('btn-new-cat-submit');
+        const catName = document.getElementById('new-cat-name').value.trim(); 
+        if (!catName) return;
+
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Creando...`;
+        }
+
+        try {
+            const { error } = await _supabase.from('user_categories').insert([{ user_id: state.currentUser.id, nombre_categoria: catName }]);
+            if (error) throw error;
+
+            window.UI.showToast(`Categoría "${catName}" añadida`); 
+            document.getElementById('new-cat-name').value = ""; 
+            await loadUserDataFromDatabase();
+        } catch (err) {
+            console.error("Error al crear categoría:", err);
+            window.UI.showAppAlert("Error", err.message);
+        } finally {
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `<i class="fa-solid fa-plus"></i> Crear Categoría`;
+            }
+        }
     });
 
     document.getElementById('btn-open-statement-importer')?.addEventListener('click', () => {
@@ -1266,7 +1428,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('import-file-input').value = ""; 
         parsedStatementItems = []; 
         
-        // Sincroniza el selector del modal con el mes activo del dashboard
         const currentSelectedMonth = document.getElementById('global-month-selector') ? document.getElementById('global-month-selector').value : '';
         const importMonthEl = document.getElementById('import-target-period');
         if (importMonthEl && currentSelectedMonth) {
@@ -1279,9 +1440,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('import-dropzone')?.addEventListener('click', () => document.getElementById('import-file-input').click());
     document.getElementById('import-file-input')?.addEventListener('change', (e) => { if (e.target.files && e.target.files[0]) processStatementFile(e.target.files[0]); });
     document.getElementById('import-check-all')?.addEventListener('change', (e) => { parsedStatementItems.forEach(item => item.selected = e.target.checked); renderStagingTable(); });
-    document.getElementById('btn-import-reset')?.addEventListener('click', () => { document.getElementById('import-step-upload').style.display = 'block'; document.getElementById('import-step-review').style.display = 'none'; document.getElementById('import-file-input').value = ""; parsedStatementItems = []; });
+    document.getElementById('btn-import-reset')?.addEventListener('click', () => { 
+        document.getElementById('import-step-upload').style.display = 'block'; 
+        document.getElementById('import-step-review').style.display = 'none'; 
+        document.getElementById('import-file-input').value = ""; 
+        parsedStatementItems = []; 
+    });
 
-    // INYECCIÓN DE CONSUMOS BANCARIOS CON FECHA IMPUTADA AL MES DE PAGO
+    // INYECCIÓN DE CONSUMOS BANCARIOS CON PURGA DE MEMORIA
     document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
         const targetCard = document.getElementById('import-target-card').value; 
         const seleccionados = parsedStatementItems.filter(item => item.selected);
@@ -1295,30 +1461,38 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true; 
         btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Inyectando...`;
 
-        const batch = seleccionados.map(item => ({ 
-            user_id: state.currentUser.id, 
-            fecha: item.fecha, 
-            monto: item.esCredito ? -Math.abs(item.monto) : Math.abs(item.monto), 
-            descripcion: item.descripcion, 
-            cuenta: targetCard, 
-            categoria: item.categoria, 
-            tipo: 'gasto', 
-            presupuestado: 'SI', 
-            moneda: item.moneda, 
-            tipo_cambio: item.tipo_cambio || (item.moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : 1),
-            autor: state.currentUser.email 
-        }));
+        try {
+            const batch = seleccionados.map(item => ({ 
+                user_id: state.currentUser.id, 
+                fecha: item.fecha, 
+                monto: item.esCredito ? -Math.abs(item.monto) : Math.abs(item.monto), 
+                descripcion: item.descripcion, 
+                cuenta: targetCard, 
+                categoria: item.categoria, 
+                tipo: 'gasto', 
+                presupuestado: 'SI', 
+                moneda: item.moneda, 
+                tipo_cambio: item.tipo_cambio || (item.moneda === 'USD' ? TIPO_CAMBIO_PRESUPUESTO : 1),
+                autor: state.currentUser.email 
+            }));
 
-        const { error } = await _supabase.from('transacciones').insert(batch);
-        btn.disabled = false; 
-        btn.innerHTML = `<i class="fa-solid fa-check-double"></i> Inyectar al Historial`;
+            const { error } = await _supabase.from('transacciones').insert(batch);
+            if (error) throw error;
 
-        if (error) { 
-            window.UI.showAppAlert("Error", error.message); 
-        } else { 
+            // Purga de estado en memoria para evitar colisiones
+            parsedStatementItems = [];
+            const fileInput = document.getElementById('import-file-input');
+            if (fileInput) fileInput.value = "";
+
             window.UI.closeModal('modal-import-statement'); 
             window.UI.showToast(`Se inyectaron ${batch.length} consumos a ${targetCard}`); 
-            loadUserDataFromDatabase(); 
+            await loadUserDataFromDatabase();
+        } catch (err) {
+            console.error("Error al inyectar consumos:", err);
+            window.UI.showAppAlert("Error", err.message);
+        } finally {
+            btn.disabled = false; 
+            btn.innerHTML = `<i class="fa-solid fa-check-double"></i> Inyectar al Historial`;
         }
     });
 
