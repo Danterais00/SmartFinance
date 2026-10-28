@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { state, CUENTAS_COMITENTES } from './state.js';
 import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js';
 
 let performanceChart = null;
@@ -6,8 +6,8 @@ let historyChart = null;
 let currentScaleMode = 'linear';
 
 /**
- * Gráfico Donut de Liquidez Operativa + 5 Cajas Apiladas Verticalmente a la Derecha.
- * Consolida saldos bimonetarios (ARS + USD * TIPO_CAMBIO) para coincidir con la Liquidez Inmediata.
+ * Gráfico Donut de Liquidez Operativa + Cajas en columna vertical a la derecha.
+ * Consolida saldos bimonetarios (ARS + USD * TIPO_CAMBIO).
  */
 export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = TIPO_CAMBIO_PRESUPUESTO) {
     const container = document.getElementById('pie-chart-container');
@@ -107,6 +107,48 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = 
             </div>
         `;
     }).join('');
+}
+
+/**
+ * Fichas de Inversiones: Construye las cajas de forma dinámica en base a CUENTAS_COMITENTES reales.
+ */
+export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS, brokerUSD) {
+    const area = document.getElementById('brokers-cards-area');
+    if (!area) return;
+    area.innerHTML = '';
+
+    CUENTAS_COMITENTES.forEach(b => {
+        let saldoARS = balancesARS[b] || 0;
+        let saldoUSD = balancesUSD[b] || 0;
+        let rendARS = brokerARS[b] || 0;
+        let rendUSD = brokerUSD[b] || 0;
+
+        // Migración retroactiva: si hay saldos guardados como "Balanz Capital", los transfiere a la vista de "Balanz"
+        if (b === 'Balanz' && !saldoARS && !saldoUSD) {
+            saldoARS = (balancesARS['Balanz Capital'] || 0) || saldoARS;
+            saldoUSD = (balancesUSD['Balanz Capital'] || 0) || saldoUSD;
+            rendARS = (brokerARS['Balanz Capital'] || 0) || rendARS;
+            rendUSD = (brokerUSD['Balanz Capital'] || 0) || rendUSD;
+        }
+
+        const totalEquivARS = saldoARS + (saldoUSD * TIPO_CAMBIO_PRESUPUESTO);
+
+        area.innerHTML += `
+            <div class="broker-card">
+                <div class="broker-title"><i class="fa-solid fa-vault"></i> ${b}</div>
+                <div style="font-size: 19px; font-weight: 700; font-family: 'Urbanist'; color: #fff;">
+                    $${Math.round(totalEquivARS).toLocaleString('es-AR')}
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 8px;">
+                    <span>ARS: $${Math.round(saldoARS).toLocaleString('es-AR')}</span>
+                    <span>USD: u$d ${saldoUSD.toFixed(2)}</span>
+                </div>
+                <div style="font-size: 11px; color: var(--primary); font-weight: 600;">
+                    Rendimiento Mes: +$${Math.round(rendARS).toLocaleString('es-AR')} ${rendUSD > 0 ? `(+u$d ${rendUSD.toFixed(2)})` : ''}
+                </div>
+            </div>
+        `;
+    });
 }
 
 /**
@@ -266,43 +308,6 @@ export function renderInteractiveHistoryChart(historyData) {
     });
 }
 
-/**
- * Fichas de Inversiones y Cuentas Comitentes.
- */
-export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS, brokerUSD) {
-    const area = document.getElementById('brokers-cards-area');
-    if (!area) return;
-    area.innerHTML = '';
-
-    const brokers = ['Mercado Pago Dante', 'Mercado Pago Lore', 'IOL Invertir Online', 'Balanz Capital'];
-
-    brokers.forEach(b => {
-        const saldoARS = balancesARS[b] || 0;
-        const saldoUSD = balancesUSD[b] || 0;
-        const rendARS = brokerARS[b] || 0;
-        const rendUSD = brokerUSD[b] || 0;
-
-        const totalEquivARS = saldoARS + (saldoUSD * TIPO_CAMBIO_PRESUPUESTO);
-
-        area.innerHTML += `
-            <div class="broker-card">
-                <div class="broker-title"><i class="fa-solid fa-vault"></i> ${b}</div>
-                <div style="font-size: 19px; font-weight: 700; font-family: 'Urbanist'; color: #fff;">
-                    $${Math.round(totalEquivARS).toLocaleString('es-AR')}
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 8px;">
-                    <span>ARS: $${Math.round(saldoARS).toLocaleString('es-AR')}</span>
-                    <span>USD: u$d ${saldoUSD.toFixed(2)}</span>
-                </div>
-                <div style="font-size: 11px; color: var(--primary); font-weight: 600;">
-                    Rendimiento Mes: +$${Math.round(rendARS).toLocaleString('es-AR')} ${rendUSD > 0 ? `(+u$d ${rendUSD.toFixed(2)})` : ''}
-                </div>
-            </div>
-        `;
-    });
-}
-
-// CONTROLES DE ZOOM Y ESCALA
 export function toggleInteractiveScale() {
     currentScaleMode = (currentScaleMode === 'linear') ? 'logarithmic' : 'linear';
     const lbl = document.getElementById('lbl-scale-mode');
