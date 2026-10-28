@@ -35,10 +35,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=5.5">
+    <link rel="stylesheet" href="css/styles.css?v=5.6">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=5.5"></script>
+    <script type="module" src="js/app.js?v=5.6"></script>
 </head>
 <body>
 
@@ -49,7 +49,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V5.5</span>
+            <span class="app-ver-tag">PWA CONSOLE V5.6</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -513,7 +513,7 @@
         </div>
     </div>
 
-    <!-- MODAL DE IMPORTACIÓN CON REVISIÓN STAGING -->
+    <!-- MODAL DE IMPORTACIÓN CON REVISIÓN STAGING Y SELECTOR DE MES DE PAGO -->
     <div class="modal" id="modal-import-statement">
         <div class="modal-content" style="max-width: 880px; max-height: 90vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -522,11 +522,19 @@
             </div>
             
             <div id="import-step-upload" style="display: block;">
-                <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 15px;">Seleccioná la tarjeta de crédito registrada en el sistema y subí la descarga de consumos de tu app bancaria.</p>
-                <div class="input-group">
-                    <label>Tarjeta Receptora</label>
-                    <select id="import-target-card"></select>
+                <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 15px;">Seleccioná la tarjeta de crédito y el período mensual en que pagarás el resumen para imputar los consumos a tu presupuesto.</p>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 15px;">
+                    <div class="input-group" style="margin: 0;">
+                        <label>Tarjeta Receptora</label>
+                        <select id="import-target-card"></select>
+                    </div>
+                    <div class="input-group" style="margin: 0;">
+                        <label>Mes de Imputación (Pago de Resumen)</label>
+                        <select id="import-target-period"></select>
+                    </div>
                 </div>
+
                 <div id="import-dropzone" class="statement-dropzone">
                     <i class="fa-solid fa-file-excel" style="font-size: 38px; color: var(--primary); margin-bottom: 12px;"></i>
                     <div style="font-weight: 700; font-size: 14px; color: #fff;">Clic para buscar tu archivo Excel (.xlsx)</div>
@@ -552,7 +560,7 @@
                         <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 10;">
                             <tr>
                                 <th style="width: 45px; text-align: center;">Inc</th>
-                                <th style="width: 95px;">Fecha</th>
+                                <th style="width: 95px;">Fecha Imputada</th>
                                 <th style="width: 125px;">Monto</th>
                                 <th>Descripción / Memo</th>
                                 <th style="width: 190px;">Categoría Asignada</th>
