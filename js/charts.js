@@ -7,8 +7,9 @@ let currentScaleMode = 'linear';
 
 /**
  * Gráfico Donut de Liquidez Operativa + 5 Cajas Apiladas Verticalmente a la Derecha.
+ * Consolida saldos bimonetarios (ARS + USD * TIPO_CAMBIO) para coincidir con la Liquidez Inmediata.
  */
-export function renderPortfolioPieChart(balancesARS) {
+export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = TIPO_CAMBIO_PRESUPUESTO) {
     const container = document.getElementById('pie-chart-container');
     const legend = document.getElementById('pie-chart-legend');
     if (!container || !legend) return;
@@ -23,9 +24,17 @@ export function renderPortfolioPieChart(balancesARS) {
 
     let total = 0;
     const items = accounts.map(acc => {
-        const val = Math.max(0, parseFloat(balancesARS[acc.name]) || 0);
-        total += val;
-        return { ...acc, value: val };
+        const valARS = Math.max(0, parseFloat(balancesARS[acc.name]) || 0);
+        const valUSD = Math.max(0, parseFloat(balancesUSD[acc.name]) || 0);
+        const valTotalEquiv = valARS + (valUSD * (fxRate || TIPO_CAMBIO_PRESUPUESTO));
+        
+        total += valTotalEquiv;
+        return { 
+            ...acc, 
+            value: valTotalEquiv,
+            valARS,
+            valUSD
+        };
     });
 
     const size = 280;
@@ -61,7 +70,7 @@ export function renderPortfolioPieChart(balancesARS) {
         });
     }
 
-    const formattedTotal = `$${total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formattedTotal = `$${Math.round(total).toLocaleString('es-AR')}`;
 
     container.innerHTML = `
         <svg viewBox="0 0 ${size} ${size}" style="width: 100%; height: 100%; max-width: 360px; max-height: 360px; transform: rotate(-90deg); overflow: visible;">
@@ -80,16 +89,24 @@ export function renderPortfolioPieChart(balancesARS) {
         </svg>
     `;
 
-    // 5 cajas en columna vertical que se adaptan a la altura del contenedor
-    legend.innerHTML = items.map(item => `
-        <div class="legend-flat-item">
-            <span class="label-bank">
-                <span class="account-dot" style="background:${item.color};"></span>
-                <span>${item.name}</span>
-            </span>
-            <span class="value-bank">$${item.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-    `).join('');
+    legend.innerHTML = items.map(item => {
+        const usdBadge = item.valUSD > 0 
+            ? `<span style="font-size:10px; color:var(--text-muted); margin-left:4px; font-weight:500;">(u$d ${item.valUSD.toFixed(2)})</span>` 
+            : '';
+
+        return `
+            <div class="legend-flat-item">
+                <span class="label-bank">
+                    <span class="account-dot" style="background:${item.color};"></span>
+                    <span>${item.name}</span>
+                </span>
+                <span class="value-bank">
+                    $${item.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${usdBadge}
+                </span>
+            </div>
+        `;
+    }).join('');
 }
 
 /**
