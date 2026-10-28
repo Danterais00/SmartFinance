@@ -13,7 +13,7 @@ const PREDICTIVE_CATEGORIES = [
     { pattern: /dash|sport|nike|adidas|indumentaria|ropa|zapat/i, targets: ['indumentaria', 'ropa', 'deporte'] },
     { pattern: /pbkids|brinquedos|juguete/i, targets: ['juguete', 'niño', 'hijos'] },
     { pattern: /beleza|perfum|cosmet/i, targets: ['cuidado', 'belleza', 'farmacia'] },
-    { pattern: /prosegur|alarma/i, targets: ['seguridad', 'hogar', 'servicios'] },
+    { pattern: /prosegur|alarma/i, targets: ['prosegur', 'seguridad', 'hogar', 'servicios'] },
     { pattern: /merpago|mercado.*pago/i, targets: ['mercado pago', 'varios', 'gastos varios'] }
 ];
 
@@ -48,7 +48,10 @@ function parseMonto(val) {
     return isNaN(num) ? 0 : num;
 }
 
-export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategories = []) {
+/**
+ * Parsea el extracto bancario (.xlsx) e imputa la fecha al mes de liquidación presupuestaria seleccionado.
+ */
+export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategories = [], targetPeriod = null) {
     return new Promise((resolve, reject) => {
         try {
             if (!window.XLSX) {
@@ -67,7 +70,6 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
             let tableStarted = false;
 
             for (let i = 0; i < rawData.length; i++) {
-                // Descarte estricto de filas 1 a 19 (metadatos y pagos)
                 if (i < 19) continue;
 
                 const row = rawData[i];
@@ -99,19 +101,28 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                     continue;
                 }
 
-                // Forward-fill de fechas
-                let currentDate = col0;
-                if (currentDate === "") {
-                    currentDate = lastValidDate;
+                // Fecha original de la compra física
+                let originalPurchaseDate = col0;
+                if (originalPurchaseDate === "") {
+                    originalPurchaseDate = lastValidDate;
                 } else {
-                    if (currentDate.includes('/')) {
-                        const parts = currentDate.split('/');
+                    if (originalPurchaseDate.includes('/')) {
+                        const parts = originalPurchaseDate.split('/');
                         if (parts.length === 3) {
-                            currentDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                            originalPurchaseDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
                         }
                     }
-                    lastValidDate = currentDate;
+                    lastValidDate = originalPurchaseDate;
                 }
+
+                // Formateo de fecha de compra para el memo
+                const dateParts = originalPurchaseDate.split('-');
+                const displayPurchaseDate = (dateParts.length === 3) 
+                    ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` 
+                    : originalPurchaseDate;
+
+                // Asignación de fecha contable de imputación (Mes de Pago del Resumen)
+                const fechaContable = targetPeriod ? `${targetPeriod}-01` : originalPurchaseDate;
 
                 const cuotas = String(row[2] || '').trim();
                 const pesos = parseMonto(row[4]);
@@ -119,33 +130,41 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                 
                 const isPesos = (pesos !== 0 || (pesos === 0 && dolares === 0));
                 const montoRaw = isPesos ? pesos : dolares;
-                const esCredito = (montoRaw < 0); // Reintegro o crédito contable
+                const esCredito = (montoRaw < 0);
                 const montoAbsoluto = Math.abs(montoRaw);
                 const moneda = isPesos ? 'ARS' : 'USD';
                 const esPendiente = descripcion.toLowerCase().includes('pendiente');
 
-                // Detección de duplicados con tolerancia a centavos
-                const isDuplicate = state.globalTransData.some(t => {
-                    return t.fecha === currentDate && 
-                           t.cuenta === selectedAccount && 
-                           t.moneda === moneda &&
-                           Math.abs(Math.abs(parseFloat(t.monto)) - montoAbsoluto) < 1.0;
-                });
+                let memoBase = descripcion.replace(/\s+/g, ' ').trim();
+                if (cuotas && !memoBase.includes(cuotas)) memoBase += ` (${cuotas})`;
+                
+                // Anexa la fecha real de compra al memo
+                const memoFinal = `${memoBase} [Compra: ${displayPurchaseDate}]`;
 
-                let memoFinal = descripcion.replace(/\s+/g, ' ').trim();
-                if (cuotas && !memoFinal.includes(cuotas)) memoFinal += ` (${cuotas})`;
+                // Control de duplicados en el mes de destino
+                const isDuplicate = state.globalTransData.some(t => {
+                    const matchAcc = (t.cuenta === selectedAccount);
+                    const matchMon = (t.moneda === moneda);
+                    const matchMonto = Math.abs(Math.abs(parseFloat(t.monto)) - montoAbsoluto) < 1.0;
+                    const matchPeriodo = targetPeriod 
+                        ? (t.fecha && t.fecha.substring(0, 7) === targetPeriod) 
+                        : (t.fecha === originalPurchaseDate);
+                    const matchMemo = (t.descripcion || '').toLowerCase().includes(memoBase.toLowerCase());
+                    return matchAcc && matchMon && matchMonto && matchPeriodo && matchMemo;
+                });
 
                 consumos.push({
                     id_temp: `imp_${Date.now()}_${i}`,
-                    fecha: currentDate,
+                    fecha: fechaContable,
+                    fechaOriginal: originalPurchaseDate,
                     monto: montoAbsoluto,
                     montoRaw: montoRaw,
                     moneda: moneda,
-                    tipo_cambio: (moneda === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1, // H-02: Congelado
+                    tipo_cambio: (moneda === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1,
                     descripcion: memoFinal,
                     categoria: matchUserCategory(descripcion, userCategories),
                     esPendiente: esPendiente,
-                    esCredito: esCredito, // H-03: Contra-Gasto
+                    esCredito: esCredito,
                     isDuplicate: isDuplicate,
                     selected: !isDuplicate
                 });
