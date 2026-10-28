@@ -1,22 +1,61 @@
-import { _supabase } from './supabaseClient.js';
-
-export const CUENTAS_OPERATIVAS = ["Santander", "Efectivo", "Mercado Pago Dante", "Mercado Pago Lore", "Galicia"];
-export const CUENTAS_COMITENTES = ["Inviu", "Balanz", "Bull Market Brokers", "Mercado Pago Dante", "Mercado Pago Lore"];
-export const CUENTAS_TARJETAS = ["Tarjeta Santander", "Tarjeta Galicia", "Tarjeta Mercado Pago"];
-export const CUENTAS_SISTEMA_TOTAL = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES, ...CUENTAS_TARJETAS])];
-
-export const CATEGORIAS_RESPALDO_SEED = [
-    "ARBA Automotor", "ARBA Inmobiliario Pilar", "Aguas", "Ajuste Técnico Saldos", "Apple", "CAFAR", "Carnicería",
-    "Cementerio Parque", "Contadora", "Corte Cesped", "Danza Desi", "Edenor Pilar", "Ekisian",
-    "Entretenimiento", "Farmacia", "Federación Patronal Seguros Lore", "Google Drive",
-    "IIBB Lore", "Impuesto municipal Pilar", "Impuestos cuentas bancarias", "Impuestos y Sellos Tarjeta", 
-    "Intereses y Financiación Tarjeta", "Indumentaria/ Calzado", "Juguetes", "La Caja Seguros", 
-    "Librería / Papelera", "Limpieza Hogar", "Movistar", "Médicos / Pediatra", "Nafta", "Natación", 
-    "Naturgy", "Netflix", "Ofrenda", "Peajes", "Peluquería", "Personal Flow", "Personal TV", 
-    "Prosegur", "Restaurantes", "Supermercado", "Tenis", "Verdulería", "Wellspring", "Leña", 
-    "Asesoría Financiera"
+// Categorías originales
+export const CATEGORIAS_DEFAULT = [
+    'Supermercado',
+    'Wellspring',
+    'Arreglos del Hogar',
+    'Tarjeta de Crédito Galicia',
+    'Corte Cesped',
+    'Limpieza Hogar',
+    'Verdulería',
+    'CAFAR',
+    'Farmacia',
+    'La Caja Seguros',
+    'Edenor Pilar',
+    'Naturgy',
+    'Nafta',
+    'Restaurantes',
+    'Ofrenda',
+    'Prosegur',
+    'Tintorería',
+    'Cerámica',
+    'Entretenimiento',
+    'Gastos Automotor',
+    'Impuestos cuentas bancarias',
+    'Peajes',
+    'Contadora',
+    'Peluquería',
+    'Ekisian',
+    'Tarjeta de Crédito Santander',
+    'Insumos Piscina',
+    'Regalos',
+    'Danza Desi',
+    'Tenis',
+    'Paddle',
+    'Personal Flow',
+    'Asesoría Financiera',
+    'Personal TV',
+    'Aguas',
+    'Gimnasia',
+    'Movistar',
+    'Panadería',
+    'Impuesto municipal Pilar',
+    'Netflix',
+    'Apple',
+    'Google Drive',
+    'Rendimiento Inversiones',
+    'Ingresos Laborales / Honorarios',
+    'Transferencia Interna',
+    'Compra/Venta Divisas',
+    'Pago Tarjeta de Crédito',
+    'Ajuste Técnico Saldos',
+    'Otros Gastos (Sin Categorizar)'
 ];
 
+// LISTAS OFICIALES Y DEFINITIVAS DE CUENTAS
+export const CUENTAS_OPERATIVAS = ["Santander", "Efectivo", "Mercado Pago Dante", "Mercado Pago Lore", "Galicia"];
+export const CUENTAS_COMITENTES = ["Inviu", "Balanz", "Bull Market Brokers", "Mercado Pago Dante"];
+export const CUENTAS_TARJETAS = ["Tarjeta de Crédito Galicia", "Tarjeta de Crédito Santander", "Tarjeta de Crédito Mercado Pago"];
+export const CUENTAS_SISTEMA_TOTAL = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES, ...CUENTAS_TARJETAS])];
 export const MESES_ES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 export const state = {
@@ -24,72 +63,88 @@ export const state = {
     globalTransData: [],
     globalBudgetData: [],
     allBudgetDataHistorico: [],
-    currentFilteredData: [],
+    misCategoriasUnificadas: [...CATEGORIAS_DEFAULT],
+    cachedCategoriesDataForChart: [],
+    cachedHistoricalDataForChart: [],
+    cachedAuditResult: null,
+    currentMonthAlertsCache: [],
     currentAccountBalancesARS: {},
     currentAccountBalancesUSD: {},
     brokerEarningsARS: {},
     brokerEarningsUSD: {},
     creditCardDebtARS: {},
     creditCardDebtUSD: {},
-    misCategoriasUnificadas: [...CATEGORIAS_RESPALDO_SEED],
-    currentMonthAlertsCache: [],
-    cachedAuditResult: null,
     editingTransactionId: null
 };
 
 export function getLocalDateString() {
-    const now = new Date();
-    return new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().substring(0, 10);
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
-export function getPreviousMonthStr(periodoStr) {
-    if (!periodoStr || !periodoStr.includes('-')) return getLocalDateString().substring(0, 7);
-    const [year, month] = periodoStr.split('-').map(Number);
-    let prevYear = year;
-    let prevMonth = month - 1;
-    if (prevMonth === 0) {
-        prevMonth = 12;
-        prevYear -= 1;
+export function getPreviousMonthStr(currentPeriodo) {
+    if (!currentPeriodo) return getLocalDateString().substring(0, 7);
+    const parts = currentPeriodo.split('-');
+    let year = parseInt(parts[0], 10);
+    let month = parseInt(parts[1], 10) - 1;
+    if (month === 0) {
+        month = 12;
+        year -= 1;
     }
-    return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+    return `${year}-${String(month).padStart(2, '0')}`;
 }
 
 export function saveOfflineQueue(batch) {
-    const queue = JSON.parse(localStorage.getItem('sf_offline_queue') || '[]');
-    queue.push(...batch);
-    localStorage.setItem('sf_offline_queue', JSON.stringify(queue));
+    try {
+        const queue = JSON.parse(localStorage.getItem('sf_offline_queue') || '[]');
+        const updated = queue.concat(batch);
+        localStorage.setItem('sf_offline_queue', JSON.stringify(updated));
+    } catch (e) {
+        console.error('Error al guardar cola offline:', e);
+    }
 }
 
 export async function syncOfflineQueue(onSuccess) {
     if (!navigator.onLine) return;
-    const queue = JSON.parse(localStorage.getItem('sf_offline_queue') || '[]');
-    if (queue.length === 0) return;
+    try {
+        const raw = localStorage.getItem('sf_offline_queue');
+        if (!raw) return;
+        const queue = JSON.parse(raw);
+        if (!Array.isArray(queue) || queue.length === 0) return;
 
-    let pending = [];
-    for (let item of queue) {
-        const { error } = await _supabase.from('transacciones').insert([item]);
-        if (error) pending.push(item);
-    }
-
-    localStorage.setItem('sf_offline_queue', JSON.stringify(pending));
-    if (pending.length === 0 && onSuccess) {
-        onSuccess();
+        const { _supabase } = await import('./supabaseClient.js');
+        const { error } = await _supabase.from('transacciones').insert(queue);
+        if (!error) {
+            localStorage.removeItem('sf_offline_queue');
+            if (onSuccess) onSuccess();
+        }
+    } catch (e) {
+        console.error('Error al sincronizar cola offline:', e);
     }
 }
 
 export async function fetchDynamicCategories() {
-    if (!state.currentUser) return;
     try {
-        let { data: cats, error } = await _supabase.from('user_categories').select('*').order('nombre_categoria', { ascending: true });
-        if (error) throw error;
+        let combined = [...CATEGORIAS_DEFAULT];
+        if (state.currentUser) {
+            const { _supabase } = await import('./supabaseClient.js');
+            const { data, error } = await _supabase
+                .from('user_categories')
+                .select('nombre_categoria')
+                .eq('user_id', state.currentUser.id);
 
-        if (!cats || cats.length === 0) {
-            state.misCategoriasUnificadas = [...CATEGORIAS_RESPALDO_SEED];
-        } else {
-            state.misCategoriasUnificadas = cats.map(c => c.nombre_categoria);
+            if (!error && data) {
+                const customNames = data.map(d => d.nombre_categoria);
+                combined = [...new Set([...combined, ...customNames])];
+            }
         }
-    } catch (err) {
-        console.error("Error cargando categorías maestras:", err);
-        state.misCategoriasUnificadas = [...CATEGORIAS_RESPALDO_SEED];
+        state.misCategoriasUnificadas = combined;
+        return combined;
+    } catch (e) {
+        state.misCategoriasUnificadas = [...CATEGORIAS_DEFAULT];
+        return state.misCategoriasUnificadas;
     }
 }
