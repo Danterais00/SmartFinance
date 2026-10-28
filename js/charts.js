@@ -6,6 +6,130 @@ let historyChart = null;
 let currentScaleMode = 'linear';
 
 /**
+ * Control de Zoom Desacoplado por Zonas de Eje (Rueda del ratón y arrastre directo)
+ */
+function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || canvas.dataset.zoomBound === 'true') return;
+
+    let isDragging = false;
+    let dragAxis = null;
+    let lastY = 0; 
+    let lastX = 0;
+
+    const getAxisZone = (clientX, clientY) => {
+        const chart = getChartInstance();
+        if (!chart || !chart.chartArea) return null;
+        const rect = canvas.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        const ca = chart.chartArea;
+        if (x <= ca.left) return 'y';
+        if (y >= ca.bottom) return 'x';
+        return 'chart';
+    };
+
+    const updateZoomDirection = (clientX, clientY) => {
+        const chart = getChartInstance();
+        if (!chart) return;
+        const zone = getAxisZone(clientX, clientY);
+        if (zone === 'y') {
+            if (chart.options.plugins?.zoom?.zoom) chart.options.plugins.zoom.zoom.mode = 'y';
+            canvas.style.cursor = 'ns-resize';
+        } else if (zone === 'x') {
+            if (chart.options.plugins?.zoom?.zoom) chart.options.plugins.zoom.zoom.mode = 'x';
+            canvas.style.cursor = 'ew-resize';
+        } else {
+            if (chart.options.plugins?.zoom?.zoom) chart.options.plugins.zoom.zoom.mode = 'xy';
+            canvas.style.cursor = 'default';
+        }
+    };
+
+    canvas.addEventListener('wheel', (e) => {
+        updateZoomDirection(e.clientX, e.clientY);
+        const chart = getChartInstance();
+        if (chart) {
+            chart.options.scales.y.min = (isLogScale && currentScaleMode === 'logarithmic') ? 500 : 0;
+        }
+    }, { capture: true, passive: true });
+
+    canvas.addEventListener('mousedown', (e) => {
+        const chart = getChartInstance();
+        if (!chart) return;
+        const zone = getAxisZone(e.clientX, e.clientY);
+        const isRightClick = (e.button === 2);
+        
+        if (zone === 'y' || isRightClick) {
+            isDragging = true; 
+            dragAxis = 'y';
+        } else if (zone === 'x') {
+            isDragging = true; 
+            dragAxis = 'x';
+        }
+
+        if (isDragging) {
+            const rect = canvas.getBoundingClientRect();
+            lastY = e.clientY - rect.top;
+            lastX = e.clientX - rect.left;
+            if (e.cancelable && zone !== 'chart') e.preventDefault();
+        }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        const chart = getChartInstance();
+        if (!chart) return;
+        const rect = canvas.getBoundingClientRect();
+        const currentY = e.clientY - rect.top;
+        const currentX = e.clientX - rect.left;
+
+        if (isDragging) {
+            if (dragAxis === 'y') {
+                const delta = currentY - lastY;
+                const factor = delta > 0 ? 1.05 : 0.95;
+                const pMin = (isLogScale && currentScaleMode === 'logarithmic') ? 500 : 0;
+                let curMax = (chart.options.scales.y.max || chart.scales.y.max);
+                let newMax = curMax * factor;
+                if (newMax <= pMin + 100) newMax = pMin + 100;
+                
+                chart.options.scales.y.min = pMin;
+                chart.options.scales.y.max = newMax;
+                chart.update('none');
+                lastY = currentY;
+            } else if (dragAxis === 'x') {
+                const delta = currentX - lastX;
+                const shift = Math.round(-delta / 15);
+                if (shift !== 0) {
+                    let xScale = chart.scales.x;
+                    let min = chart.options.scales.x.min ?? xScale.min;
+                    let max = chart.options.scales.x.max ?? xScale.max;
+                    let newMin = min + shift;
+                    let newMax = max - shift;
+                    if (newMax <= newMin) newMax = newMin + 1;
+                    const maxLimit = chart.data.labels.length - 1;
+                    chart.options.scales.x.min = Math.max(0, newMin);
+                    chart.options.scales.x.max = Math.min(maxLimit, newMax);
+                    chart.update('none');
+                    lastX = currentX;
+                }
+            }
+            if (e.cancelable) e.preventDefault();
+        } else {
+            updateZoomDirection(e.clientX, e.clientY);
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            dragAxis = null;
+            canvas.style.cursor = 'default';
+        }
+    });
+
+    canvas.dataset.zoomBound = 'true';
+}
+
+/**
  * Gráfico Donut de Liquidez Operativa + Cajas en columna vertical a la derecha.
  */
 export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = TIPO_CAMBIO_PRESUPUESTO) {
@@ -150,10 +274,15 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
 }
 
 /**
- * GRÁFICO 1 ORIGINAL RESTAURADO: Desempeño por Categoría (Puntos Desacoplados / Scatter).
+ * GRÁFICO 1: Desempeño por Categoría (Puntos Desacoplados / Scatter, Orden Alfabético Estricto A-Z)
  */
 export function renderInteractiveChart(categoriesMes) {
-    state.cachedCategoriesDataForChart = categoriesMes || [];
+    // Asegura orden alfabético estricto de A a Z
+    const sortedCategories = [...(categoriesMes || [])].sort((a, b) => 
+        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+    );
+
+    state.cachedCategoriesDataForChart = sortedCategories;
     const canvas = document.getElementById('interactive-performance-canvas');
     if (!canvas) return;
 
@@ -161,19 +290,19 @@ export function renderInteractiveChart(categoriesMes) {
         performanceChart.destroy();
     }
 
-    if (!categoriesMes || categoriesMes.length === 0) return;
+    if (sortedCategories.length === 0) return;
 
     const isLog = (currentScaleMode === 'logarithmic');
-    const labels = categoriesMes.map(c => c.nombre);
+    const labels = sortedCategories.map(c => c.nombre);
 
-    const metaPoints = categoriesMes.map(c => ({
+    const metaPoints = sortedCategories.map(c => ({
         x: c.nombre,
         y: (isLog && c.meta <= 0) ? 500 : c.meta,
         realVal: c.meta,
         estado: c.estado
     }));
 
-    const gastoPoints = categoriesMes.map(c => ({
+    const gastoPoints = sortedCategories.map(c => ({
         x: c.nombre,
         y: (isLog && c.gasto <= 0) ? 500 : c.gasto,
         realVal: c.gasto,
@@ -269,17 +398,19 @@ export function renderInteractiveChart(categoriesMes) {
                     }
                 },
                 zoom: {
-                    pan: { enabled: true, mode: 'x', threshold: 5 },
-                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+                    pan: { enabled: true, mode: 'xy', threshold: 5 },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
                     limits: { y: { min: isLog ? 500 : 0 } }
                 }
             }
         }
     });
+
+    setupDecoupledZoom('interactive-performance-canvas', () => performanceChart, true);
 }
 
 /**
- * GRÁFICO 2 ORIGINAL RESTAURADO: Tendencia Histórica Mes a Mes (Líneas sólidas originales).
+ * GRÁFICO 2: Tendencia Histórica Mes a Mes (Líneas sólidas originales, orden cronológico)
  */
 export function renderInteractiveHistoryChart(historicalList) {
     state.cachedHistoricalDataForChart = historicalList || [];
@@ -390,6 +521,8 @@ export function renderInteractiveHistoryChart(historicalList) {
             }
         }
     });
+
+    setupDecoupledZoom('interactive-history-canvas', () => historyChart, false);
 }
 
 export function toggleInteractiveScale() {
@@ -426,8 +559,11 @@ export function resetInteractiveHistoryZoom() {
 
 export function zoomPerformanceChart(axis, factor) {
     if (performanceChart) {
-        if (axis === 'x') performanceChart.zoom({ x: factor });
-        else performanceChart.zoom({ y: factor });
+        if (axis === 'x') {
+            performanceChart.zoom({ x: factor });
+        } else {
+            performanceChart.zoom({ y: factor });
+        }
     }
 }
 
