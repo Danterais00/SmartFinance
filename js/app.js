@@ -489,6 +489,9 @@ function recalculateFinancialMetrics() {
         }
     });
 
+    // Orden alfabético A-Z garantizado para tabla y gráficos
+    categoriesMes.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+
     renderAccuracyTable(categoriesMes);
     renderInteractiveChart(categoriesMes);
     buildHistoricalChartData();
@@ -509,14 +512,10 @@ function renderAccuracyTable(categoriesMes) {
     });
 }
 
-/**
- * RECONSTRUCCIÓN CRONOLÓGICA EXACTA (DE IZQUIERDA A DERECHA)
- */
 function buildHistoricalChartData() {
     const selector = document.getElementById('global-month-selector');
     if (!selector) return;
 
-    // Filtra desde Julio 2026 hasta el mes activo y FUERZA el orden cronológico ascendente
     const options = Array.from(selector.options)
         .filter(opt => opt.value >= '2026-07' && opt.value <= selector.value)
         .sort((a, b) => a.value.localeCompare(b.value));
