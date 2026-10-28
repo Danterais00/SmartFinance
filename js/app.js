@@ -349,7 +349,6 @@ function populateSelectOptions() {
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
 }
 
-// CÁLCULO CONTABLE EXACTO Y CONSOLIDACIÓN BIMONETARIA
 function recalculateFinancialMetrics() {
     const selector = document.getElementById('global-month-selector');
     const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
@@ -477,7 +476,6 @@ function recalculateFinancialMetrics() {
     setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit Real' : 'Déficit Real', ahorroMes >= 0 ? 'var(--primary)' : 'var(--danger)');
     setCard('metric-disponible', `$${Math.round(liquidezDisponible).toLocaleString('es-AR')}`);
 
-    // CONSOLIDACIÓN EXACTA BIMONETARIA EN EL DONUT
     renderPortfolioPieChart(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, TIPO_CAMBIO_PRESUPUESTO);
     renderSavingsPatrimonialTab(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, state.brokerEarningsARS, state.brokerEarningsUSD);
 
@@ -511,21 +509,44 @@ function renderAccuracyTable(categoriesMes) {
     });
 }
 
+/**
+ * RECONSTRUCCIÓN CRONOLÓGICA EXACTA (DE IZQUIERDA A DERECHA)
+ */
 function buildHistoricalChartData() {
     const selector = document.getElementById('global-month-selector');
     if (!selector) return;
-    const options = Array.from(selector.options).filter(opt => opt.value >= '2026-07' && opt.value <= selector.value);
+
+    // Filtra desde Julio 2026 hasta el mes activo y FUERZA el orden cronológico ascendente
+    const options = Array.from(selector.options)
+        .filter(opt => opt.value >= '2026-07' && opt.value <= selector.value)
+        .sort((a, b) => a.value.localeCompare(b.value));
+
     let historicalList = [];
     options.forEach(opt => {
-        let metaSum = 0; let gastoSum = 0;
-        state.allBudgetDataHistorico.filter(b => b.periodo === opt.value).forEach(b => metaSum += parseFloat(b.presupuesto_mensual) || 0);
-        state.globalTransData.filter(t => t.fecha && t.fecha.substring(0, 7) === opt.value && t.tipo === 'gasto' && t.presupuestado !== 'NO_COMPUTA' && t.categoria !== 'Transferencia Interna' && t.categoria !== 'Compra/Venta Divisas' && t.categoria !== 'Pago Tarjeta de Crédito' && t.categoria !== 'Ajuste Técnico Saldos').forEach(t => {
-            const m = parseFloat(t.monto) || 0; 
-            const fx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
-            gastoSum += (t.moneda === 'USD') ? m * fx : m;
-        });
+        let metaSum = 0; 
+        let gastoSum = 0;
+
+        state.allBudgetDataHistorico
+            .filter(b => b.periodo === opt.value)
+            .forEach(b => metaSum += parseFloat(b.presupuesto_mensual) || 0);
+
+        state.globalTransData
+            .filter(t => t.fecha && t.fecha.substring(0, 7) === opt.value && 
+                         t.tipo === 'gasto' && 
+                         t.presupuestado !== 'NO_COMPUTA' && 
+                         t.categoria !== 'Transferencia Interna' && 
+                         t.categoria !== 'Compra/Venta Divisas' && 
+                         t.categoria !== 'Pago Tarjeta de Crédito' && 
+                         t.categoria !== 'Ajuste Técnico Saldos')
+            .forEach(t => {
+                const m = parseFloat(t.monto) || 0; 
+                const fx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
+                gastoSum += (t.moneda === 'USD') ? m * fx : m;
+            });
+
         historicalList.push({ mes: opt.text, metaTotal: metaSum, gastoTotal: gastoSum });
     });
+
     renderInteractiveHistoryChart(historicalList);
 }
 
@@ -1131,7 +1152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // LIQUIDACIÓN DE TARJETA CON BLINDAJE DE EXCEPCIONES
+    // LIQUIDACIÓN DE TARJETA
     document.getElementById('form-card-closing')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btnClosing = document.getElementById('btn-card-closing-submit');
@@ -1279,7 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // GUARDAR EDICIÓN CON CONTROL ESTRICTO DE SIGNO EN CONTRA-GASTOS / REINTEGROS
+    // GUARDAR EDICIÓN
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
@@ -1291,7 +1312,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let numMonto = parseFloat(document.getElementById('edit-form-importe').value) || 0;
         const esCredito = (document.getElementById('edit-form-es-credito')?.value === 'true');
         
-        // Preserva el signo negativo si correspondía a un reintegro o nota de crédito
         if (esCredito) {
             numMonto = -Math.abs(numMonto);
         } else {
@@ -1447,7 +1467,7 @@ document.addEventListener('DOMContentLoaded', () => {
         parsedStatementItems = []; 
     });
 
-    // INYECCIÓN DE CONSUMOS BANCARIOS CON PURGA DE MEMORIA
+    // INYECCIÓN DE CONSUMOS BANCARIOS
     document.getElementById('btn-confirm-import')?.addEventListener('click', async () => {
         const targetCard = document.getElementById('import-target-card').value; 
         const seleccionados = parsedStatementItems.filter(item => item.selected);
@@ -1479,7 +1499,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const { error } = await _supabase.from('transacciones').insert(batch);
             if (error) throw error;
 
-            // Purga de estado en memoria para evitar colisiones
             parsedStatementItems = [];
             const fileInput = document.getElementById('import-file-input');
             if (fileInput) fileInput.value = "";
