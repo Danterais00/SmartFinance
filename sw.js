@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smartfinance-cache-v6.3';
+const CACHE_NAME = 'smartfinance-cache-v6.4';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -10,7 +10,8 @@ const ASSETS_TO_CACHE = [
     './js/financeEngine.js',
     './js/charts.js',
     './js/pdfReport.js',
-    './js/statementImporter.js'
+    './js/statementImporter.js',
+    './js/changelog.js'
 ];
 
 self.addEventListener('install', (e) => {
