@@ -1,4 +1,4 @@
-// Categorías por defecto en orden alfabético
+// Categorías por defecto ordenadas estrictamente de la A a la Z
 export const CATEGORIAS_DEFAULT = [
     'Aguas',
     'Ajuste Técnico Saldos',
