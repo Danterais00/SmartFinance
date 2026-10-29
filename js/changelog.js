@@ -5,6 +5,24 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v6.5",
+        fecha: "2026-10-28",
+        tipo: "CORRECCIÓN CRÍTICA",
+        color: "var(--danger)",
+        icon: "fa-triangle-exclamation",
+        archivos: ["js/financeEngine.js"],
+        descripcion: "Restitución de sintaxis nativa UUID RFC 4122 en transfer_group_id. Resuelve el rechazo de inserción en PostgreSQL para transferencias y divisas."
+    },
+    {
+        version: "v6.4",
+        fecha: "2026-10-28",
+        tipo: "ARQUITECTURA",
+        color: "var(--blue)",
+        icon: "fa-timeline",
+        archivos: ["js/changelog.js", "index.html", "js/app.js"],
+        descripcion: "Incorporación del Audit Trail / Changelog visual en la pestaña Ajustes con diseño y paleta integrada."
+    },
+    {
         version: "v6.3",
         fecha: "2026-10-28",
         tipo: "CORRECCIÓN", 
@@ -20,7 +38,7 @@ export const APP_CHANGELOG = [
         color: "var(--blue)",
         icon: "fa-sitemap",
         archivos: ["js/charts.js", "js/state.js"],
-        descripcion: "Eliminación de la cuenta de prueba (IOL Invertir Online). Restitución de la lista oficial de cuentas comitentes y plataformas vinculadas de forma inmutable."
+        descripcion: "Eliminación de la cuenta de prueba (IOL Invertir Online). Restitución de la lista oficial de cuentas comitentes de forma inmutable."
     },
     {
         version: "v5.8",
@@ -29,25 +47,7 @@ export const APP_CHANGELOG = [
         color: "var(--danger)",
         icon: "fa-shield-halved",
         archivos: ["js/app.js", "index.html"],
-        descripcion: "Envolvimiento de promesas asíncronas en bloques try/catch. Corrección del error de inversión de signo al editar reintegros o contragastos de tarjetas."
-    },
-    {
-        version: "v5.7",
-        fecha: "2026-10-27",
-        tipo: "FUNCIONALIDAD",
-        color: "var(--primary)",
-        icon: "fa-code",
-        archivos: ["js/app.js"],
-        descripcion: "Restauración de las funciones de edición y borrado en el Historial de Movimientos. Implementación de borrado en cascada para transferencias de partida doble."
-    },
-    {
-        version: "v5.6",
-        fecha: "2026-10-27",
-        tipo: "FUNCIONALIDAD",
-        color: "var(--primary)",
-        icon: "fa-code",
-        archivos: ["js/statementImporter.js", "index.html"],
-        descripcion: "Desacoplamiento temporal en importador bancario: los consumos pasados ahora se imputan automáticamente al mes en que se abona el resumen."
+        descripcion: "Envolvimiento de promesas asíncronas en bloques try/catch. Corrección del error de inversión de signo al editar reintegros de tarjeta."
     }
 ];
 
@@ -78,7 +78,7 @@ export function renderChangelogTable() {
                     <div style="margin-top: 6px;">${fileTags}</div>
                 </td>
                 <td style="text-align: center;">
-                    <button class="btn btn-sm" onclick="window.UI.showAppAlert('Trazabilidad Bloqueada', 'Para ver la línea de código exacta de este parche, revisá el historial de commits en tu repositorio de GitHub.')" style="background:var(--bg-main); border:1px solid var(--border-color); color:var(--text-muted); white-space:nowrap; padding: 6px 12px;">
+                    <button class="btn btn-sm" onclick="window.UI.showAppAlert('Trazabilidad Bloqueada', 'Para auditar la línea exacta de código fuente, revisá el historial de commits en tu repositorio de GitHub.')" style="background:var(--bg-main); border:1px solid var(--border-color); color:var(--text-muted); white-space:nowrap; padding: 6px 12px;">
                         <i class="fa-brands fa-github"></i> Código
                     </button>
                 </td>
