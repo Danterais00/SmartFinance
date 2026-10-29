@@ -31,6 +31,7 @@ import {
 } from './charts.js';
 import { exportAuditPDF } from './pdfReport.js';
 import { parseVisaStatement } from './statementImporter.js';
+import { renderChangelogTable } from './changelog.js';
 
 let parsedStatementItems = [];
 
@@ -489,9 +490,6 @@ function recalculateFinancialMetrics() {
         }
     });
 
-    // Orden alfabético A-Z garantizado para tabla y gráficos
-    categoriesMes.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
-
     renderAccuracyTable(categoriesMes);
     renderInteractiveChart(categoriesMes);
     buildHistoricalChartData();
@@ -506,7 +504,10 @@ function renderAccuracyTable(categoriesMes) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:16px;">Sin registros ni presupuesto activo para este período.</td></tr>`; 
         return; 
     }
-    categoriesMes.forEach(c => {
+    
+    const sortedList = [...categoriesMes].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+
+    sortedList.forEach(c => {
         const badgeColor = c.estado === 'Target' ? 'var(--primary)' : (c.estado === 'Riesgo' ? 'var(--warning)' : 'var(--danger)');
         tbody.innerHTML += `<tr><td style="font-weight:600;">${c.nombre}</td><td style="text-align:right;">$${c.meta.toLocaleString('es-AR')}</td><td style="text-align:right; font-weight:700;">$${c.gasto.toLocaleString('es-AR')}</td><td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${c.estado}</span></td><td style="text-align:center; white-space:nowrap;"><button class="btn-action" onclick="window.UI.editBudgetDirect('${c.nombre}', ${c.meta})"><i class="fa-solid fa-pen-to-square"></i></button><button class="btn-delete" onclick="window.UI.deleteBudgetDirect('${c.nombre}')"><i class="fa-solid fa-trash"></i></button></td></tr>`;
     });
@@ -890,6 +891,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initMonthSelector(); fetchMarketData();
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
     
+    // Inyecta el changelog en la tabla
+    renderChangelogTable();
+
     _supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
             state.currentUser = session.user; document.getElementById('login-screen').style.display = 'none'; document.getElementById('dashboard-screen').style.display = 'block';
