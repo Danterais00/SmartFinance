@@ -6,7 +6,7 @@ let historyChart = null;
 let currentScaleMode = 'linear';
 
 /**
- * Control de Zoom Desacoplado por Zonas de Eje (Rueda del ratón y arrastre directo)
+ * Control de Zoom Desacoplado por Zonas de Eje (Rueda del ratón activa en Eje Y y Eje X)
  */
 function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
     const canvas = document.getElementById(canvasId);
@@ -34,25 +34,40 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
         if (!chart) return;
         const zone = getAxisZone(clientX, clientY);
         if (zone === 'y') {
-            if (chart.options.plugins?.zoom?.zoom) chart.options.plugins.zoom.zoom.mode = 'y';
             canvas.style.cursor = 'ns-resize';
         } else if (zone === 'x') {
-            if (chart.options.plugins?.zoom?.zoom) chart.options.plugins.zoom.zoom.mode = 'x';
             canvas.style.cursor = 'ew-resize';
         } else {
-            if (chart.options.plugins?.zoom?.zoom) chart.options.plugins.zoom.zoom.mode = 'xy';
             canvas.style.cursor = 'default';
         }
     };
 
+    // ZOOM CON RUEDA DEL RATÓN: ACTIVO Y PRECISO SOBRE EL EJE Y
     canvas.addEventListener('wheel', (e) => {
-        updateZoomDirection(e.clientX, e.clientY);
         const chart = getChartInstance();
-        if (chart) {
-            chart.options.scales.y.min = (isLogScale && currentScaleMode === 'logarithmic') ? 500 : 0;
-        }
-    }, { capture: true, passive: true });
+        if (!chart || !chart.chartArea) return;
+        const zone = getAxisZone(e.clientX, e.clientY);
 
+        if (zone === 'y') {
+            e.preventDefault();
+            // e.deltaY > 0: rueda hacia abajo -> aleja (aumenta escala máx); e.deltaY < 0: rueda hacia arriba -> acerca
+            const factor = e.deltaY > 0 ? 1.15 : 0.85;
+            const pMin = (isLogScale && currentScaleMode === 'logarithmic') ? 500 : 0;
+            let curMax = chart.options.scales.y.max ?? chart.scales.y.max;
+            let newMax = curMax * factor;
+            if (newMax <= pMin + 10000) newMax = pMin + 10000;
+
+            chart.options.scales.y.min = pMin;
+            chart.options.scales.y.max = newMax;
+            chart.update('none');
+        } else if (zone === 'x') {
+            e.preventDefault();
+            const factor = e.deltaY > 0 ? 1.2 : 0.8;
+            zoomPerformanceChart('x', factor);
+        }
+    }, { capture: true, passive: false });
+
+    // ZOOM POR ARRASTRE DE RATÓN
     canvas.addEventListener('mousedown', (e) => {
         const chart = getChartInstance();
         if (!chart) return;
@@ -274,10 +289,10 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
 }
 
 /**
- * GRÁFICO 1: Desempeño por Categoría (Puntos Desacoplados / Scatter, Orden Alfabético Estricto A-Z)
+ * GRÁFICO 1: Desempeño por Categoría (Orden Alfabético Forzado A-Z + Puntos Originales)
  */
 export function renderInteractiveChart(categoriesMes) {
-    // Asegura orden alfabético estricto de A a Z
+    // Ordenamiento estricto e inmutable de la A a la Z
     const sortedCategories = [...(categoriesMes || [])].sort((a, b) => 
         a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
     );
@@ -398,8 +413,8 @@ export function renderInteractiveChart(categoriesMes) {
                     }
                 },
                 zoom: {
-                    pan: { enabled: true, mode: 'xy', threshold: 5 },
-                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                    pan: { enabled: true, mode: 'x', threshold: 5 },
+                    zoom: { wheel: { enabled: false }, pinch: { enabled: true }, mode: 'x' },
                     limits: { y: { min: isLog ? 500 : 0 } }
                 }
             }
@@ -562,7 +577,13 @@ export function zoomPerformanceChart(axis, factor) {
         if (axis === 'x') {
             performanceChart.zoom({ x: factor });
         } else {
-            performanceChart.zoom({ y: factor });
+            const pMin = (currentScaleMode === 'logarithmic') ? 500 : 0;
+            let curMax = performanceChart.options.scales.y.max ?? performanceChart.scales.y.max;
+            let newMax = curMax * factor;
+            if (newMax <= pMin + 10000) newMax = pMin + 10000;
+            performanceChart.options.scales.y.min = pMin;
+            performanceChart.options.scales.y.max = newMax;
+            performanceChart.update('none');
         }
     }
 }
