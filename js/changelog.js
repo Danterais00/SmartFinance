@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v6.6",
+        fecha: "2026-10-29",
+        tipo: "AJUSTE VISUAL",
+        color: "var(--primary)",
+        icon: "fa-money-bill-wave",
+        archivos: ["js/charts.js", "js/app.js"],
+        descripcion: "Desacoplamiento bimonetario en Distribución de Liquidez y métricas: la cifra principal refleja exclusivamente saldo en pesos (ARS) y la tenencia en dólares (USD) se muestra separada sin sumarse al importe en pesos."
+    },
+    {
         version: "v6.5",
         fecha: "2026-10-28",
         tipo: "CORRECCIÓN CRÍTICA",
