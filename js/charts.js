@@ -42,7 +42,7 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
         }
     };
 
-    // ZOOM CON RUEDA DEL RATÓN: ACTIVO Y PRECISO SOBRE EL EJE Y
+    // ZOOM CON RUEDA DEL RATÓN SOBRE EJE Y Y EJE X
     canvas.addEventListener('wheel', (e) => {
         const chart = getChartInstance();
         if (!chart || !chart.chartArea) return;
@@ -50,7 +50,6 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
 
         if (zone === 'y') {
             e.preventDefault();
-            // e.deltaY > 0: rueda hacia abajo -> aleja (aumenta escala máx); e.deltaY < 0: rueda hacia arriba -> acerca
             const factor = e.deltaY > 0 ? 1.15 : 0.85;
             const pMin = (isLogScale && currentScaleMode === 'logarithmic') ? 500 : 0;
             let curMax = chart.options.scales.y.max ?? chart.scales.y.max;
@@ -145,9 +144,11 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
 }
 
 /**
- * Gráfico Donut de Liquidez Operativa + Cajas en columna vertical a la derecha.
+ * Gráfico Donut de Liquidez Operativa
+ * Muestra exclusivamente saldo en pesos (ARS) en la cifra principal.
+ * Los dólares (USD) se listan al lado de forma aislada sin sumarse al monto en pesos.
  */
-export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = TIPO_CAMBIO_PRESUPUESTO) {
+export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
     const container = document.getElementById('pie-chart-container');
     const legend = document.getElementById('pie-chart-legend');
     if (!container || !legend) return;
@@ -160,17 +161,19 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = 
         { name: 'Galicia', color: '#f59e0b' }
     ];
 
-    let total = 0;
+    let totalARS = 0;
     const items = accounts.map(acc => {
-        const valARS = Math.max(0, parseFloat(balancesARS[acc.name]) || 0);
-        const valUSD = Math.max(0, parseFloat(balancesUSD[acc.name]) || 0);
-        const valTotalEquiv = valARS + (valUSD * (fxRate || TIPO_CAMBIO_PRESUPUESTO));
+        const valARS = parseFloat(balancesARS[acc.name]) || 0;
+        const valUSD = parseFloat(balancesUSD[acc.name]) || 0;
         
-        total += valTotalEquiv;
+        // El gráfico y la cifra principal computan únicamente pesos físicos
+        const sliceVal = Math.max(0, valARS);
+        totalARS += sliceVal;
+
         return { 
             ...acc, 
-            value: valTotalEquiv,
-            valARS,
+            value: valARS,
+            sliceVal,
             valUSD
         };
     });
@@ -182,12 +185,12 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = 
     let accumulatedOffset = 0;
 
     let circlesHTML = '';
-    if (total === 0) {
+    if (totalARS === 0) {
         circlesHTML = `<circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="#252538" stroke-width="${strokeWidth}" />`;
     } else {
         items.forEach(item => {
-            if (item.value <= 0) return;
-            const ratio = item.value / total;
+            if (item.sliceVal <= 0) return;
+            const ratio = item.sliceVal / totalARS;
             const strokeDasharray = `${ratio * circumference} ${circumference}`;
             const strokeDashoffset = -accumulatedOffset;
             accumulatedOffset += ratio * circumference;
@@ -208,7 +211,7 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = 
         });
     }
 
-    const formattedTotal = `$${Math.round(total).toLocaleString('es-AR')}`;
+    const formattedTotal = `$${Math.round(totalARS).toLocaleString('es-AR')}`;
 
     container.innerHTML = `
         <svg viewBox="0 0 ${size} ${size}" style="width: 100%; height: 100%; max-width: 360px; max-height: 360px; transform: rotate(-90deg); overflow: visible;">
@@ -228,8 +231,9 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}, fxRate = 
     `;
 
     legend.innerHTML = items.map(item => {
+        // Tag independiente para dólares sin alterar la cifra en pesos
         const usdBadge = item.valUSD > 0 
-            ? `<span style="font-size:10px; color:var(--text-muted); margin-left:4px; font-weight:500;">(u$d ${item.valUSD.toFixed(2)})</span>` 
+            ? `<span style="font-size:11px; color:var(--text-muted); margin-left:6px; font-weight:600;">(u$d ${item.valUSD.toFixed(2)})</span>` 
             : '';
 
         return `
@@ -292,7 +296,6 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
  * GRÁFICO 1: Desempeño por Categoría (Orden Alfabético Forzado A-Z + Puntos Originales)
  */
 export function renderInteractiveChart(categoriesMes) {
-    // Ordenamiento estricto e inmutable de la A a la Z
     const sortedCategories = [...(categoriesMes || [])].sort((a, b) => 
         a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
     );
