@@ -436,9 +436,11 @@ function recalculateFinancialMetrics() {
         totalActivos += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO); 
     });
 
-    let liquidezDisponible = 0; 
+    let totalLiquidezARS = 0; 
+    let totalLiquidezUSD = 0;
     CUENTAS_OPERATIVAS.forEach(acc => { 
-        liquidezDisponible += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO); 
+        totalLiquidezARS += (state.currentAccountBalancesARS[acc] || 0); 
+        totalLiquidezUSD += (state.currentAccountBalancesUSD[acc] || 0); 
     });
 
     let deudaTarjetasTotal = 0; 
@@ -475,9 +477,12 @@ function recalculateFinancialMetrics() {
     setCard('metric-presupuesto', `$${Math.round(totalPlanificadoMes).toLocaleString('es-AR')}`);
     setCard('metric-gastos', `$${Math.round(totalEgresosRealesMes).toLocaleString('es-AR')}`, subGastos, 'var(--text-muted)');
     setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit Real' : 'Déficit Real', ahorroMes >= 0 ? 'var(--primary)' : 'var(--danger)');
-    setCard('metric-disponible', `$${Math.round(liquidezDisponible).toLocaleString('es-AR')}`);
+    
+    // Liquidez Inmediata: cifra principal exclusivamente en pesos y dólares separados en el renglón secundario
+    const subLiquidezUSD = totalLiquidezUSD > 0 ? `u$d ${totalLiquidezUSD.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : 'u$d 0.00';
+    setCard('metric-disponible', `$${Math.round(totalLiquidezARS).toLocaleString('es-AR')}`, subLiquidezUSD, 'var(--blue)');
 
-    renderPortfolioPieChart(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, TIPO_CAMBIO_PRESUPUESTO);
+    renderPortfolioPieChart(state.currentAccountBalancesARS, state.currentAccountBalancesUSD);
     renderSavingsPatrimonialTab(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, state.brokerEarningsARS, state.brokerEarningsUSD);
 
     let categoriesMes = [];
@@ -891,7 +896,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initMonthSelector(); fetchMarketData();
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
     
-    // Inyecta el changelog en la tabla
     renderChangelogTable();
 
     _supabase.auth.getSession().then(({ data: { session } }) => {
