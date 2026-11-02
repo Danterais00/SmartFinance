@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v6.7",
+        fecha: "2026-10-29",
+        tipo: "RESTITUCIÓN",
+        color: "var(--primary)",
+        icon: "fa-calendar-check",
+        archivos: ["index.html", "js/app.js"],
+        descripcion: "Reincorporación del campo 'Fecha de Vencimiento' en el modal de edición de presupuestos. Restitución de la campana de alerta y estado [Pagado] en la tabla de control presupuestario."
+    },
+    {
         version: "v6.6",
         fecha: "2026-10-29",
         tipo: "AJUSTE VISUAL",
