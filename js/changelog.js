@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v6.8",
+        fecha: "2026-11-02",
+        tipo: "HOTFIX LÓGICA & ESTADO",
+        color: "var(--danger)",
+        icon: "fa-shield-halved",
+        archivos: ["js/app.js", "index.html"],
+        descripcion: "Conciliación estricta de pagos para tarjetas de crédito (eliminando coincidencias parciales con cuentas bancarias homónimas y falsos positivos por deuda cero). Sincronización de estado único para compromisos pagados entre Notificaciones y Tabla RAG. Guardarraíl temporal automático en fechas de vencimiento."
+    },
+    {
         version: "v6.7",
         fecha: "2026-10-29",
         tipo: "RESTITUCIÓN",
