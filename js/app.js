@@ -121,17 +121,34 @@ window.UI = {
         if (typeof window.updateUnifiedFormUI === 'function') window.updateUnifiedFormUI();
     },
 
-    // Edición directa con soporte para monto y fecha de vencimiento
     editBudgetDirect(catName, currentMeta, currentFecha = '') {
         const titleEl = document.getElementById('modal-edit-budget-title');
         const hiddenCat = document.getElementById('edit-budget-cat-name');
         const inputAmount = document.getElementById('edit-budget-amount');
         const inputDate = document.getElementById('edit-budget-date');
+        const selector = document.getElementById('global-month-selector');
+        const activePeriod = selector ? selector.value : getLocalDateString().substring(0, 7);
 
         if (titleEl) titleEl.innerText = `Ajustar: ${catName}`;
         if (hiddenCat) hiddenCat.value = catName;
         if (inputAmount) inputAmount.value = currentMeta;
-        if (inputDate) inputDate.value = currentFecha || '';
+
+        if (inputDate) {
+            const [curY, curM] = activePeriod.split('-').map(Number);
+            const lastDay = new Date(curY, curM, 0).getDate();
+            inputDate.min = `${activePeriod}-01`;
+            inputDate.max = `${activePeriod}-${String(lastDay).padStart(2, '0')}`;
+
+            if (currentFecha) {
+                // Higieniza años y meses desfasados para forzar coherencia con el período activo
+                const parts = currentFecha.split('-');
+                const rawDay = parts[2] ? parts[2].padStart(2, '0') : '10';
+                const safeDay = Math.min(parseInt(rawDay, 10), lastDay);
+                inputDate.value = `${activePeriod}-${String(safeDay).padStart(2, '0')}`;
+            } else {
+                inputDate.value = '';
+            }
+        }
         window.UI.openModal('modal-edit-budget');
     },
 
@@ -329,6 +346,15 @@ function initMonthSelector() {
         selector.value = mesActualStr;
         if (importMonthSelector) importMonthSelector.value = mesActualStr;
     }
+
+    // Actualiza guardarraíl en el formulario inferior de presupuestos
+    const preFechaInput = document.getElementById('pre-fecha');
+    if (preFechaInput && selector) {
+        const [y, m] = selector.value.split('-').map(Number);
+        const lastDay = new Date(y, m, 0).getDate();
+        preFechaInput.min = `${selector.value}-01`;
+        preFechaInput.max = `${selector.value}-${String(lastDay).padStart(2, '0')}`;
+    }
 }
 
 function populateSelectOptions() {
@@ -496,18 +522,24 @@ function recalculateFinancialMetrics() {
     renderPortfolioPieChart(state.currentAccountBalancesARS, state.currentAccountBalancesUSD);
     renderSavingsPatrimonialTab(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, state.brokerEarningsARS, state.brokerEarningsUSD);
 
+    // Motor de compromisos centralizado: calcula el estado [Pagado] como fuente única
+    const commitmentsStatusMap = checkRemindersAndAlerts(catGastosMap);
+
     let categoriesMes = [];
     state.misCategoriasUnificadas.forEach(c => {
         if (c === 'Ajuste Técnico Saldos') return;
         let meta = catMetaMap[c] || 0; 
         let gasto = catGastosMap[c] || 0;
         let fechaVenc = catFechaMap[c] || null;
+        let commitInfo = commitmentsStatusMap[c] || null;
+
         if (meta > 0 || gasto > 0) {
             categoriesMes.push({ 
                 nombre: c, 
                 meta, 
                 gasto, 
                 fechaVenc, 
+                isPaid: commitInfo ? commitInfo.isPaid : (gasto > 0),
                 estado: calcularEstadoRAG(meta, gasto) 
             });
         }
@@ -516,7 +548,6 @@ function recalculateFinancialMetrics() {
     renderAccuracyTable(categoriesMes);
     renderInteractiveChart(categoriesMes);
     buildHistoricalChartData();
-    checkRemindersAndAlerts(catGastosMap);
 }
 
 function renderAccuracyTable(categoriesMes) {
@@ -533,10 +564,9 @@ function renderAccuracyTable(categoriesMes) {
 
     sortedList.forEach(c => {
         const badgeColor = c.estado === 'Target' ? 'var(--primary)' : (c.estado === 'Riesgo' ? 'var(--warning)' : 'var(--danger)');
-        const estaPagado = (c.gasto > 0);
         let campanaHTML = '';
 
-        if (c.fechaVenc && !estaPagado) {
+        if (c.fechaVenc && !c.isPaid) {
             let colorCampana = 'var(--text-muted)';
             let animacion = '';
             if (c.fechaVenc < todayIso) {
@@ -545,9 +575,9 @@ function renderAccuracyTable(categoriesMes) {
                 colorCampana = 'var(--warning)';
                 animacion = 'fa-shake';
             }
-            const [y, m, d] = c.fechaVenc.split('-');
-            campanaHTML = `<span style="margin-left:8px; font-size:11px; color:${colorCampana}; font-weight:600;" title="Vence el ${d}/${m}/${y}"><i class="fa-solid fa-bell ${animacion}"></i> ${d}/${m}</span>`;
-        } else if (c.fechaVenc && estaPagado) {
+            const [, m, d] = c.fechaVenc.split('-');
+            campanaHTML = `<span style="margin-left:8px; font-size:11px; color:${colorCampana}; font-weight:600;" title="Vence el ${d}/${m}"><i class="fa-solid fa-bell ${animacion}"></i> ${d}/${m}</span>`;
+        } else if (c.fechaVenc && c.isPaid) {
             campanaHTML = `<span style="margin-left:8px; font-size:11px; color:var(--primary); font-weight:600;" title="Pagado en el mes activo"><i class="fa-solid fa-circle-check"></i> Pagado</span>`;
         }
 
@@ -667,6 +697,9 @@ const applyFilters = () => {
     renderTransactionHistoryTable(filtrados);
 };
 
+/**
+ * Motor central de Compromisos y Alertas: Conciliación estricta de partida doble y fuente única de estado
+ */
 function checkRemindersAndAlerts(catGastosMap = {}) {
     const today = getLocalDateString();
     const selector = document.getElementById('global-month-selector');
@@ -674,63 +707,66 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
 
     state.currentMonthAlertsCache = [];
     const paidCommitments = [];
+    const statusMap = {};
 
     state.globalBudgetData.forEach(b => {
         if (!b.fecha_vencimiento) return;
 
         const montoPresupuestado = parseFloat(b.presupuesto_mensual) || 0;
         const bNombreLower = b.nombre.toLowerCase().trim();
+        const esTarjeta = CUENTAS_TARJETAS.some(card => card.toLowerCase() === bNombreLower);
+        
         let totalPagadoDetectado = 0;
         let fechaPagoDetectada = null;
 
+        // Conciliación estricta dentro del período activo
         state.globalTransData.forEach(t => {
+            const isMesActivo = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
+            if (!isMesActivo) return;
+
             const tMonto = parseFloat(t.monto) || 0;
             const tDesc = (t.descripcion || '').toLowerCase();
             const tCat = (t.categoria || '').toLowerCase();
             const tCuenta = (t.cuenta || '').toLowerCase();
 
-            const matchFecha = isDateWithinRange(t.fecha, b.fecha_vencimiento, 20, 15) || 
-                               (t.fecha && t.fecha.substring(0, 7) === activeMonth);
+            if (esTarjeta) {
+                // Validación estricta para tarjetas: Solo imputaciones dirigidas a la tarjeta o pagos de resumen explícitos
+                const matchPagoTarjeta = (
+                    (tCuenta === bNombreLower && (t.tipo === 'ingreso' || t.categoria === 'Transferencia Interna')) ||
+                    (tCat === 'pago tarjeta de crédito' && (tCuenta === bNombreLower || tDesc.includes(bNombreLower))) ||
+                    (tCat === bNombreLower && t.tipo === 'gasto')
+                );
 
-            if (!matchFecha) return;
+                if (matchPagoTarjeta) {
+                    totalPagadoDetectado += Math.abs(tMonto);
+                    if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
+                }
+            } else {
+                // Validación para servicios y categorías estándar
+                const matchCat = (tCat === bNombreLower);
+                const matchDesc = tDesc.includes(bNombreLower);
 
-            const matchCat = (tCat === bNombreLower);
-            const matchDesc = tDesc.includes(bNombreLower) || 
-                              (bNombreLower.includes('cafar') && tDesc.includes('cafar')) ||
-                              (bNombreLower.includes('naturgy') && tDesc.includes('naturgy')) ||
-                              (bNombreLower.includes('edenor') && tDesc.includes('edenor')) ||
-                              (bNombreLower.includes('wellspring') && tDesc.includes('wellspring'));
-
-            const matchTarjeta = (bNombreLower.includes('santander') && (tCuenta.includes('santander') || tDesc.includes('santander'))) ||
-                                 (bNombreLower.includes('mercado pago') && (tCuenta.includes('mercado pago') || tDesc.includes('mercado pago')));
-
-            if (t.tipo === 'gasto' && (matchCat || matchDesc)) {
-                totalPagadoDetectado += Math.abs(tMonto);
-                if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
-            } else if (matchTarjeta && (t.categoria === 'Pago Tarjeta de Crédito' || t.categoria === 'Transferencia Interna' || matchDesc)) {
-                totalPagadoDetectado += Math.abs(tMonto);
-                if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
+                if (t.tipo === 'gasto' && (matchCat || matchDesc)) {
+                    totalPagadoDetectado += Math.abs(tMonto);
+                    if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
+                }
             }
         });
 
-        const gastoMes = catGastosMap[b.nombre] || 0;
-        if (gastoMes > 0 && totalPagadoDetectado === 0) {
-            totalPagadoDetectado = gastoMes;
+        const gastoDirectoMes = catGastosMap[b.nombre] || 0;
+        if (gastoDirectoMes > 0 && totalPagadoDetectado === 0 && !esTarjeta) {
+            totalPagadoDetectado = gastoDirectoMes;
         }
 
-        const esTarjeta = bNombreLower.includes('tarjeta');
-        let deudaTarjeta = 999999;
-        if (esTarjeta) {
-            CUENTAS_TARJETAS.forEach(c => {
-                if (bNombreLower.includes(c.toLowerCase()) || c.toLowerCase().includes(bNombreLower)) {
-                    deudaTarjeta = (state.creditCardDebtARS[c] || 0) + ((state.creditCardDebtUSD[c] || 0) * TIPO_CAMBIO_PRESUPUESTO);
-                }
-            });
-        }
+        // Criterio único: Solo se considera pagado si existió un pago real mayor a cero en el período activo
+        const isPaid = (totalPagadoDetectado > 0) || (montoPresupuestado <= 0);
 
-        const isPaid = (totalPagadoDetectado > 0) || 
-                       (montoPresupuestado <= 0) || 
-                       (esTarjeta && deudaTarjeta <= 0);
+        statusMap[b.nombre] = {
+            isPaid,
+            totalPagado: totalPagadoDetectado,
+            fechaPago: fechaPagoDetectada,
+            fechaVenc: b.fecha_vencimiento
+        };
 
         if (isPaid) {
             paidCommitments.push({
@@ -829,6 +865,8 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
             listContainer.innerHTML += paidHTML;
         }
     }
+
+    return statusMap;
 }
 
 async function loadUserDataFromDatabase() {
@@ -972,7 +1010,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('btn-header-logout')?.addEventListener('click', () => window.UI.showAppConfirm("Salir", "¿Querés cerrar sesión?", async () => { await _supabase.auth.signOut(); window.location.reload(); }));
-    document.getElementById('global-month-selector')?.addEventListener('change', loadUserDataFromDatabase);
+    document.getElementById('global-month-selector')?.addEventListener('change', () => {
+        initMonthSelector();
+        loadUserDataFromDatabase();
+    });
     document.getElementById('btn-header-bell')?.addEventListener('click', () => window.UI.openModal('notifications-modal-center'));
     document.getElementById('btn-nav-inicio')?.addEventListener('click', () => switchView('view-inicio', 'btn-nav-inicio'));
     document.getElementById('btn-nav-inversiones')?.addEventListener('click', () => switchView('view-inversiones', 'btn-nav-inversiones'));
@@ -1126,14 +1167,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // GUARDAR PRESUPUESTO DESDE FORMULARIO INFERIOR
+    // GUARDAR PRESUPUESTO DESDE FORMULARIO INFERIOR (CON GUARDARRAÍL DE PERÍODO)
     document.getElementById('form-save-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
         const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
         const cat = document.getElementById('pre-cat').value;
         const monto = parseFloat(document.getElementById('pre-mon').value);
-        const vencimiento = document.getElementById('pre-fecha').value || null;
+        let vencimiento = document.getElementById('pre-fecha').value || null;
+
+        // Guardarraíl: fuerza que el año y mes del vencimiento pertenezcan al período
+        if (vencimiento) {
+            const rawDay = vencimiento.split('-')[2] || '10';
+            const [curY, curM] = periodo.split('-').map(Number);
+            const maxDay = new Date(curY, curM, 0).getDate();
+            const safeDay = Math.min(parseInt(rawDay, 10), maxDay);
+            vencimiento = `${periodo}-${String(safeDay).padStart(2, '0')}`;
+        }
 
         try {
             const { data: existing, error: selErr } = await _supabase.from('categorias')
@@ -1171,18 +1221,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // MODAL EDITAR PRESUPUESTO (GUARDA MONTO Y FECHA DE VENCIMIENTO)
+    // MODAL EDITAR PRESUPUESTO (CON GUARDARRAÍL DE PERÍODO)
     document.getElementById('form-modal-edit-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
         const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
         const catName = document.getElementById('edit-budget-cat-name').value;
         const num = parseFloat(document.getElementById('edit-budget-amount').value);
-        const fechaVenc = document.getElementById('edit-budget-date')?.value || null;
+        let fechaVenc = document.getElementById('edit-budget-date')?.value || null;
 
         if (isNaN(num) || num < 0) {
             window.UI.showAppAlert("Entrada inválida", "Ingresá un monto numérico positivo.");
             return;
+        }
+
+        // Guardarraíl: auto-sanitiza la fecha para que pertenezca estrictamente al período
+        if (fechaVenc) {
+            const rawDay = fechaVenc.split('-')[2] || '10';
+            const [curY, curM] = periodo.split('-').map(Number);
+            const maxDay = new Date(curY, curM, 0).getDate();
+            const safeDay = Math.min(parseInt(rawDay, 10), maxDay);
+            fechaVenc = `${periodo}-${String(safeDay).padStart(2, '0')}`;
         }
 
         try {
@@ -1297,7 +1356,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // DUPLICAR MES ANTERIOR (MANTIENE Y TRASLADA FECHAS DE VENCIMIENTO INTELIGENTEMENTE)
+    // DUPLICAR MES ANTERIOR (MANTIENE Y TRASLADA FECHAS DE VENCIMIENTO AL NUEVO MES)
     document.getElementById('btn-clone-budget')?.addEventListener('click', async () => {
         const currentPeriodo = document.getElementById('global-month-selector') ? document.getElementById('global-month-selector').value : getLocalDateString().substring(0, 7);
         const prevPeriodo = getPreviousMonthStr(currentPeriodo);
