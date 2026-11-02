@@ -121,14 +121,17 @@ window.UI = {
         if (typeof window.updateUnifiedFormUI === 'function') window.updateUnifiedFormUI();
     },
 
-    editBudgetDirect(catName, currentMeta) {
+    // Edición directa con soporte para monto y fecha de vencimiento
+    editBudgetDirect(catName, currentMeta, currentFecha = '') {
         const titleEl = document.getElementById('modal-edit-budget-title');
         const hiddenCat = document.getElementById('edit-budget-cat-name');
         const inputAmount = document.getElementById('edit-budget-amount');
+        const inputDate = document.getElementById('edit-budget-date');
 
         if (titleEl) titleEl.innerText = `Ajustar: ${catName}`;
         if (hiddenCat) hiddenCat.value = catName;
         if (inputAmount) inputAmount.value = currentMeta;
+        if (inputDate) inputDate.value = currentFecha || '';
         window.UI.openModal('modal-edit-budget');
     },
 
@@ -423,11 +426,20 @@ function recalculateFinancialMetrics() {
         }
     });
 
-    let catMetaMap = {}; state.misCategoriasUnificadas.forEach(c => { catMetaMap[c] = 0; });
+    let catMetaMap = {}; 
+    let catFechaMap = {};
+    state.misCategoriasUnificadas.forEach(c => { 
+        catMetaMap[c] = 0; 
+        catFechaMap[c] = null;
+    });
+
     state.globalBudgetData.forEach(b => {
         const val = parseFloat(b.presupuesto_mensual) || 0;
         totalPlanificadoMes += val;
-        if (catMetaMap[b.nombre] !== undefined) catMetaMap[b.nombre] = val;
+        if (catMetaMap[b.nombre] !== undefined) {
+            catMetaMap[b.nombre] = val;
+            catFechaMap[b.nombre] = b.fecha_vencimiento || null;
+        }
     });
 
     const cuentasActivoUnicas = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES])];
@@ -478,7 +490,6 @@ function recalculateFinancialMetrics() {
     setCard('metric-gastos', `$${Math.round(totalEgresosRealesMes).toLocaleString('es-AR')}`, subGastos, 'var(--text-muted)');
     setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit Real' : 'Déficit Real', ahorroMes >= 0 ? 'var(--primary)' : 'var(--danger)');
     
-    // Liquidez Inmediata: cifra principal exclusivamente en pesos y dólares separados en el renglón secundario
     const subLiquidezUSD = totalLiquidezUSD > 0 ? `u$d ${totalLiquidezUSD.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : 'u$d 0.00';
     setCard('metric-disponible', `$${Math.round(totalLiquidezARS).toLocaleString('es-AR')}`, subLiquidezUSD, 'var(--blue)');
 
@@ -490,8 +501,15 @@ function recalculateFinancialMetrics() {
         if (c === 'Ajuste Técnico Saldos') return;
         let meta = catMetaMap[c] || 0; 
         let gasto = catGastosMap[c] || 0;
+        let fechaVenc = catFechaMap[c] || null;
         if (meta > 0 || gasto > 0) {
-            categoriesMes.push({ nombre: c, meta, gasto, estado: calcularEstadoRAG(meta, gasto) });
+            categoriesMes.push({ 
+                nombre: c, 
+                meta, 
+                gasto, 
+                fechaVenc, 
+                estado: calcularEstadoRAG(meta, gasto) 
+            });
         }
     });
 
@@ -511,10 +529,46 @@ function renderAccuracyTable(categoriesMes) {
     }
     
     const sortedList = [...categoriesMes].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+    const todayIso = getLocalDateString();
 
     sortedList.forEach(c => {
         const badgeColor = c.estado === 'Target' ? 'var(--primary)' : (c.estado === 'Riesgo' ? 'var(--warning)' : 'var(--danger)');
-        tbody.innerHTML += `<tr><td style="font-weight:600;">${c.nombre}</td><td style="text-align:right;">$${c.meta.toLocaleString('es-AR')}</td><td style="text-align:right; font-weight:700;">$${c.gasto.toLocaleString('es-AR')}</td><td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${c.estado}</span></td><td style="text-align:center; white-space:nowrap;"><button class="btn-action" onclick="window.UI.editBudgetDirect('${c.nombre}', ${c.meta})"><i class="fa-solid fa-pen-to-square"></i></button><button class="btn-delete" onclick="window.UI.deleteBudgetDirect('${c.nombre}')"><i class="fa-solid fa-trash"></i></button></td></tr>`;
+        const estaPagado = (c.gasto > 0);
+        let campanaHTML = '';
+
+        if (c.fechaVenc && !estaPagado) {
+            let colorCampana = 'var(--text-muted)';
+            let animacion = '';
+            if (c.fechaVenc < todayIso) {
+                colorCampana = 'var(--danger)';
+            } else if (c.fechaVenc === todayIso) {
+                colorCampana = 'var(--warning)';
+                animacion = 'fa-shake';
+            }
+            const [y, m, d] = c.fechaVenc.split('-');
+            campanaHTML = `<span style="margin-left:8px; font-size:11px; color:${colorCampana}; font-weight:600;" title="Vence el ${d}/${m}/${y}"><i class="fa-solid fa-bell ${animacion}"></i> ${d}/${m}</span>`;
+        } else if (c.fechaVenc && estaPagado) {
+            campanaHTML = `<span style="margin-left:8px; font-size:11px; color:var(--primary); font-weight:600;" title="Pagado en el mes activo"><i class="fa-solid fa-circle-check"></i> Pagado</span>`;
+        }
+
+        const safeCat = c.nombre.replace(/'/g, "\\'");
+        const safeFecha = c.fechaVenc || '';
+
+        tbody.innerHTML += `<tr>
+            <td style="font-weight:600;">
+                <div style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px;">
+                    <span>${c.nombre}</span>
+                    ${campanaHTML}
+                </div>
+            </td>
+            <td style="text-align:right;">$${c.meta.toLocaleString('es-AR')}</td>
+            <td style="text-align:right; font-weight:700;">$${c.gasto.toLocaleString('es-AR')}</td>
+            <td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${c.estado}</span></td>
+            <td style="text-align:center; white-space:nowrap;">
+                <button class="btn-action" onclick="window.UI.editBudgetDirect('${safeCat}', ${c.meta}, '${safeFecha}')" title="Editar Presupuesto y Vencimiento"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button class="btn-delete" onclick="window.UI.deleteBudgetDirect('${safeCat}')" title="Eliminar Presupuesto"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>`;
     });
 }
 
@@ -658,6 +712,11 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
                 if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
             }
         });
+
+        const gastoMes = catGastosMap[b.nombre] || 0;
+        if (gastoMes > 0 && totalPagadoDetectado === 0) {
+            totalPagadoDetectado = gastoMes;
+        }
 
         const esTarjeta = bNombreLower.includes('tarjeta');
         let deudaTarjeta = 999999;
@@ -1067,7 +1126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // GUARDAR PRESUPUESTO
+    // GUARDAR PRESUPUESTO DESDE FORMULARIO INFERIOR
     document.getElementById('form-save-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
@@ -1112,13 +1171,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // MODAL EDITAR PRESUPUESTO
+    // MODAL EDITAR PRESUPUESTO (GUARDA MONTO Y FECHA DE VENCIMIENTO)
     document.getElementById('form-modal-edit-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
         const periodo = selector ? selector.value : getLocalDateString().substring(0, 7);
         const catName = document.getElementById('edit-budget-cat-name').value;
         const num = parseFloat(document.getElementById('edit-budget-amount').value);
+        const fechaVenc = document.getElementById('edit-budget-date')?.value || null;
 
         if (isNaN(num) || num < 0) {
             window.UI.showAppAlert("Entrada inválida", "Ingresá un monto numérico positivo.");
@@ -1137,7 +1197,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (existing) {
                 const { error: updErr } = await _supabase.from('categorias')
-                    .update({ presupuesto_mensual: num })
+                    .update({ 
+                        presupuesto_mensual: num,
+                        fecha_vencimiento: fechaVenc
+                    })
                     .eq('id', existing.id);
                 if (updErr) throw updErr;
             } else {
@@ -1146,6 +1209,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         user_id: state.currentUser.id,
                         nombre: catName,
                         presupuesto_mensual: num,
+                        fecha_vencimiento: fechaVenc,
                         periodo
                     }]);
                 if (insErr) throw insErr;
@@ -1233,7 +1297,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // DUPLICAR MES ANTERIOR
+    // DUPLICAR MES ANTERIOR (MANTIENE Y TRASLADA FECHAS DE VENCIMIENTO INTELIGENTEMENTE)
     document.getElementById('btn-clone-budget')?.addEventListener('click', async () => {
         const currentPeriodo = document.getElementById('global-month-selector') ? document.getElementById('global-month-selector').value : getLocalDateString().substring(0, 7);
         const prevPeriodo = getPreviousMonthStr(currentPeriodo);
@@ -1261,18 +1325,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (exErr) throw exErr;
 
+                const [targetYear, targetMonth] = currentPeriodo.split('-').map(Number);
+                const maxDaysInTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
+
                 const existingMap = new Map((existingTarget || []).map(item => [item.nombre, item.id]));
                 const updatePromises = [];
                 const insertBatch = [];
 
                 prevBudgets.forEach(b => {
+                    let adjustedDueDate = null;
+                    if (b.fecha_vencimiento) {
+                        try {
+                            const [, , oldD] = b.fecha_vencimiento.split('-').map(Number);
+                            const newDay = Math.min(oldD, maxDaysInTargetMonth);
+                            adjustedDueDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`;
+                        } catch (e) {
+                            adjustedDueDate = null;
+                        }
+                    }
+
                     const targetId = existingMap.get(b.nombre);
                     if (targetId) {
                         updatePromises.push(
                             _supabase.from('categorias')
                                 .update({
                                     presupuesto_mensual: b.presupuesto_mensual,
-                                    fecha_vencimiento: null
+                                    fecha_vencimiento: adjustedDueDate
                                 })
                                 .eq('id', targetId)
                         );
@@ -1282,7 +1360,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             nombre: b.nombre,
                             presupuesto_mensual: b.presupuesto_mensual,
                             periodo: currentPeriodo,
-                            fecha_vencimiento: null
+                            fecha_vencimiento: adjustedDueDate
                         });
                     }
                 });
@@ -1307,7 +1385,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // GUARDAR EDICIÓN
+    // GUARDAR EDICIÓN DE MOVIMIENTO
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
