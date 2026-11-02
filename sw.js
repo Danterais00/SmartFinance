@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smartfinance-cache-v6.7';
+const CACHE_NAME = 'smartfinance-cache-v6.8';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
