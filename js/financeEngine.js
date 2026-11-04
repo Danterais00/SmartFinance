@@ -1,4 +1,4 @@
-import { state, CUENTAS_OPERATIVAS, getLocalDateString } from './state.js';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js';
 import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js';
 
 /**
@@ -9,7 +9,6 @@ export function generateUUID() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
     }
-    // Fallback estándar RFC 4122 v4 en caso de ejecución en entornos restringidos
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0;
         const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -76,7 +75,20 @@ export function executeFinancialAuditEngine() {
         }
     });
 
-    // 3. Auditoría de Posibles Gastos Duplicados (Mismo día, cuenta, categoría y monto)
+    // 3. Auditoría de Pasivos Exigibles en Tarjetas de Crédito (Activado en Etapa 2)
+    CUENTAS_TARJETAS.forEach(tarjeta => {
+        const dARS = state.creditCardDebtARS[tarjeta] || 0;
+        const dUSD = state.creditCardDebtUSD[tarjeta] || 0;
+        if (dARS > 0 || dUSD > 0) {
+            let detalle = [];
+            if (dARS > 0) detalle.push(`$${Math.round(dARS).toLocaleString('es-AR')}`);
+            if (dUSD > 0) detalle.push(`u$d ${dUSD.toFixed(2)}`);
+            auditFindings.tarjetasConDeuda.push(`${tarjeta} (${detalle.join(' + ')})`);
+            auditFindings.score -= 5;
+        }
+    });
+
+    // 4. Auditoría de Posibles Gastos Duplicados (Mismo día, cuenta, categoría y monto)
     let gastosMes = currentMonthTxs.filter(t => t.tipo === 'gasto' && t.presupuestado !== 'NO_COMPUTA' && t.categoria !== 'Transferencia Interna' && t.categoria !== 'Compra/Venta Divisas');
     for (let i = 0; i < gastosMes.length; i++) {
         for (let j = i + 1; j < gastosMes.length; j++) {
@@ -89,7 +101,7 @@ export function executeFinancialAuditEngine() {
         }
     }
 
-    // 4. Auditoría de Compromisos Fijos con Vencimiento no Pagados
+    // 5. Auditoría de Compromisos Fijos con Vencimiento no Pagados
     const todayIso = getLocalDateString();
     state.currentMonthAlertsCache.forEach(al => {
         if (al.status === 'overdue' || (al.status === 'today' && al.fechaRaw < todayIso)) {
@@ -129,7 +141,6 @@ export function buildUnifiedTransactionBatch(params) {
         montoDestino
     } = params;
 
-    // Generación de UUID RFC 4122 canónico para partida doble
     const transferGroupId = (type === 'TRANSFERENCIA' || type === 'CAMBIO_DIVISAS' || (type === 'RENDIMIENTO' && pureza !== 'METRICA')) 
         ? generateUUID() 
         : null;
