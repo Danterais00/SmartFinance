@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v6.9",
+        fecha: "2026-11-03",
+        tipo: "INTEGRIDAD CONTABLE & AUDITORÍA",
+        color: "var(--primary)",
+        icon: "fa-scale-balanced",
+        archivos: ["js/app.js", "js/state.js", "js/financeEngine.js"],
+        descripcion: "Preservación y recalibración dinámica de tipo de cambio al conmutar monedas en el historial. Reactividad inmediata y recarga de datos tras reconexión offline. Incorporación de 'Impuestos y Sellos' e 'Intereses Financieros' al catálogo maestro y activación de la auditoría activa de deudas de tarjetas en el pre-flight."
+    },
+    {
         version: "v6.8",
         fecha: "2026-11-02",
         tipo: "HOTFIX LÓGICA & ESTADO",
