@@ -140,7 +140,6 @@ window.UI = {
             inputDate.max = `${activePeriod}-${String(lastDay).padStart(2, '0')}`;
 
             if (currentFecha) {
-                // Higieniza años y meses desfasados para forzar coherencia con el período activo
                 const parts = currentFecha.split('-');
                 const rawDay = parts[2] ? parts[2].padStart(2, '0') : '10';
                 const safeDay = Math.min(parseInt(rawDay, 10), lastDay);
@@ -347,7 +346,6 @@ function initMonthSelector() {
         if (importMonthSelector) importMonthSelector.value = mesActualStr;
     }
 
-    // Actualiza guardarraíl en el formulario inferior de presupuestos
     const preFechaInput = document.getElementById('pre-fecha');
     if (preFechaInput && selector) {
         const [y, m] = selector.value.split('-').map(Number);
@@ -522,7 +520,6 @@ function recalculateFinancialMetrics() {
     renderPortfolioPieChart(state.currentAccountBalancesARS, state.currentAccountBalancesUSD);
     renderSavingsPatrimonialTab(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, state.brokerEarningsARS, state.brokerEarningsUSD);
 
-    // Motor de compromisos centralizado: calcula el estado [Pagado] como fuente única
     const commitmentsStatusMap = checkRemindersAndAlerts(catGastosMap);
 
     let categoriesMes = [];
@@ -697,9 +694,6 @@ const applyFilters = () => {
     renderTransactionHistoryTable(filtrados);
 };
 
-/**
- * Motor central de Compromisos y Alertas: Conciliación estricta de partida doble y fuente única de estado
- */
 function checkRemindersAndAlerts(catGastosMap = {}) {
     const today = getLocalDateString();
     const selector = document.getElementById('global-month-selector');
@@ -719,7 +713,6 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
         let totalPagadoDetectado = 0;
         let fechaPagoDetectada = null;
 
-        // Conciliación estricta dentro del período activo
         state.globalTransData.forEach(t => {
             const isMesActivo = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
             if (!isMesActivo) return;
@@ -730,7 +723,6 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
             const tCuenta = (t.cuenta || '').toLowerCase();
 
             if (esTarjeta) {
-                // Validación estricta para tarjetas: Solo imputaciones dirigidas a la tarjeta o pagos de resumen explícitos
                 const matchPagoTarjeta = (
                     (tCuenta === bNombreLower && (t.tipo === 'ingreso' || t.categoria === 'Transferencia Interna')) ||
                     (tCat === 'pago tarjeta de crédito' && (tCuenta === bNombreLower || tDesc.includes(bNombreLower))) ||
@@ -742,7 +734,6 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
                     if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
                 }
             } else {
-                // Validación para servicios y categorías estándar
                 const matchCat = (tCat === bNombreLower);
                 const matchDesc = tDesc.includes(bNombreLower);
 
@@ -758,7 +749,6 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
             totalPagadoDetectado = gastoDirectoMes;
         }
 
-        // Criterio único: Solo se considera pagado si existió un pago real mayor a cero en el período activo
         const isPaid = (totalPagadoDetectado > 0) || (montoPresupuestado <= 0);
 
         statusMap[b.nombre] = {
@@ -993,12 +983,28 @@ document.addEventListener('DOMContentLoaded', () => {
     initMonthSelector(); fetchMarketData();
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
     
+    // Reactividad offline en reconexión
+    window.addEventListener('online', () => {
+        syncOfflineQueue(async () => {
+            window.UI.showToast("Operaciones sincronizadas automáticamente");
+            await loadUserDataFromDatabase();
+        });
+    });
+
     renderChangelogTable();
 
     _supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
-            state.currentUser = session.user; document.getElementById('login-screen').style.display = 'none'; document.getElementById('dashboard-screen').style.display = 'block';
-            loadUserDataFromDatabase(); syncOfflineQueue(() => window.UI.showToast("Operaciones offline sincronizadas"));
+            state.currentUser = session.user; 
+            document.getElementById('login-screen').style.display = 'none'; 
+            document.getElementById('dashboard-screen').style.display = 'block';
+            loadUserDataFromDatabase(); 
+            
+            // Reactividad offline tras login
+            syncOfflineQueue(async () => {
+                window.UI.showToast("Operaciones offline sincronizadas");
+                await loadUserDataFromDatabase();
+            });
         }
     });
 
@@ -1167,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // GUARDAR PRESUPUESTO DESDE FORMULARIO INFERIOR (CON GUARDARRAÍL DE PERÍODO)
+    // GUARDAR PRESUPUESTO DESDE FORMULARIO INFERIOR
     document.getElementById('form-save-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
@@ -1176,7 +1182,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const monto = parseFloat(document.getElementById('pre-mon').value);
         let vencimiento = document.getElementById('pre-fecha').value || null;
 
-        // Guardarraíl: fuerza que el año y mes del vencimiento pertenezcan al período
         if (vencimiento) {
             const rawDay = vencimiento.split('-')[2] || '10';
             const [curY, curM] = periodo.split('-').map(Number);
@@ -1221,7 +1226,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // MODAL EDITAR PRESUPUESTO (CON GUARDARRAÍL DE PERÍODO)
+    // MODAL EDITAR PRESUPUESTO
     document.getElementById('form-modal-edit-budget')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const selector = document.getElementById('global-month-selector');
@@ -1235,7 +1240,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Guardarraíl: auto-sanitiza la fecha para que pertenezca estrictamente al período
         if (fechaVenc) {
             const rawDay = fechaVenc.split('-')[2] || '10';
             const [curY, curM] = periodo.split('-').map(Number);
@@ -1356,7 +1360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // DUPLICAR MES ANTERIOR (MANTIENE Y TRASLADA FECHAS DE VENCIMIENTO AL NUEVO MES)
+    // DUPLICAR MES ANTERIOR
     document.getElementById('btn-clone-budget')?.addEventListener('click', async () => {
         const currentPeriodo = document.getElementById('global-month-selector') ? document.getElementById('global-month-selector').value : getLocalDateString().substring(0, 7);
         const prevPeriodo = getPreviousMonthStr(currentPeriodo);
@@ -1444,7 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // GUARDAR EDICIÓN DE MOVIMIENTO
+    // GUARDAR EDICIÓN DE MOVIMIENTO (PRESERVACIÓN / RECALIBRACIÓN FX - ETAPA 2)
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
@@ -1462,6 +1466,18 @@ document.addEventListener('DOMContentLoaded', () => {
             numMonto = Math.abs(numMonto);
         }
 
+        const nuevaMoneda = document.getElementById('edit-form-moneda').value;
+        let nuevoTipoCambio = parseFloat(t.tipo_cambio) || 1;
+        
+        // Recalibración dinámica de tipo de cambio al conmutar divisas
+        if (nuevaMoneda === 'USD') {
+            if (nuevoTipoCambio <= 1) {
+                nuevoTipoCambio = TIPO_CAMBIO_PRESUPUESTO;
+            }
+        } else {
+            nuevoTipoCambio = 1;
+        }
+
         const payload = { 
             fecha: document.getElementById('edit-form-fecha').value, 
             monto: numMonto, 
@@ -1469,7 +1485,8 @@ document.addEventListener('DOMContentLoaded', () => {
             cuenta: document.getElementById('edit-form-metodo').value, 
             categoria: document.getElementById('edit-form-categoria').value, 
             presupuestado: document.getElementById('edit-form-presupuestado').value || 'SI', 
-            moneda: document.getElementById('edit-form-moneda').value 
+            moneda: nuevaMoneda,
+            tipo_cambio: nuevoTipoCambio
         };
 
         const isGroup = !!t.transfer_group_id;
@@ -1487,7 +1504,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const peerPayload = { fecha: payload.fecha }; 
                     if (t.categoria !== 'Compra/Venta Divisas') { 
                         peerPayload.monto = Math.abs(payload.monto); 
-                        peerPayload.moneda = payload.moneda; 
+                        peerPayload.moneda = payload.moneda;
+                        peerPayload.tipo_cambio = payload.tipo_cambio;
                     } 
                     updates.push(_supabase.from('transacciones').update(peerPayload).eq('id', peer.id)); 
                 } 
