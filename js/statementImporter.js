@@ -5,9 +5,9 @@ const PREDICTIVE_CATEGORIES = [
     { pattern: /telepeaje|corresur|autopista|ausol|aubasa|camino.*pque|peaje/i, targets: ['peaje', 'transporte', 'auto', 'vehiculo'] },
     { pattern: /movistar|claro|personal|telecentro|fibertel|internet/i, targets: ['telefono', 'telefonia', 'comunicacion', 'servicios', 'internet'] },
     { pattern: /caja.*seguro|lacaja|seguro|sancor|mercantil/i, targets: ['seguro', 'auto'] },
-    { pattern: /mcdonald|burger|mostaza|starbucks|cafe|parrill|restaurante|heladeria|homeroparrill/i, targets: ['salidas', 'gastronomia', 'comida', 'restaurante'] },
+    { pattern: /mcdonald|burger|mostaza|starbucks|cafe|parrill|restaurante|heladeria|homeroparrill|mooi/i, targets: ['salidas', 'gastronomia', 'comida', 'restaurante'] },
     { pattern: /apple|google|netflix|spotify|prime|disney|max|youtube/i, targets: ['apple', 'suscripcion', 'streaming', 'servicios'] },
-    { pattern: /farmacity|farmacia|osde|swiss/i, targets: ['salud', 'farmacia', 'medicina'] },
+    { pattern: /farmacity|farmacia|osde|swiss|widex|optica|alemana|audifono/i, targets: ['farmacia', 'salud', 'medicina', 'bienestar'] },
     { pattern: /coto|carrefour|jumbo|disco|vea|dia%/i, targets: ['supermercado', 'super', 'alimentos'] },
     { pattern: /ypf|shell|axion|puma|combustible/i, targets: ['nafta', 'combustible', 'auto'] },
     { pattern: /dash|sport|nike|adidas|indumentaria|ropa|zapat/i, targets: ['indumentaria', 'ropa', 'deporte'] },
@@ -18,7 +18,7 @@ const PREDICTIVE_CATEGORIES = [
 ];
 
 export function matchUserCategory(desc, userCategories = []) {
-    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Otros Gastos';
+    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Otros Gastos (Sin Categorizar)';
     const d = desc.toLowerCase();
 
     for (let cat of userCategories) {
@@ -49,7 +49,8 @@ function parseMonto(val) {
 }
 
 /**
- * Parsea el extracto bancario (.xlsx) e imputa la fecha al mes de liquidación presupuestaria seleccionado.
+ * Parsea el extracto bancario (.xlsx), procesando todos los plásticos asociados (titular, renovaciones y adicionales)
+ * e imputando la fecha contable al mes de liquidación seleccionado.
  */
 export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategories = [], targetPeriod = null) {
     return new Promise((resolve, reject) => {
@@ -66,25 +67,34 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
             
             let consumos = [];
             let lastValidDate = getLocalDateString();
-            let foundTitularSection = false;
+            let currentCardHeader = "";
+            let inCardSection = false;
             let tableStarted = false;
 
             for (let i = 0; i < rawData.length; i++) {
-                if (i < 19) continue;
-
                 const row = rawData[i];
-                if (!row || row.length < 5) continue;
+                if (!row || row.length < 2) continue;
 
                 const col0 = String(row[0] || '').trim();
                 const col1 = String(row[1] || '').trim();
 
-                if (col0.toLowerCase().includes('tarjeta de') && col0.toLowerCase().includes('terminada en')) {
-                    foundTitularSection = true;
+                // 1. Detección de una sección formal de tarjeta (Titular, renovación o adicional)
+                // Excluye subtotales y títulos genéricos de cabecera de cuenta
+                if (
+                    col0.toLowerCase().includes('terminada en') && 
+                    col0.toLowerCase().includes('tarjeta de') && 
+                    !col0.toLowerCase().startsWith('subtotal')
+                ) {
+                    currentCardHeader = col0;
+                    inCardSection = true;
+                    tableStarted = false;
                     continue;
                 }
 
-                if (!foundTitularSection) continue;
+                // 2. Si no estamos dentro de un bloque de consumos de plástico, ignorar filas
+                if (!inCardSection) continue;
 
+                // 3. Detección de la cabecera de la tabla de consumos
                 if (col0.toLowerCase() === 'fecha' && col1.toLowerCase().includes('descrip')) {
                     tableStarted = true;
                     continue;
@@ -92,16 +102,22 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
 
                 if (!tableStarted) continue;
 
+                // 4. Fin del bloque de consumos del plástico actual:
+                // No abortamos con break; reseteamos el estado para permitir leer siguientes plásticos.
                 if (col0.toLowerCase().startsWith('subtotal') || (col0 === '' && col1 === '')) {
-                    break;
+                    tableStarted = false;
+                    inCardSection = false;
+                    currentCardHeader = "";
+                    continue;
                 }
 
                 const descripcion = col1;
+                // Excluye pagos directos y débitos de resumen si aparecieran en la tabla
                 if (/su pago en|pago por débito/i.test(descripcion)) {
                     continue;
                 }
 
-                // Fecha original de la compra física
+                // 5. Parseo de Fecha de compra original
                 let originalPurchaseDate = col0;
                 if (originalPurchaseDate === "") {
                     originalPurchaseDate = lastValidDate;
@@ -115,13 +131,12 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                     lastValidDate = originalPurchaseDate;
                 }
 
-                // Formateo de fecha de compra para el memo
                 const dateParts = originalPurchaseDate.split('-');
                 const displayPurchaseDate = (dateParts.length === 3) 
                     ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` 
                     : originalPurchaseDate;
 
-                // Asignación de fecha contable de imputación (Mes de Pago del Resumen)
+                // Fecha contable de imputación (primer día del período de pago seleccionado)
                 const fechaContable = targetPeriod ? `${targetPeriod}-01` : originalPurchaseDate;
 
                 const cuotas = String(row[2] || '').trim();
@@ -138,10 +153,9 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                 let memoBase = descripcion.replace(/\s+/g, ' ').trim();
                 if (cuotas && !memoBase.includes(cuotas)) memoBase += ` (${cuotas})`;
                 
-                // Anexa la fecha real de compra al memo
                 const memoFinal = `${memoBase} [Compra: ${displayPurchaseDate}]`;
 
-                // Control de duplicados en el mes de destino
+                // Control preventivo de consumos ya cargados en la base de datos
                 const isDuplicate = state.globalTransData.some(t => {
                     const matchAcc = (t.cuenta === selectedAccount);
                     const matchMon = (t.moneda === moneda);
