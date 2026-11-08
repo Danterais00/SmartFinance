@@ -1,55 +1,110 @@
-const CACHE_NAME = 'smartfinance-cache-v6.8';
-const ASSETS_TO_CACHE = [
+/**
+ * SmartFinance PWA - Service Worker v7.0
+ * Estrategia: Cache-First para App Shell / Network-Only para APIs y Supabase
+ */
+
+const CACHE_NAME = 'smartfinance-cache-v7.0';
+
+// Recursos estáticos locales y librerías CDN indispensables para arranque offline
+const STATIC_ASSETS = [
     './',
     './index.html',
-    './manifest.json',
-    './css/styles.css',
-    './js/app.js',
+    './css/styles.css?v=7.0',
+    './js/app.js?v=7.0',
     './js/state.js',
-    './js/supabaseClient.js',
     './js/financeEngine.js',
     './js/charts.js',
-    './js/pdfReport.js',
     './js/statementImporter.js',
-    './js/changelog.js'
+    './js/pdfReport.js',
+    './js/changelog.js',
+    './js/supabaseClient.js',
+    './manifest.json',
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+    'https://cdn.jsdelivr.net/npm/chart.js',
+    'https://cdn.jsdelivr.net/npm/hammerjs@2.0.8',
+    'https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js',
+    'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
 
-self.addEventListener('install', (e) => {
-    e.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+// Dominios que NUNCA deben pasar por caché bajo ninguna circunstancia
+const NETWORK_ONLY_PATTERNS = [
+    'supabase.co',
+    'dolarapi.com',
+    'identitytoolkit.googleapis.com'
+];
+
+// Instalación: Precaching de componentes base
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.addAll(STATIC_ASSETS);
+        }).then(() => self.skipWaiting())
     );
-    self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-    e.waitUntil(
+// Activación: Purga inmediata de versiones anteriores de caché (v6.8, v6.9, etc.)
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
         caches.keys().then((keys) => {
             return Promise.all(
                 keys.map((key) => {
-                    if (key !== CACHE_NAME) return caches.delete(key);
+                    if (key !== CACHE_NAME) {
+                        return caches.delete(key);
+                    }
                 })
             );
-        })
+        }).then(() => self.clients.claim())
     );
-    self.clients.claim();
 });
 
-self.addEventListener('fetch', (e) => {
-    const url = new URL(e.request.url);
+// Interceptor de peticiones de red
+self.addEventListener('fetch', (event) => {
+    const request = event.request;
+    const url = new URL(request.url);
 
-    if (url.origin !== location.origin || url.pathname.includes('/rest/v1/') || url.pathname.includes('/auth/v1/')) {
+    // 1. Omitir peticiones que no sean GET (POST/PUT/DELETE directos a Supabase o encolados)
+    if (request.method !== 'GET') {
         return;
     }
 
-    e.respondWith(
-        caches.match(e.request).then((cachedResponse) => {
-            const fetchPromise = fetch(e.request).then((networkResponse) => {
+    // 2. Bypass total para Supabase (Auth/PostgREST/Realtime) y API Macro en vivo
+    const isNetworkOnly = NETWORK_ONLY_PATTERNS.some(domain => url.hostname.includes(domain));
+    if (isNetworkOnly) {
+        event.respondWith(fetch(request));
+        return;
+    }
+
+    // 3. Navegación principal (HTML): Network-First con fallback a caché offline
+    if (request.mode === 'navigate') {
+        event.respondWith(
+            fetch(request)
+                .then((networkResponse) => {
+                    return caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(request, networkResponse.clone());
+                        return networkResponse;
+                    });
+                })
+                .catch(() => caches.match('./index.html'))
+        );
+        return;
+    }
+
+    // 4. Recursos estáticos (JS, CSS, Fuentes, Iconos): Stale-While-Revalidate
+    event.respondWith(
+        caches.match(request).then((cachedResponse) => {
+            const fetchPromise = fetch(request).then((networkResponse) => {
                 if (networkResponse && networkResponse.status === 200) {
-                    const clone = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(request, networkResponse.clone());
+                    });
                 }
                 return networkResponse;
-            }).catch(() => cachedResponse);
+            }).catch(() => {
+                // Silencia errores en caso de falta de conexión si el recurso ya está en caché
+            });
 
             return cachedResponse || fetchPromise;
         })
