@@ -5,13 +5,22 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v7.0",
+        fecha: "2026-11-07",
+        tipo: "PARSER & INTEGRIDAD DE EXTRACTOS",
+        color: "var(--primary)",
+        icon: "fa-file-excel",
+        archivos: ["js/statementImporter.js", "js/changelog.js"],
+        descripcion: "Soporte multi-plástico para resúmenes bancarios Visa/Mastercard (renovaciones por vencimiento/extravío y adicionales). Eliminación del corte prematuro en subtotales parciales, permitiendo conciliar el 100% del saldo consumido ($1.659.470,05) y recuperando compras en cuotas históricas. Enriquecimiento del motor predictivo con términos médicos, ópticos y de salud."
+    },
+    {
         version: "v6.9",
         fecha: "2026-11-03",
         tipo: "INTEGRIDAD CONTABLE & AUDITORÍA",
-        color: "var(--primary)",
+        color: "var(--blue)",
         icon: "fa-scale-balanced",
         archivos: ["js/app.js", "js/state.js", "js/financeEngine.js"],
-        descripcion: "Preservación y recalibración dinámica de tipo de cambio al conmutar monedas en el historial. Reactividad inmediata y recarga de datos tras reconexión offline. Incorporación de 'Impuestos y Sellos' e 'Intereses Financieros' al catálogo maestro y activación de la auditoría activa de deudas de tarjetas en el pre-flight."
+        descripcion: "Preservación y recalibración dinámica de tipo de cambio al conmutar monedas en el historial. Reactividad inmediata y recarga de métricas tras reconexión offline. Incorporación de 'Impuestos y Sellos' e 'Intereses Financieros' al catálogo maestro y activación del control de pasivos exigibles de tarjetas en la auditoría pre-flight."
     },
     {
         version: "v6.8",
