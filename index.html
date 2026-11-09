@@ -35,10 +35,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=7.0">
+    <link rel="stylesheet" href="css/styles.css?v=7.1">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=7.0"></script>
+    <script type="module" src="js/app.js?v=7.1"></script>
 </head>
 <body>
 
@@ -49,7 +49,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V7.0</span>
+            <span class="app-ver-tag">PWA CONSOLE V7.1</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -357,42 +357,44 @@
                 </div>
             </div>
 
-            <!-- SUBVISTA C: GRÁFICOS DESACOPLADOS -->
-            <div class="chart-frame" style="margin-bottom: 25px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                    <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase;">Desempeño por Categoría</h3>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                        <button class="btn btn-sm" id="btn-chart-scale-toggle" style="background: var(--bg-input); border: 1px solid var(--border-color); color: #fff;">
-                            Escala: <span id="lbl-scale-mode" style="margin-left: 4px; color: var(--blue);">Lineal</span>
-                        </button>
-                        <div class="zoom-btn-group">
-                            <span class="zoom-tag">X</span>
-                            <button type="button" class="btn-zoom-action" id="btn-chart-zoom-in-x" title="Acercar Categorías"><i class="fa-solid fa-plus"></i></button>
-                            <button type="button" class="btn-zoom-action" id="btn-chart-zoom-out-x" title="Alejar Categorías"><i class="fa-solid fa-minus"></i></button>
-                            <span class="zoom-tag" style="margin-left: 4px;">$</span>
-                            <button type="button" class="btn-zoom-action" id="btn-chart-zoom-in-y" title="Aumentar Escala $"><i class="fa-solid fa-plus"></i></button>
-                            <button type="button" class="btn-zoom-action" id="btn-chart-zoom-out-y" title="Reducir Escala $"><i class="fa-solid fa-minus"></i></button>
-                            <button type="button" class="btn-zoom-action" id="btn-chart-zoom-reset" title="Restablecer" style="color: var(--warning);"><i class="fa-solid fa-arrows-rotate"></i></button>
+            <!-- SUBVISTA C: GRÁFICOS ANALÍTICOS (ENCAPSULADO EXCLUSIVO) -->
+            <div class="subview-content" id="subview-graficos">
+                <div class="chart-frame" style="margin-bottom: 25px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                        <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase;">Desempeño por Categoría</h3>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                            <button class="btn btn-sm" id="btn-chart-scale-toggle" style="background: var(--bg-input); border: 1px solid var(--border-color); color: #fff;">
+                                Escala: <span id="lbl-scale-mode" style="margin-left: 4px; color: var(--blue);">Lineal</span>
+                            </button>
+                            <div class="zoom-btn-group">
+                                <span class="zoom-tag">X</span>
+                                <button type="button" class="btn-zoom-action" id="btn-chart-zoom-in-x" title="Acercar Categorías"><i class="fa-solid fa-plus"></i></button>
+                                <button type="button" class="btn-zoom-action" id="btn-chart-zoom-out-x" title="Alejar Categorías"><i class="fa-solid fa-minus"></i></button>
+                                <span class="zoom-tag" style="margin-left: 4px;">$</span>
+                                <button type="button" class="btn-zoom-action" id="btn-chart-zoom-in-y" title="Aumentar Escala $"><i class="fa-solid fa-plus"></i></button>
+                                <button type="button" class="btn-zoom-action" id="btn-chart-zoom-out-y" title="Reducir Escala $"><i class="fa-solid fa-minus"></i></button>
+                                <button type="button" class="btn-zoom-action" id="btn-chart-zoom-reset" title="Restablecer" style="color: var(--warning);"><i class="fa-solid fa-arrows-rotate"></i></button>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div style="height: 380px; width: 100%; position: relative;">
-                    <canvas id="interactive-performance-canvas"></canvas>
-                </div>
-            </div>
-
-            <div class="chart-frame">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                    <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase;">Evolución Histórica Multimensual</h3>
-                    <div class="zoom-btn-group">
-                        <span class="zoom-tag">$</span>
-                        <button type="button" class="btn-zoom-action" id="btn-history-zoom-in" title="Aumentar Escala $"><i class="fa-solid fa-plus"></i></button>
-                        <button type="button" class="btn-zoom-action" id="btn-history-zoom-out" title="Reducir Escala $"><i class="fa-solid fa-minus"></i></button>
-                        <button type="button" class="btn-zoom-action" id="btn-history-zoom-reset" title="Restablecer" style="color: var(--warning);"><i class="fa-solid fa-arrows-rotate"></i></button>
+                    <div style="height: 380px; width: 100%; position: relative;">
+                        <canvas id="interactive-performance-canvas"></canvas>
                     </div>
                 </div>
-                <div style="height: 300px; width: 100%; position: relative;">
-                    <canvas id="interactive-history-canvas"></canvas>
+
+                <div class="chart-frame">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                        <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase;">Evolución Histórica Multimensual</h3>
+                        <div class="zoom-btn-group">
+                            <span class="zoom-tag">$</span>
+                            <button type="button" class="btn-zoom-action" id="btn-history-zoom-in" title="Aumentar Escala $"><i class="fa-solid fa-plus"></i></button>
+                            <button type="button" class="btn-zoom-action" id="btn-history-zoom-out" title="Reducir Escala $"><i class="fa-solid fa-minus"></i></button>
+                            <button type="button" class="btn-zoom-action" id="btn-history-zoom-reset" title="Restablecer" style="color: var(--warning);"><i class="fa-solid fa-arrows-rotate"></i></button>
+                        </div>
+                    </div>
+                    <div style="height: 300px; width: 100%; position: relative;">
+                        <canvas id="interactive-history-canvas"></canvas>
+                    </div>
                 </div>
             </div>
         </main>
