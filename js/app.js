@@ -298,9 +298,11 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
     document.querySelectorAll('.subtabs-nav .subtab-link').forEach(btn => btn.classList.remove('active'));
     document.getElementById(targetSubViewId)?.classList.add('active');
     document.getElementById(targetSubBtnId)?.classList.add('active');
+    
+    // Al activar la subvista de gráficos, recalcula y renderiza con las dimensiones del contenedor activo
     if (targetSubViewId === 'subview-graficos') {
+        buildHistoricalChartData();
         renderInteractiveChart(state.cachedCategoriesDataForChart);
-        renderInteractiveHistoryChart(state.cachedHistoricalDataForChart);
     }
 }
 
@@ -1448,7 +1450,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // GUARDAR EDICIÓN DE MOVIMIENTO (PRESERVACIÓN / RECALIBRACIÓN FX - ETAPA 2)
+    // GUARDAR EDICIÓN DE MOVIMIENTO
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
@@ -1469,7 +1471,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const nuevaMoneda = document.getElementById('edit-form-moneda').value;
         let nuevoTipoCambio = parseFloat(t.tipo_cambio) || 1;
         
-        // Recalibración dinámica de tipo de cambio al conmutar divisas
         if (nuevaMoneda === 'USD') {
             if (nuevoTipoCambio <= 1) {
                 nuevoTipoCambio = TIPO_CAMBIO_PRESUPUESTO;
