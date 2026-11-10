@@ -422,23 +422,38 @@ export function renderInteractiveChart(categoriesMes) {
 }
 
 /**
- * GRÁFICO 2 (NUEVO): Evolución Histórica por Categoría (Combo Chart + Micro KPIs)
+ * GRÁFICO 2: Evolución Histórica por Categoría (Combo Chart + Micro KPIs)
  */
 export function renderCategoryHistoryChart(categoryName, monthsCount) {
     const canvas = document.getElementById('category-history-canvas');
     if (!canvas) return;
 
+    // Respaldo de categorías unificadas por si state aún no pobló la variable
+    const categoriasDisponibles = (state.misCategoriasUnificadas && state.misCategoriasUnificadas.length > 0)
+        ? state.misCategoriasUnificadas
+        : ['Supermercado', 'Farmacia', 'Nafta', 'Restaurantes'];
+
     if (!categoryName) {
         categoryName = state.selectedCategoryHistoryName || 
-            (state.misCategoriasUnificadas.includes('Supermercado') ? 'Supermercado' : state.misCategoriasUnificadas[0]);
+            (categoriasDisponibles.includes('Supermercado') ? 'Supermercado' : categoriasDisponibles[0]);
     }
     state.selectedCategoryHistoryName = categoryName;
 
     const n = parseInt(monthsCount, 10) || state.selectedCategoryHistoryRange || 6;
     state.selectedCategoryHistoryRange = n;
 
+    // Auto-poblado de respaldo si el <select> en el DOM está vacío
     const selectEl = document.getElementById('cat-history-category-select');
-    if (selectEl && selectEl.value !== categoryName) {
+    if (selectEl) {
+        if (selectEl.options.length === 0) {
+            selectEl.innerHTML = "";
+            categoriasDisponibles.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.innerText = c;
+                selectEl.appendChild(opt);
+            });
+        }
         selectEl.value = categoryName;
     }
 
@@ -510,13 +525,13 @@ export function renderCategoryHistoryChart(categoryName, monthsCount) {
             monthsWithMeta++;
             if (gastoVal <= metaVal) {
                 monthsInTarget++;
-                barColors.push('rgba(16, 185, 129, 0.85)'); // Target
+                barColors.push('rgba(16, 185, 129, 0.85)'); // Target (Verde)
                 barBorderColors.push('#10b981');
             } else if (gastoVal <= metaVal * 1.10) {
-                barColors.push('rgba(245, 158, 11, 0.85)'); // Riesgo
+                barColors.push('rgba(245, 158, 11, 0.85)'); // Riesgo (Amarillo)
                 barBorderColors.push('#f59e0b');
             } else {
-                barColors.push('rgba(239, 68, 68, 0.85)'); // Fuera
+                barColors.push('rgba(239, 68, 68, 0.85)'); // Fuera (Rojo)
                 barBorderColors.push('#ef4444');
             }
         } else {
