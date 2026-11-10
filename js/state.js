@@ -76,7 +76,9 @@ export const state = {
     brokerEarningsUSD: {},
     creditCardDebtARS: {},
     creditCardDebtUSD: {},
-    editingTransactionId: null
+    editingTransactionId: null,
+    selectedCategoryHistoryName: null,
+    selectedCategoryHistoryRange: 6
 };
 
 export function getLocalDateString() {
