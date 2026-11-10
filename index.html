@@ -35,10 +35,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=7.1">
+    <link rel="stylesheet" href="css/styles.css?v=7.2">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=7.1"></script>
+    <script type="module" src="js/app.js?v=7.2"></script>
 </head>
 <body>
 
@@ -49,7 +49,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V7.1</span>
+            <span class="app-ver-tag">PWA CONSOLE V7.2</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -357,11 +357,16 @@
                 </div>
             </div>
 
-            <!-- SUBVISTA C: GRÁFICOS ANALÍTICOS (ENCAPSULADO EXCLUSIVO) -->
+            <!-- SUBVISTA C: GRÁFICOS ANALÍTICOS (CON EL NUEVO GRÁFICO DE CATEGORÍAS) -->
             <div class="subview-content" id="subview-graficos">
+                
+                <!-- GRÁFICO 1: Desempeño por Categoría del Mes Activo -->
                 <div class="chart-frame" style="margin-bottom: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                        <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase;">Desempeño por Categoría</h3>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="macro-indicator-bar"></span>
+                            <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase; margin: 0;">Desempeño por Categoría (Mes Activo)</h3>
+                        </div>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                             <button class="btn btn-sm" id="btn-chart-scale-toggle" style="background: var(--bg-input); border: 1px solid var(--border-color); color: #fff;">
                                 Escala: <span id="lbl-scale-mode" style="margin-left: 4px; color: var(--blue);">Lineal</span>
@@ -382,9 +387,42 @@
                     </div>
                 </div>
 
+                <!-- GRÁFICO 2: NUEVA Evolución Histórica por Categoría (Combo Chart + 3M/6M/12M) -->
+                <div class="chart-frame" style="margin-bottom: 25px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; width: 100%; margin-bottom: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="macro-indicator-bar"></span>
+                            <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase; margin: 0;">Evolución Histórica por Categoría</h3>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <div class="input-wrapper" style="width: auto; min-width: 180px;">
+                                <select id="cat-history-category-select" style="padding: 6px 30px 6px 12px; font-size: 12px; font-weight: 600; height: 34px; border-radius: 8px;"></select>
+                            </div>
+
+                            <div class="range-selector-group">
+                                <button type="button" class="btn-range-pill" data-range="3">3M</button>
+                                <button type="button" class="btn-range-pill active" data-range="6">6M</button>
+                                <button type="button" class="btn-range-pill" data-range="12">12M</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Micro-KPIs Resumen de la Categoría -->
+                    <div class="cat-history-kpis-grid" id="cat-history-kpis-container"></div>
+
+                    <div style="height: 340px; width: 100%; position: relative;">
+                        <canvas id="category-history-canvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- GRÁFICO 3: Evolución Histórica Multimensual Consolidada -->
                 <div class="chart-frame">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                        <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase;">Evolución Histórica Multimensual</h3>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="macro-indicator-bar"></span>
+                            <h3 style="font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase; margin: 0;">Evolución Histórica Multimensual</h3>
+                        </div>
                         <div class="zoom-btn-group">
                             <span class="zoom-tag">$</span>
                             <button type="button" class="btn-zoom-action" id="btn-history-zoom-in" title="Aumentar Escala $"><i class="fa-solid fa-plus"></i></button>
