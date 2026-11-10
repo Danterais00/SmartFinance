@@ -21,6 +21,7 @@ import {
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
+    renderCategoryHistoryChart,
     renderPortfolioPieChart, 
     renderSavingsPatrimonialTab, 
     toggleInteractiveScale, 
@@ -299,10 +300,11 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
     document.getElementById(targetSubViewId)?.classList.add('active');
     document.getElementById(targetSubBtnId)?.classList.add('active');
     
-    // Al activar la subvista de gráficos, recalcula y renderiza con las dimensiones del contenedor activo
+    // Al activar la subvista de gráficos, recalcula y sincroniza los 3 gráficos
     if (targetSubViewId === 'subview-graficos') {
         buildHistoricalChartData();
         renderInteractiveChart(state.cachedCategoriesDataForChart);
+        renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
     }
 }
 
@@ -377,6 +379,13 @@ function populateSelectOptions() {
     fillSelect('import-target-card', CUENTAS_TARJETAS);
     fillSelect('filter-cuenta', CUENTAS_SISTEMA_TOTAL, true);
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
+    
+    // Poblado del selector de categoría para el gráfico histórico
+    fillSelect('cat-history-category-select', state.misCategoriasUnificadas);
+    const catHistSel = document.getElementById('cat-history-category-select');
+    if (catHistSel && state.selectedCategoryHistoryName) {
+        catHistSel.value = state.selectedCategoryHistoryName;
+    }
 }
 
 function recalculateFinancialMetrics() {
@@ -547,6 +556,7 @@ function recalculateFinancialMetrics() {
     renderAccuracyTable(categoriesMes);
     renderInteractiveChart(categoriesMes);
     buildHistoricalChartData();
+    renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
 }
 
 function renderAccuracyTable(categoriesMes) {
@@ -1040,6 +1050,23 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-chart-zoom-out-y')?.addEventListener('click', () => zoomPerformanceChart('y', 1.25));
     document.getElementById('btn-history-zoom-in')?.addEventListener('click', () => zoomHistoryChart(0.8));
     document.getElementById('btn-history-zoom-out')?.addEventListener('click', () => zoomHistoryChart(1.25));
+
+    // Eventos del Gráfico Histórico por Categoría
+    document.getElementById('cat-history-category-select')?.addEventListener('change', (e) => {
+        state.selectedCategoryHistoryName = e.target.value;
+        renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
+    });
+
+    document.querySelectorAll('.btn-range-pill').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.btn-range-pill').forEach(b => b.classList.remove('active'));
+            const targetBtn = e.target.closest('.btn-range-pill');
+            targetBtn.classList.add('active');
+            const range = parseInt(targetBtn.getAttribute('data-range'), 10) || 6;
+            state.selectedCategoryHistoryRange = range;
+            renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
+        });
+    });
 
     document.getElementById('btn-trigger-report')?.addEventListener('click', () => {
         const audit = executeFinancialAuditEngine(); 
