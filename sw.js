@@ -1,16 +1,16 @@
 /**
- * SmartFinance PWA - Service Worker v7.1
+ * SmartFinance PWA - Service Worker v7.2
  * Estrategia: Cache-First para App Shell / Network-Only para APIs y Supabase
  */
 
-const CACHE_NAME = 'smartfinance-cache-v7.1';
+const CACHE_NAME = 'smartfinance-cache-v7.2';
 
 // Recursos estáticos locales y librerías CDN indispensables para arranque offline
 const STATIC_ASSETS = [
     './',
     './index.html',
-    './css/styles.css?v=7.1',
-    './js/app.js?v=7.1',
+    './css/styles.css?v=7.2',
+    './js/app.js?v=7.2',
     './js/state.js',
     './js/financeEngine.js',
     './js/charts.js',
@@ -45,7 +45,7 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// Activación: Purga inmediata de versiones anteriores de caché (v6.8, v6.9, v7.0)
+// Activación: Purga inmediata de versiones anteriores de caché (v6.8, v6.9, v7.0, v7.1)
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
