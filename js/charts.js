@@ -1,8 +1,9 @@
-import { state, CUENTAS_COMITENTES } from './state.js';
+import { state, CUENTAS_COMITENTES, getLocalDateString } from './state.js';
 import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js';
 
 let performanceChart = null;
 let historyChart = null;
+let categoryHistoryChartInstance = null;
 let currentScaleMode = 'linear';
 
 /**
@@ -42,7 +43,6 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
         }
     };
 
-    // ZOOM CON RUEDA DEL RATÓN SOBRE EJE Y Y EJE X
     canvas.addEventListener('wheel', (e) => {
         const chart = getChartInstance();
         if (!chart || !chart.chartArea) return;
@@ -66,7 +66,6 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
         }
     }, { capture: true, passive: false });
 
-    // ZOOM POR ARRASTRE DE RATÓN
     canvas.addEventListener('mousedown', (e) => {
         const chart = getChartInstance();
         if (!chart) return;
@@ -144,9 +143,7 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
 }
 
 /**
- * Gráfico Donut de Liquidez Operativa
- * Muestra exclusivamente saldo en pesos (ARS) en la cifra principal.
- * Los dólares (USD) se listan al lado de forma aislada sin sumarse al monto en pesos.
+ * Gráfico Donut de Liquidez Operativa (ARS puro en cifra principal)
  */
 export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
     const container = document.getElementById('pie-chart-container');
@@ -165,8 +162,6 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
     const items = accounts.map(acc => {
         const valARS = parseFloat(balancesARS[acc.name]) || 0;
         const valUSD = parseFloat(balancesUSD[acc.name]) || 0;
-        
-        // El gráfico y la cifra principal computan únicamente pesos físicos
         const sliceVal = Math.max(0, valARS);
         totalARS += sliceVal;
 
@@ -231,7 +226,6 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
     `;
 
     legend.innerHTML = items.map(item => {
-        // Tag independiente para dólares sin alterar la cifra en pesos
         const usdBadge = item.valUSD > 0 
             ? `<span style="font-size:11px; color:var(--text-muted); margin-left:6px; font-weight:600;">(u$d ${item.valUSD.toFixed(2)})</span>` 
             : '';
@@ -252,7 +246,7 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
 }
 
 /**
- * Fichas de Inversiones: Basadas estrictamente en CUENTAS_COMITENTES reales.
+ * Fichas de Inversiones Patrimoniales
  */
 export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS, brokerUSD) {
     const area = document.getElementById('brokers-cards-area');
@@ -293,7 +287,7 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
 }
 
 /**
- * GRÁFICO 1: Desempeño por Categoría (Orden Alfabético Forzado A-Z + Puntos Originales)
+ * GRÁFICO 1: Desempeño por Categoría (Mes Activo)
  */
 export function renderInteractiveChart(categoriesMes) {
     const sortedCategories = [...(categoriesMes || [])].sort((a, b) => 
@@ -428,7 +422,265 @@ export function renderInteractiveChart(categoriesMes) {
 }
 
 /**
- * GRÁFICO 2: Tendencia Histórica Mes a Mes (Líneas sólidas originales, orden cronológico)
+ * GRÁFICO 2 (NUEVO): Evolución Histórica por Categoría (Combo Chart + Micro KPIs)
+ */
+export function renderCategoryHistoryChart(categoryName, monthsCount) {
+    const canvas = document.getElementById('category-history-canvas');
+    if (!canvas) return;
+
+    if (!categoryName) {
+        categoryName = state.selectedCategoryHistoryName || 
+            (state.misCategoriasUnificadas.includes('Supermercado') ? 'Supermercado' : state.misCategoriasUnificadas[0]);
+    }
+    state.selectedCategoryHistoryName = categoryName;
+
+    const n = parseInt(monthsCount, 10) || state.selectedCategoryHistoryRange || 6;
+    state.selectedCategoryHistoryRange = n;
+
+    const selectEl = document.getElementById('cat-history-category-select');
+    if (selectEl && selectEl.value !== categoryName) {
+        selectEl.value = categoryName;
+    }
+
+    const monthSelector = document.getElementById('global-month-selector');
+    const activePeriod = monthSelector ? monthSelector.value : getLocalDateString().substring(0, 7);
+
+    const [actY, actM] = activePeriod.split('-').map(Number);
+    const mesesAbrev = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const timeline = [];
+    for (let i = n - 1; i >= 0; i--) {
+        let curM = actM - i;
+        let curY = actY;
+        while (curM <= 0) {
+            curM += 12;
+            curY -= 1;
+        }
+        const pStr = `${curY}-${String(curM).padStart(2, '0')}`;
+        const lbl = `${mesesAbrev[curM - 1]} ${String(curY).substring(2)}`;
+        timeline.push({ periodo: pStr, label: lbl });
+    }
+
+    let totalGasto = 0;
+    let totalMeta = 0;
+    let monthsWithMeta = 0;
+    let monthsInTarget = 0;
+    let maxGasto = 0;
+    let maxGastoMonth = '';
+
+    const labels = [];
+    const gastoData = [];
+    const metaData = [];
+    const barColors = [];
+    const barBorderColors = [];
+    const details = [];
+
+    timeline.forEach(m => {
+        labels.push(m.label);
+
+        const budgetItem = (state.allBudgetDataHistorico || []).find(b => b.periodo === m.periodo && b.nombre === categoryName);
+        const metaVal = budgetItem ? (parseFloat(budgetItem.presupuesto_mensual) || 0) : 0;
+        metaData.push(metaVal);
+        totalMeta += metaVal;
+
+        let gastoVal = 0;
+        (state.globalTransData || []).forEach(t => {
+            if (t.fecha && t.fecha.substring(0, 7) === m.periodo && 
+                t.categoria === categoryName && 
+                t.tipo === 'gasto' && 
+                t.presupuestado !== 'NO_COMPUTA' &&
+                t.categoria !== 'Transferencia Interna' &&
+                t.categoria !== 'Compra/Venta Divisas' &&
+                t.categoria !== 'Pago Tarjeta de Crédito' &&
+                t.categoria !== 'Ajuste Técnico Saldos') {
+                const monto = parseFloat(t.monto) || 0;
+                const fx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
+                gastoVal += (t.moneda === 'USD') ? monto * fx : monto;
+            }
+        });
+
+        gastoData.push(gastoVal);
+        totalGasto += gastoVal;
+
+        if (gastoVal > maxGasto) {
+            maxGasto = gastoVal;
+            maxGastoMonth = m.label;
+        }
+
+        if (metaVal > 0) {
+            monthsWithMeta++;
+            if (gastoVal <= metaVal) {
+                monthsInTarget++;
+                barColors.push('rgba(16, 185, 129, 0.85)'); // Target
+                barBorderColors.push('#10b981');
+            } else if (gastoVal <= metaVal * 1.10) {
+                barColors.push('rgba(245, 158, 11, 0.85)'); // Riesgo
+                barBorderColors.push('#f59e0b');
+            } else {
+                barColors.push('rgba(239, 68, 68, 0.85)'); // Fuera
+                barBorderColors.push('#ef4444');
+            }
+        } else {
+            barColors.push('rgba(59, 130, 246, 0.85)'); // Azul neutral si no hubo meta
+            barBorderColors.push('#3b82f6');
+        }
+
+        details.push({
+            periodo: m.periodo,
+            label: m.label,
+            gasto: gastoVal,
+            meta: metaVal
+        });
+    });
+
+    // Renderizar Micro-KPIs
+    const kpiContainer = document.getElementById('cat-history-kpis-container');
+    if (kpiContainer) {
+        const avgGasto = n > 0 ? (totalGasto / n) : 0;
+        let cumplimientoHTML = '';
+        if (monthsWithMeta > 0) {
+            const pct = Math.round((monthsInTarget / monthsWithMeta) * 100);
+            const colorPct = pct >= 80 ? 'var(--primary)' : (pct >= 50 ? 'var(--warning)' : 'var(--danger)');
+            cumplimientoHTML = `
+                <div class="micro-kpi-card">
+                    <span class="micro-kpi-title">Cumplimiento Meta</span>
+                    <span class="micro-kpi-val" style="color: ${colorPct};">${pct}%</span>
+                    <span class="micro-kpi-sub">${monthsInTarget} de ${monthsWithMeta} meses en meta</span>
+                </div>
+            `;
+        } else {
+            cumplimientoHTML = `
+                <div class="micro-kpi-card">
+                    <span class="micro-kpi-title">Mes Pico / Máximo</span>
+                    <span class="micro-kpi-val">$${Math.round(maxGasto).toLocaleString('es-AR')}</span>
+                    <span class="micro-kpi-sub">${maxGastoMonth || 'Sin consumos'}</span>
+                </div>
+            `;
+        }
+
+        kpiContainer.innerHTML = `
+            <div class="micro-kpi-card">
+                <span class="micro-kpi-title">Gasto Acumulado (${n}M)</span>
+                <span class="micro-kpi-val">$${Math.round(totalGasto).toLocaleString('es-AR')}</span>
+                <span class="micro-kpi-sub">Total período</span>
+            </div>
+            <div class="micro-kpi-card">
+                <span class="micro-kpi-title">Promedio Mensual</span>
+                <span class="micro-kpi-val">$${Math.round(avgGasto).toLocaleString('es-AR')}</span>
+                <span class="micro-kpi-sub">Por mes</span>
+            </div>
+            ${cumplimientoHTML}
+        `;
+    }
+
+    if (categoryHistoryChartInstance) {
+        categoryHistoryChartInstance.destroy();
+    }
+
+    const ctx = canvas.getContext('2d');
+    categoryHistoryChartInstance = new window.Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Presupuesto Meta ($)',
+                    type: 'line',
+                    data: metaData,
+                    borderColor: '#38bdf8',
+                    backgroundColor: '#38bdf8',
+                    borderWidth: 2.5,
+                    borderDash: [5, 5],
+                    pointBackgroundColor: '#38bdf8',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 1.5,
+                    pointRadius: 4.5,
+                    pointHoverRadius: 7,
+                    tension: 0.15,
+                    order: 1
+                },
+                {
+                    label: 'Gasto Real ($)',
+                    type: 'bar',
+                    data: gastoData,
+                    backgroundColor: barColors,
+                    borderColor: barBorderColors,
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    barPercentage: 0.62,
+                    categoryPercentage: 0.8,
+                    order: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 300 },
+            scales: {
+                x: {
+                    ticks: {
+                        color: '#9ca3af',
+                        font: { size: 10, weight: '600' }
+                    },
+                    grid: { color: 'rgba(37, 37, 56, 0.6)' }
+                },
+                y: {
+                    min: 0,
+                    ticks: {
+                        color: '#9ca3af',
+                        font: { size: 10 },
+                        callback: function(val) {
+                            return '$' + Number(val).toLocaleString('es-AR');
+                        }
+                    },
+                    grid: { color: 'rgba(37, 37, 56, 0.6)' }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#f3f4f6',
+                        font: { family: 'Inter', weight: '600', size: 11 },
+                        usePointStyle: true,
+                        boxWidth: 8
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(20, 20, 31, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#e5e7eb',
+                    borderColor: '#252538',
+                    borderWidth: 1,
+                    padding: 12,
+                    titleFont: { size: 13, weight: '700' },
+                    bodyFont: { size: 12 },
+                    callbacks: {
+                        label: function(context) {
+                            return ` ${context.dataset.label}: $${Number(context.parsed.y).toLocaleString('es-AR')}`;
+                        },
+                        afterBody: function(contexts) {
+                            if (!contexts || contexts.length === 0) return '';
+                            const idx = contexts[0].dataIndex;
+                            const d = details[idx];
+                            if (!d) return '';
+                            if (d.meta > 0) {
+                                const diff = d.meta - d.gasto;
+                                const statusTxt = diff >= 0 
+                                    ? `🟢 Ahorro: +$${Math.round(diff).toLocaleString('es-AR')}`
+                                    : `🔴 Exceso: -$${Math.round(Math.abs(diff)).toLocaleString('es-AR')}`;
+                                return ` ${statusTxt}`;
+                            }
+                            return ' Sin presupuesto asignado';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * GRÁFICO 3: Tendencia Histórica Multimensual Consolidada
  */
 export function renderInteractiveHistoryChart(historicalList) {
     state.cachedHistoricalDataForChart = historicalList || [];
