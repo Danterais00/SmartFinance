@@ -300,7 +300,7 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
     document.getElementById(targetSubViewId)?.classList.add('active');
     document.getElementById(targetSubBtnId)?.classList.add('active');
     
-    // Al activar la subvista de gráficos, recalcula y sincroniza los 3 gráficos
+    // Al activar la subvista de gráficos, sincroniza y recalcula los 3 gráficos
     if (targetSubViewId === 'subview-graficos') {
         buildHistoricalChartData();
         renderInteractiveChart(state.cachedCategoriesDataForChart);
