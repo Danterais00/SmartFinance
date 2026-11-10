@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v7.2",
+        fecha: "2026-11-09",
+        tipo: "FEATURE ANALÍTICA & UX",
+        color: "var(--primary)",
+        icon: "fa-chart-simple",
+        archivos: ["index.html", "css/styles.css", "js/charts.js", "js/app.js", "js/state.js", "sw.js"],
+        descripcion: "Nuevo Gráfico Híbrido (Combo Chart) de 'Evolución Histórica por Categoría' con barras semaforizadas RAG y línea meta punteada. Incorporación de selector de categoría maestra, filtros de rango temporal interactivos (3M / 6M / 12M) y tarjeta de Micro-KPIs con métricas de gasto acumulado, promedio mensual y tasa de cumplimiento presupuestario."
+    },
+    {
         version: "v7.1",
         fecha: "2026-11-07",
         tipo: "UX/UI & ARQUITECTURA VISUAL",
