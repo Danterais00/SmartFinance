@@ -374,7 +374,7 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
 .btn-send-chat { width: 42px; height: 42px; border-radius: 50%; background: var(--blue); color: #fff; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; transition: 0.2s; }
 .btn-send-chat:hover { background: #2563eb; }
 
-/* NUEVO: SELECTOR DE RANGO TEMPORAL (3M / 6M / 12M) */
+/* SELECTOR DE RANGO TEMPORAL (3M / 6M / 12M) */
 .range-selector-group {
     display: inline-flex;
     align-items: center;
@@ -407,7 +407,7 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
     box-shadow: 0 2px 8px var(--blue-glow);
 }
 
-/* NUEVO: MICRO-KPIS DEL GRÁFICO HISTÓRICO DE CATEGORÍA */
+/* MICRO-KPIS DEL GRÁFICO HISTÓRICO DE CATEGORÍA */
 .cat-history-kpis-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
