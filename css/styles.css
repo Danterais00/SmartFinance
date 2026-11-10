@@ -94,10 +94,6 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .market-pill .val-row .num-box { display: flex; align-items: center; gap: 5px; }
 .market-pill .val-row .num { font-size: 13px; font-weight: 700; font-family: 'Urbanist'; color: #ffffff !important; }
 .market-pill .sub { font-size: 9px; color: var(--text-muted); opacity: 0.8; font-weight: 500; }
-.var-badge { font-size: 8.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px; border-radius: 4px; }
-.var-badge.up { color: var(--primary); background: rgba(16, 185, 129, 0.12); }
-.var-badge.down { color: var(--danger); background: rgba(239, 68, 68, 0.12); }
-.var-badge.neutral { color: var(--text-muted); opacity: 0.65; }
 
 /* 2. SECCIÓN MÉTRICAS PATRIMONIALES */
 .metrics-section-container { width: 100% !important; margin-bottom: 10px !important; display: block !important; flex: 0 0 auto !important; }
@@ -124,7 +120,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .card-value .main-val { font-size: clamp(15px, 1.6vw, 19px); font-weight: 700; font-family: 'Urbanist'; display: block; line-height: 1.2; white-space: nowrap; }
 .card-value .sub-val { font-size: clamp(10px, 1vw, 11.5px); font-family: 'Urbanist'; display: block; line-height: 1.2; min-height: 14px; white-space: nowrap; font-weight: 700; }
 
-/* 3. SECCIÓN DISTRIBUCIÓN DE LIQUIDEZ: SE EXTIENDE HASTA ABAJO */
+/* 3. SECCIÓN DISTRIBUCIÓN DE LIQUIDEZ */
 .chart-frame { 
     background: var(--bg-card) !important; 
     border: 1px solid var(--border-color) !important; 
@@ -141,7 +137,6 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .chart-frame-header h3 { font-size: 11px !important; font-weight: 800 !important; color: #ffffff !important; text-transform: uppercase !important; letter-spacing: 0.8px !important; line-height: 1 !important; }
 .chart-frame canvas { touch-action: pan-y; }
 
-/* Contenedor dividido en 2 columnas */
 .liquidity-split-container {
     display: flex !important;
     flex-direction: column !important;
@@ -165,7 +160,6 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     min-width: 0 !important;
 }
 
-/* Columna vertical de cajas de cuentas */
 .legend-grid { 
     display: flex !important;
     flex-direction: column !important;
@@ -180,7 +174,6 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     justify-content: space-between !important;
 }
 
-/* Cada caja individual: expande verticalmente proporcional al contenedor */
 .legend-flat-item { 
     background: var(--bg-input) !important; 
     border: 1px solid var(--border-color) !important; 
@@ -225,7 +218,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     white-space: nowrap !important; 
 }
 
-/* CONFIGURACIÓN ESCRITORIO (SIN SCROLL, VISTA COMPLETA 100vh) */
+/* ESCRITORIO (SIN SCROLL EN INICIO) */
 @media (min-width: 850px) {
     body { padding-left: 310px !important; padding-bottom: 0 !important; }
     
@@ -297,7 +290,6 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
 .btn-bell-global:hover { color: var(--blue); }
 .btn-bell-global .badge-count { position: absolute; top: -3px; right: -3px; background-color: var(--danger); color: #fff; font-size: 9px; font-weight: 700; border-radius: 50%; min-width: 15px; height: 15px; display: flex; align-items: center; justify-content: center; padding: 0 3px; border: 2px solid var(--bg-card); }
 
-/* ESTILOS DE FILAS DE ALERTAS Y VENCIMIENTOS */
 .alert-item-row { display: flex; align-items: center; justify-content: space-between; background: var(--bg-input); padding: 12px 14px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid var(--blue); }
 .alert-item-row.overdue { border-left-color: var(--danger); }
 .alert-item-row.today { border-left-color: var(--warning); }
@@ -327,7 +319,6 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
 .fa-shake { animation: fa-shake 1.5s ease infinite; }
 @keyframes fa-shake { 0% { transform: rotate(0deg); } 10% { transform: rotate(15deg); } 20% { transform: rotate(-15deg); } 30% { transform: rotate(10deg); } 40% { transform: rotate(-10deg); } 50% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
 
-/* SELECTOR 4 BOTONES */
 .action-type-selector-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
 @media (min-width: 500px) { .action-type-selector-grid { grid-template-columns: repeat(4, 1fr); } }
 .btn-type-pill { background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-muted); padding: 12px 10px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -382,3 +373,73 @@ td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8p
 .chat-input-area input:focus { border-color: var(--blue); }
 .btn-send-chat { width: 42px; height: 42px; border-radius: 50%; background: var(--blue); color: #fff; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; transition: 0.2s; }
 .btn-send-chat:hover { background: #2563eb; }
+
+/* NUEVO: SELECTOR DE RANGO TEMPORAL (3M / 6M / 12M) */
+.range-selector-group {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-input);
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    gap: 3px;
+}
+.btn-range-pill {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    outline: none;
+}
+.btn-range-pill:hover {
+    color: #ffffff;
+    background: var(--bg-card);
+}
+.btn-range-pill.active {
+    background: var(--blue) !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px var(--blue-glow);
+}
+
+/* NUEVO: MICRO-KPIS DEL GRÁFICO HISTÓRICO DE CATEGORÍA */
+.cat-history-kpis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+    width: 100%;
+    margin: 8px 0 12px 0;
+}
+.micro-kpi-card {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.micro-kpi-title {
+    font-size: 9px;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.micro-kpi-val {
+    font-size: 14.5px;
+    font-weight: 700;
+    font-family: 'Urbanist', sans-serif;
+    color: #ffffff;
+}
+.micro-kpi-sub {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
