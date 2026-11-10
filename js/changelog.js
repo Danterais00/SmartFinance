@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v7.1",
+        fecha: "2026-11-07",
+        tipo: "UX/UI & ARQUITECTURA VISUAL",
+        color: "var(--blue)",
+        icon: "fa-chart-line",
+        archivos: ["index.html", "js/app.js", "sw.js", "js/changelog.js"],
+        descripcion: "Encapsulamiento estricto de los gráficos 'Desempeño por Categoría' y 'Evolución Histórica Multimensual' dentro de la subvista exclusiva 'Gráficos Analíticos' (#subview-graficos). Eliminación de la duplicación visual y sobrecarga de scroll en 'Presupuestos & RAG', optimizando la captura táctil y el rendimiento de renderizado en dispositivos móviles."
+    },
+    {
         version: "v7.0",
         fecha: "2026-11-07",
         tipo: "PARSER & INTEGRIDAD DE EXTRACTOS",
