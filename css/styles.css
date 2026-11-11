@@ -87,6 +87,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     transition: border-color 0.2s ease; 
 }
 .market-pill:hover { border-color: var(--blue) !important; }
+.market-pill-header { display: flex !important; justify-content: space-between !important; align-items: center !important; width: 100% !important; margin-bottom: 2px !important; }
 .market-pill .title { font-size: 9.5px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
 .market-pill .val-group { display: flex; flex-direction: column; gap: 2px; }
 .market-pill .val-row { display: flex; justify-content: space-between; align-items: center; }
@@ -94,6 +95,10 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .market-pill .val-row .num-box { display: flex; align-items: center; gap: 5px; }
 .market-pill .val-row .num { font-size: 13px; font-weight: 700; font-family: 'Urbanist'; color: #ffffff !important; }
 .market-pill .sub { font-size: 9px; color: var(--text-muted); opacity: 0.8; font-weight: 500; }
+.var-badge { font-size: 8.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; padding: 2px 6px; border-radius: 4px; }
+.var-badge.up { color: var(--primary); background: rgba(16, 185, 129, 0.12); }
+.var-badge.down { color: var(--danger); background: rgba(239, 68, 68, 0.12); }
+.var-badge.neutral { color: var(--text-muted); background: rgba(156, 163, 175, 0.12); opacity: 0.85; }
 
 /* 2. SECCIÓN MÉTRICAS PATRIMONIALES */
 .metrics-section-container { width: 100% !important; margin-bottom: 10px !important; display: block !important; flex: 0 0 auto !important; }
