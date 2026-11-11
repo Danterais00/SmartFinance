@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v7.3",
+        fecha: "2026-11-10",
+        tipo: "REFINAMIENTO VISUAL & MACRO DASHBOARD",
+        color: "var(--primary)",
+        icon: "fa-money-bill-transfer",
+        archivos: ["js/supabaseClient.js", "css/styles.css", "index.html", "sw.js"],
+        descripcion: "Rediseño y jerarquización visual de las tarjetas de divisas (Dólar Oficial, Blue y MEP). Reubicación de la variación porcentual en badges semánticos independientes (.var-badge) en la cabecera, eliminando la duplicación del texto '= 0.0%' y logrando una lectura limpia y alineada de los precios de compra y venta en armonía con las tarjetas de Riesgo País e Inflación."
+    },
+    {
         version: "v7.2",
         fecha: "2026-11-09",
         tipo: "FEATURE ANALÍTICA & UX",
