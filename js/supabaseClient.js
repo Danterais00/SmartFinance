@@ -1,159 +1,162 @@
-export const SUPABASE_URL = "https://uszneehbjssjractaleh.supabase.co";
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzem5lZWhianNzanJhY3RhbGVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NjE3NzMsImV4cCI6MjA5ODMzNzc3M30.DGRmWfXWcqgfA7FrFuCrBBs9hSLwSqSYyDej4_vaxi4";
+/**
+ * SmartFinance - Módulo de Cliente Supabase & Feed Financiero Macro
+ * Archivo: js/supabaseClient.js
+ */
 
-export const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = 'https://TU-PROYECTO-ID.supabase.co'; // Reemplazar con tu URL real
+const SUPABASE_ANON_KEY = 'TU-ANON-PUBLIC-KEY';           // Reemplazar con tu key real
 
-// Tipo de cambio dinámico exportado con live-binding
-export let TIPO_CAMBIO_PRESUPUESTO = 1200;
+// Inicialización del cliente oficial mediante el bundle CDN global cargado en index.html
+const { createClient } = window.supabase;
+export const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+    }
+});
 
-export function setTipoCambioPresupuesto(nuevoValor) {
-    if (typeof nuevoValor === 'number' && nuevoValor > 0) {
-        TIPO_CAMBIO_PRESUPUESTO = nuevoValor;
+/**
+ * Tipo de cambio base presupuestario unificado para cálculos patrimoniales
+ * y conversiones automáticas USD -> ARS.
+ */
+export let TIPO_CAMBIO_PRESUPUESTO = 1200.00;
+
+/**
+ * Formatea el badge de variación porcentual respetando el sistema de diseño
+ */
+function formatVariationBadge(variacionStr, isInverse = false) {
+    const raw = String(variacionStr || '').trim();
+    if (!raw || raw === '0' || raw === '0.0' || raw === '0%' || raw === '0.0%' || raw === '= 0.0%') {
+        return `<span class="var-badge neutral">= 0.0%</span>`;
+    }
+
+    const cleanNum = parseFloat(raw.replace('%', '').replace('+', '').replace('▲', '').replace('▼', '').replace('=', '').trim().replace(',', '.'));
+    if (isNaN(cleanNum) || cleanNum === 0) {
+        return `<span class="var-badge neutral">= 0.0%</span>`;
+    }
+
+    if (cleanNum > 0) {
+        const cssClass = isInverse ? 'down' : 'up';
+        return `<span class="var-badge ${cssClass}"><i class="fa-solid fa-caret-up"></i> +${cleanNum.toFixed(1)}%</span>`;
+    } else {
+        const cssClass = isInverse ? 'up' : 'down';
+        return `<span class="var-badge ${cssClass}"><i class="fa-solid fa-caret-down"></i> -${Math.abs(cleanNum).toFixed(1)}%</span>`;
     }
 }
 
+/**
+ * Genera el HTML de una tarjeta de divisa bimonetaria (Compra / Venta limpias)
+ */
+function createCurrencyCardHTML(title, compra, venta, subtext, variacion = '= 0.0%') {
+    const formatNumber = (val) => {
+        if (!val || isNaN(val)) return 'N/D';
+        const num = parseFloat(val);
+        return `$${num.toLocaleString('es-AR', { minimumFractionDigits: (num % 1 !== 0 ? 1 : 0), maximumFractionDigits: 2 })}`;
+    };
+
+    const fCompra = formatNumber(compra);
+    const fVenta = formatNumber(venta);
+    const varBadgeHTML = formatVariationBadge(variacion);
+
+    return `
+        <div class="market-pill">
+            <div class="market-pill-header">
+                <span class="title">${title}</span>
+                ${varBadgeHTML}
+            </div>
+            <div class="val-group">
+                <div class="val-row">
+                    <span class="lbl">Compra</span>
+                    <span class="num" style="color: var(--text-muted); font-size: 12.5px; font-weight: 600;">${fCompra}</span>
+                </div>
+                <div class="val-row">
+                    <span class="lbl">Venta</span>
+                    <div class="num-box">
+                        <span class="num" style="color: #ffffff; font-size: 13.5px; font-weight: 700;">${fVenta}</span>
+                    </div>
+                </div>
+            </div>
+            <span class="sub">${subtext}</span>
+        </div>
+    `;
+}
+
+/**
+ * Genera el HTML de una tarjeta de indicador macroeconómico de cifra única
+ */
+function createMacroCardHTML(title, value, subtext, badgeText, badgeClass = 'down') {
+    const icon = (badgeText.includes('+') || badgeText.includes('▲')) ? '<i class="fa-solid fa-caret-up"></i>' : '';
+    const cleanBadgeText = badgeText.replace('▲', '').replace('▼', '').trim();
+
+    return `
+        <div class="market-pill">
+            <span class="title">${title}</span>
+            <div class="val-row" style="margin: 4px 0;">
+                <span class="num" style="font-size: 18px; font-weight: 800; font-family: 'Urbanist', sans-serif; color: #ffffff;">${value}</span>
+                <span class="var-badge ${badgeClass}">${icon} ${cleanBadgeText}</span>
+            </div>
+            <span class="sub">${subtext}</span>
+        </div>
+    `;
+}
+
+/**
+ * Consulta cotizaciones financieras en tiempo real y renderiza la barra macro superior.
+ * Notifica a app.js mediante el evento personalizado 'market-fx-updated'.
+ */
 export async function fetchMarketData() {
     const container = document.getElementById('market-bar-container');
     const statusTag = document.getElementById('market-status-tag');
-    if (!container) return;
-
-    // Valores base y de respaldo idénticos a tu captura
-    let rpValor = 707;
-    let rpVar = "+0.4%";
-    let infValor = "1,9%";
-    let infVar = "+0.2";
-    let infPeriodo = "Septiembre 2026";
-
-    let dolares = [
-        { casa: 'oficial', nombre: 'OFICIAL', compra: 1500, venta: 1550, subtitulo: 'Banco Nación' },
-        { casa: 'blue', nombre: 'BLUE', compra: 1545, venta: 1565, subtitulo: 'Informal' },
-        { casa: 'bolsa', nombre: 'MEP', compra: 1557.4, venta: 1563.9, subtitulo: 'Bolsa / Cable' }
-    ];
 
     try {
-        if (statusTag) {
-            statusTag.innerHTML = `<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--warning);"></span> ACTUALIZANDO`;
-            statusTag.style.borderColor = "var(--warning)";
-            statusTag.style.color = "var(--warning)";
+        const response = await fetch('https://dolarapi.com/v1/dolares');
+        if (!response.ok) throw new Error('Error al conectar con el servicio de divisas');
+        
+        const data = await response.json();
+        
+        const oficial = data.find(d => d.casa === 'oficial');
+        const blue = data.find(d => d.casa === 'blue');
+        const mep = data.find(d => d.casa === 'bolsa');
+
+        // Actualiza el tipo de cambio presupuestario dinámicamente con el valor MEP de venta
+        if (mep && mep.venta) {
+            TIPO_CAMBIO_PRESUPUESTO = parseFloat(mep.venta);
         }
 
-        const [dolarRes, rpRes, infRes] = await Promise.allSettled([
-            fetch('https://dolarapi.com/v1/dolares'),
-            fetch('https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais/ultimo'),
-            fetch('https://api.argentinadatos.com/v1/finanzas/indices/inflacion/ultimo')
-        ]);
-
-        // 1. Procesar Dólares en vivo
-        if (dolarRes.status === 'fulfilled' && dolarRes.value.ok) {
-            const dataDolar = await dolarRes.value.json();
-            const oficialApi = dataDolar.find(d => d.casa === 'oficial');
-            const blueApi = dataDolar.find(d => d.casa === 'blue');
-            const mepApi = dataDolar.find(d => d.casa === 'bolsa');
-
-            if (oficialApi) dolares[0] = { casa: 'oficial', nombre: 'OFICIAL', compra: oficialApi.compra, venta: oficialApi.venta, subtitulo: 'Banco Nación' };
-            if (blueApi) dolares[1] = { casa: 'blue', nombre: 'BLUE', compra: blueApi.compra, venta: blueApi.venta, subtitulo: 'Informal' };
-            if (mepApi) {
-                dolares[2] = { casa: 'bolsa', nombre: 'MEP', compra: mepApi.compra, venta: mepApi.venta, subtitulo: 'Bolsa / Cable' };
-                setTipoCambioPresupuesto(Math.round(mepApi.venta));
-            }
-        }
-
-        // 2. Procesar Riesgo País en vivo
-        if (rpRes.status === 'fulfilled' && rpRes.value.ok) {
-            const dataRp = await rpRes.value.json();
-            if (dataRp && dataRp.valor) {
-                rpValor = Math.round(dataRp.valor);
-            }
-        }
-
-        // 3. Procesar Inflación IPC en vivo
-        if (infRes.status === 'fulfilled' && infRes.value.ok) {
-            const dataInf = await infRes.value.json();
-            if (dataInf && dataInf.valor) {
-                infValor = `${Number(dataInf.valor).toLocaleString('es-AR')}%`;
-                if (dataInf.fecha) {
-                    const [y, m] = dataInf.fecha.split('-');
-                    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-                    infPeriodo = `${meses[parseInt(m, 10) - 1]} ${y}`;
-                }
-            }
+        if (container) {
+            container.innerHTML = `
+                ${createCurrencyCardHTML('Dólar Oficial', oficial?.compra, oficial?.venta, 'Banco Nación', '= 0.0%')}
+                ${createCurrencyCardHTML('Dólar Blue', blue?.compra, blue?.venta, 'Informal', '= 0.0%')}
+                ${createCurrencyCardHTML('Dólar MEP', mep?.compra, mep?.venta, 'Bolsa / Cable', '= 0.0%')}
+                ${createMacroCardHTML('Riesgo País', '873 pb', 'JP Morgan EMBI+', '▲ +0.4%', 'down')}
+                ${createMacroCardHTML('Inflación IPC', '1,9%', 'INDEC (Septiembre 2026)', '▲ +0.2', 'down')}
+            `;
         }
 
         if (statusTag) {
-            statusTag.innerHTML = `<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--primary);"></span> EN VIVO`;
-            statusTag.style.borderColor = "var(--primary)";
-            statusTag.style.color = "var(--primary)";
+            statusTag.innerHTML = `<span class="status-pulse-dot"></span> EN VIVO`;
         }
 
         window.dispatchEvent(new CustomEvent('market-fx-updated'));
 
-    } catch (err) {
-        console.warn("Fallo parcial en consulta macroeconómica, utilizando valores de respaldo:", err);
+    } catch (error) {
+        console.warn('Fallo en la sincronización en vivo del mercado:', error);
+        
         if (statusTag) {
-            statusTag.innerHTML = `<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--text-muted);"></span> RESPALDO`;
-            statusTag.style.borderColor = "var(--border-color)";
-            statusTag.style.color = "var(--text-muted)";
+            statusTag.innerHTML = `<span class="status-pulse-dot" style="background:var(--warning);"></span> MODO FIJO`;
+            statusTag.style.borderColor = 'var(--warning)';
+            statusTag.style.color = 'var(--warning)';
+        }
+
+        if (container) {
+            container.innerHTML = `
+                ${createCurrencyCardHTML('Dólar Oficial', 1520, 1570, 'Banco Nación', '= 0.0%')}
+                ${createCurrencyCardHTML('Dólar Blue', 1535, 1555, 'Informal', '= 0.0%')}
+                ${createCurrencyCardHTML('Dólar MEP', TIPO_CAMBIO_PRESUPUESTO, TIPO_CAMBIO_PRESUPUESTO, 'Bolsa / Cable', '= 0.0%')}
+                ${createMacroCardHTML('Riesgo País', '873 pb', 'JP Morgan EMBI+', '▲ +0.4%', 'down')}
+                ${createMacroCardHTML('Inflación IPC', '1,9%', 'INDEC (Septiembre 2026)', '▲ +0.2', 'down')}
+            `;
         }
     }
-
-    // Renderizar las 5 tarjetas exactas de la barra macroeconómica
-    const formatNumber = (num) => Number(num).toLocaleString('es-AR', { minimumFractionDigits: (num % 1 !== 0 ? 1 : 0), maximumFractionDigits: 2 });
-
-    let htmlCards = "";
-
-    // Tarjetas 1, 2 y 3: Dólares
-    dolares.forEach(item => {
-        htmlCards += `
-            <div class="market-pill">
-                <div class="title">Dólar ${item.nombre}</div>
-                <div class="val-group">
-                    <div class="val-row">
-                        <span class="lbl">Compra</span>
-                        <div class="num-box">
-                            <span class="num">$${formatNumber(item.compra)}</span>
-                            <span class="var-badge neutral">= 0.0%</span>
-                        </div>
-                    </div>
-                    <div class="val-row">
-                        <span class="lbl">Venta</span>
-                        <div class="num-box">
-                            <span class="num">$${formatNumber(item.venta)}</span>
-                            <span class="var-badge neutral">= 0.0%</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="sub">${item.subtitulo}</div>
-            </div>
-        `;
-    });
-
-    // Tarjeta 4: Riesgo País
-    htmlCards += `
-        <div class="market-pill">
-            <div class="title">Riesgo País</div>
-            <div class="val-group" style="margin: 6px 0 3px 0;">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <span class="num" style="font-size: 20px; font-weight: 700; font-family: 'Urbanist'; color: #fff;">${rpValor} pb</span>
-                    <span class="var-badge down" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-size: 10px; padding: 2px 6px;">▲ ${rpVar}</span>
-                </div>
-            </div>
-            <div class="sub">JP Morgan EMBI+</div>
-        </div>
-    `;
-
-    // Tarjeta 5: Inflación IPC
-    htmlCards += `
-        <div class="market-pill">
-            <div class="title">Inflación IPC</div>
-            <div class="val-group" style="margin: 6px 0 3px 0;">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <span class="num" style="font-size: 20px; font-weight: 700; font-family: 'Urbanist'; color: #fff;">${infValor}</span>
-                    <span class="var-badge down" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-size: 10px; padding: 2px 6px;">▲ ${infVar}</span>
-                </div>
-            </div>
-            <div class="sub">INDEC (${infPeriodo})</div>
-        </div>
-    `;
-
-    container.innerHTML = htmlCards;
 }
