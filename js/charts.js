@@ -144,6 +144,7 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
 
 /**
  * Gráfico Donut de Liquidez Operativa (ARS puro en cifra principal)
+ * Leyenda con importes en pesos alineados a la derecha y dólares debajo
  */
 export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
     const container = document.getElementById('pie-chart-container');
@@ -226,8 +227,10 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
     `;
 
     legend.innerHTML = items.map(item => {
+        let fontColor = item.value < 0 ? 'var(--danger)' : '#ffffff';
+        // Sub-línea para dólares con alineación derecha exacta
         const usdBadge = item.valUSD > 0 
-            ? `<span style="font-size:11px; color:var(--text-muted); margin-left:6px; font-weight:600;">(u$d ${item.valUSD.toFixed(2)})</span>` 
+            ? `<span class="sub-usd-val" style="font-size:11px; color:var(--text-muted); font-weight:600; white-space:nowrap; margin-top:2px;">(u$d ${item.valUSD.toFixed(2)})</span>` 
             : '';
 
         return `
@@ -236,10 +239,10 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
                     <span class="account-dot" style="background:${item.color};"></span>
                     <span>${item.name}</span>
                 </span>
-                <span class="value-bank">
-                    $${item.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div class="value-bank" style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; text-align:right;">
+                    <span style="color:${fontColor}; font-size:16px; font-weight:700; font-family:'Urbanist', sans-serif; white-space:nowrap;">$${item.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     ${usdBadge}
-                </span>
+                </div>
             </div>
         `;
     }).join('');
@@ -428,7 +431,6 @@ export function renderCategoryHistoryChart(categoryName, monthsCount) {
     const canvas = document.getElementById('category-history-canvas');
     if (!canvas) return;
 
-    // Respaldo de categorías unificadas por si state aún no pobló la variable
     const categoriasDisponibles = (state.misCategoriasUnificadas && state.misCategoriasUnificadas.length > 0)
         ? state.misCategoriasUnificadas
         : ['Supermercado', 'Farmacia', 'Nafta', 'Restaurantes'];
@@ -442,7 +444,6 @@ export function renderCategoryHistoryChart(categoryName, monthsCount) {
     const n = parseInt(monthsCount, 10) || state.selectedCategoryHistoryRange || 6;
     state.selectedCategoryHistoryRange = n;
 
-    // Auto-poblado de respaldo si el <select> en el DOM está vacío
     const selectEl = document.getElementById('cat-history-category-select');
     if (selectEl) {
         if (selectEl.options.length === 0) {
