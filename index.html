@@ -35,10 +35,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=7.4">
+    <link rel="stylesheet" href="css/styles.css?v=7.5">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=7.4"></script>
+    <script type="module" src="js/app.js?v=7.5"></script>
 </head>
 <body>
 
@@ -49,7 +49,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V7.4</span>
+            <span class="app-ver-tag">PWA CONSOLE V7.5</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -269,6 +269,23 @@
                     </div>
                 </div>
 
+                <!-- BANNER MACRO: EJECUCIÓN PRESUPUESTARIA GLOBAL -->
+                <div class="section-box budget-global-banner" id="budget-global-banner" style="padding: 16px 20px; margin-bottom: 18px;">
+                    <div class="budget-progress-header">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="macro-indicator-bar"></span>
+                            <h3 style="margin: 0; border: none; padding: 0; font-size: 12px; letter-spacing: 0.6px;">EJECUCIÓN PRESUPUESTARIA GLOBAL</h3>
+                        </div>
+                        <span id="budget-global-pct-badge" style="font-size: 12px; font-weight: 800; font-family: 'Urbanist', sans-serif; color: var(--primary);">0,0% ejecutado</span>
+                    </div>
+
+                    <div class="budget-progress-track">
+                        <div class="budget-progress-fill" id="budget-global-progress-fill" style="width: 0%; background-color: var(--primary);"></div>
+                    </div>
+
+                    <div class="cat-history-kpis-grid" id="budget-global-kpis-container" style="margin: 12px 0 0 0;"></div>
+                </div>
+
                 <div class="section-box table-wrapper">
                     <h3>Semáforo Presupuestario RAG</h3>
                     <table id="accuracy-table">
@@ -277,6 +294,7 @@
                                 <th>Categoría</th>
                                 <th style="text-align: right;">Presupuesto</th>
                                 <th style="text-align: right;">Gasto Real</th>
+                                <th style="text-align: right;">Disponible / Desvío</th>
                                 <th style="text-align: center;">Semáforo</th>
                                 <th style="text-align: center;">Acción</th>
                             </tr>
@@ -611,7 +629,7 @@
                         <input type="checkbox" id="import-check-all" checked style="width: 17px; height: 17px; cursor: pointer; accent-color: var(--primary);">
                         <label for="import-check-all" style="font-size: 12px; font-weight: 700; cursor: pointer; color: #fff;">Seleccionar Todos</label>
                     </div>
-                    <div style="display: gap: 12px; font-size: 11px;">
+                    <div style="display: flex; gap: 12px; font-size: 11px;">
                         <span style="color: var(--warning);"><i class="fa-solid fa-triangle-exclamation"></i> Ya Registrado</span>
                         <span style="color: var(--text-muted);"><i class="fa-solid fa-clock"></i> Pendiente</span>
                     </div>
