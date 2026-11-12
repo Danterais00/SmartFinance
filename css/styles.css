@@ -425,10 +425,10 @@ td:nth-child(3) { white-space: nowrap !important; }
     box-shadow: 0 2px 8px var(--blue-glow);
 }
 
-/* MICRO-KPIS DEL GRÁFICO HISTÓRICO DE CATEGORÍA */
+/* MICRO-KPIS DEL GRÁFICO HISTÓRICO DE CATEGORÍA Y BANNER GLOBAL */
 .cat-history-kpis-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 8px;
     width: 100%;
     margin: 8px 0 12px 0;
@@ -460,4 +460,43 @@ td:nth-child(3) { white-space: nowrap !important; }
     font-size: 9.5px;
     font-weight: 600;
     color: var(--text-muted);
+}
+
+/* BANNER DE EJECUCIÓN PRESUPUESTARIA GLOBAL Y BARRAS DE PROGRESO */
+.budget-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    width: 100%;
+}
+.budget-progress-track {
+    width: 100%;
+    height: 8px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.budget-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+}
+
+/* MINI-BARRAS POR FILA EN TABLA RAG */
+.mini-progress-track {
+    width: 100%;
+    max-width: 96px;
+    height: 3.5px;
+    background-color: var(--bg-main);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 5px;
+    margin-left: auto;
+}
+.mini-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.35s ease, background-color 0.3s ease;
 }
