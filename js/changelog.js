@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v7.4",
+        fecha: "2026-11-11",
+        tipo: "REFINAMIENTO VISUAL & ALINEACIÓN UX",
+        color: "var(--primary)",
+        icon: "fa-table-columns",
+        archivos: ["js/app.js", "js/charts.js", "css/styles.css", "index.html", "sw.js"],
+        descripcion: "Corrección de salto de línea en importes del Historial de Movimientos forzando nowrap mono-línea. Reestructuración de la lista de liquidez bancaria: alineación vertical perfecta de todos los importes en pesos hacia el margen derecho y reubicación del saldo en dólares debajo del importe en pesos."
+    },
+    {
         version: "v7.3",
         fecha: "2026-11-10",
         tipo: "REFINAMIENTO VISUAL & MACRO DASHBOARD",
