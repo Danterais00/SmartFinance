@@ -189,7 +189,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     justify-content: space-between !important;
     align-items: center !important; 
     flex: 1 1 0 !important;
-    min-height: 48px !important;
+    min-height: 52px !important;
     width: 100% !important;
     box-sizing: border-box !important;
     transition: border-color 0.2s ease, transform 0.2s ease, background-color 0.2s ease !important;
@@ -216,11 +216,23 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     flex-shrink: 0 !important;
 }
 .legend-flat-item .value-bank { 
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    text-align: right !important;
     font-size: 16px !important; 
     font-weight: 700 !important; 
     color: #ffffff !important; 
     font-family: 'Urbanist', sans-serif !important; 
     white-space: nowrap !important; 
+}
+.legend-flat-item .value-bank .sub-usd-val {
+    font-size: 11px !important;
+    color: var(--text-muted) !important;
+    font-weight: 600 !important;
+    margin-top: 2px !important;
+    line-height: 1.1 !important;
 }
 
 /* ESCRITORIO (SIN SCROLL EN INICIO) */
@@ -284,6 +296,7 @@ th { padding: 10px; font-size: 11px; color: var(--text-muted); text-transform: u
 td { padding: 12px 10px; font-size: 13px; background: var(--bg-input); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
 td:first-child { border-left: 1px solid var(--border-color); border-radius: 8px 0 0 8px; white-space: nowrap !important; }
 td:last-child { border-right: 1px solid var(--border-color); border-radius: 0 8px 8px 0; white-space: nowrap !important; text-align: center; }
+td:nth-child(3) { white-space: nowrap !important; }
 .header-filter { display: block; width: 100%; margin-top: 6px; background-color: var(--bg-input) !important; border: 1px solid var(--border-color) !important; color: var(--text-main) !important; font-size: 11px !important; padding: 5px 20px 5px 8px !important; border-radius: 6px !important; outline: none; cursor: pointer; font-weight: 500; text-transform: none; background-image: url("data:image/svg+xml;utf8,<svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'><polyline points='6 9 12 15 18 9'></polyline></svg>") !important; background-repeat: no-repeat !important; background-position: right 6px center !important; background-size: 10px !important; }
 .header-filter:focus { border-color: var(--blue) !important; box-shadow: 0 0 5px var(--blue-glow); }
 
