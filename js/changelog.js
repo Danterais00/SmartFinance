@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v7.5",
+        fecha: "2026-11-11",
+        tipo: "FEATURE CONTROL PRESUPUESTARIO & UX",
+        color: "var(--primary)",
+        icon: "fa-list-check",
+        archivos: ["index.html", "css/styles.css", "js/app.js", "sw.js", "js/changelog.js"],
+        descripcion: "Incorporación del Banner de Ejecución Presupuestaria Global con barra de progreso semaforizada y KPIs ejecutivos (Presupuesto Total, Gasto Computado y Disponible/Exceso Global). Adición de la columna 'Disponible / Desvío' y mini-barras de progreso por fila en el Semáforo Presupuestario RAG."
+    },
+    {
         version: "v7.4",
         fecha: "2026-11-11",
         tipo: "REFINAMIENTO VISUAL & ALINEACIÓN UX",
