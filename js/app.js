@@ -672,7 +672,7 @@ function renderTransactionHistoryTable(dataset) {
         tbody.innerHTML += `<tr>
             <td>${t.fecha}</td>
             <td style="font-weight:500;">${t.descripcion || '-'} ${reintegroBadge}</td>
-            <td style="color:${color}; font-weight:700;">${sign} ${sym} ${displayMonto}</td>
+            <td style="color:${color}; font-weight:700; white-space:nowrap !important;">${sign} ${sym} ${displayMonto}</td>
             <td>${t.cuenta}</td>
             <td><span style="font-size:11px; background:var(--bg-card); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">${t.categoria}</span></td>
             <td>${author}</td>
