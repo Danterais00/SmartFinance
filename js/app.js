@@ -553,10 +553,70 @@ function recalculateFinancialMetrics() {
         }
     });
 
+    renderBudgetExecutionSummary(categoriesMes);
     renderAccuracyTable(categoriesMes);
     renderInteractiveChart(categoriesMes);
     buildHistoricalChartData();
     renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
+}
+
+/**
+ * Banner Macro de Ejecución Presupuestaria Global (Presupuesto vs Gasto vs Disponible/Exceso)
+ */
+function renderBudgetExecutionSummary(categoriesMes) {
+    const pctBadge = document.getElementById('budget-global-pct-badge');
+    const progressFill = document.getElementById('budget-global-progress-fill');
+    const kpiContainer = document.getElementById('budget-global-kpis-container');
+    if (!pctBadge || !progressFill || !kpiContainer) return;
+
+    const totalMeta = (categoriesMes || []).reduce((acc, c) => acc + (parseFloat(c.meta) || 0), 0);
+    const totalGasto = (categoriesMes || []).reduce((acc, c) => acc + (parseFloat(c.gasto) || 0), 0);
+    const diferencia = totalMeta - totalGasto;
+
+    const ragGlobal = calcularEstadoRAG(totalMeta, totalGasto);
+    const barColor = ragGlobal === 'Target' ? 'var(--primary)' : (ragGlobal === 'Riesgo' ? 'var(--warning)' : 'var(--danger)');
+
+    let pctUsado = 0;
+    let pctText = '0,0% ejecutado';
+    if (totalMeta > 0) {
+        pctUsado = (totalGasto / totalMeta) * 100;
+        pctText = `${pctUsado.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% ejecutado`;
+    } else if (totalGasto > 0) {
+        pctUsado = 100;
+        pctText = 'Sin presupuesto asignado';
+    }
+
+    const barWidth = Math.min(100, Math.max(0, pctUsado));
+    pctBadge.innerText = pctText;
+    pctBadge.style.color = barColor;
+    progressFill.style.width = `${barWidth}%`;
+    progressFill.style.backgroundColor = barColor;
+
+    const isPositive = (diferencia >= 0);
+    const dispTitle = isPositive ? 'DISPONIBLE GLOBAL' : 'EXCESO GLOBAL';
+    const dispSign = isPositive ? '+' : '-';
+    const dispColor = (totalMeta === 0 && totalGasto === 0) 
+        ? 'var(--text-muted)' 
+        : (isPositive ? 'var(--primary)' : 'var(--danger)');
+    const dispSub = isPositive ? 'Margen restante del mes' : 'Superaste la meta global';
+
+    kpiContainer.innerHTML = `
+        <div class="micro-kpi-card">
+            <span class="micro-kpi-title">Presupuesto Total</span>
+            <span class="micro-kpi-val">$${Math.round(totalMeta).toLocaleString('es-AR')}</span>
+            <span class="micro-kpi-sub">Meta planificada</span>
+        </div>
+        <div class="micro-kpi-card">
+            <span class="micro-kpi-title">Gasto Computado</span>
+            <span class="micro-kpi-val">$${Math.round(totalGasto).toLocaleString('es-AR')}</span>
+            <span class="micro-kpi-sub">Consumos presupuestados</span>
+        </div>
+        <div class="micro-kpi-card">
+            <span class="micro-kpi-title">${dispTitle}</span>
+            <span class="micro-kpi-val" style="color: ${dispColor};">${dispSign}$${Math.round(Math.abs(diferencia)).toLocaleString('es-AR')}</span>
+            <span class="micro-kpi-sub">${dispSub}</span>
+        </div>
+    `;
 }
 
 function renderAccuracyTable(categoriesMes) {
@@ -564,7 +624,7 @@ function renderAccuracyTable(categoriesMes) {
     if (!tbody) return;
     tbody.innerHTML = "";
     if (categoriesMes.length === 0) { 
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:16px;">Sin registros ni presupuesto activo para este período.</td></tr>`; 
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:16px;">Sin registros ni presupuesto activo para este período.</td></tr>`; 
         return; 
     }
     
@@ -590,6 +650,38 @@ function renderAccuracyTable(categoriesMes) {
             campanaHTML = `<span style="margin-left:8px; font-size:11px; color:var(--primary); font-weight:600;" title="Pagado en el mes activo"><i class="fa-solid fa-circle-check"></i> Pagado</span>`;
         }
 
+        // Cálculo de Disponible / Desvío por fila
+        const dif = c.meta - c.gasto;
+        let dispHTML = '';
+        if (c.meta === 0 && c.gasto > 0) {
+            dispHTML = `
+                <span style="color:var(--danger); font-weight:700;">-$${Math.round(c.gasto).toLocaleString('es-AR')}</span>
+                <span style="display:block; font-size:9.5px; color:var(--text-muted); font-weight:500;">sin meta</span>
+            `;
+        } else if (dif >= 0) {
+            dispHTML = `<span style="color:var(--primary); font-weight:700;">+$${Math.round(dif).toLocaleString('es-AR')}</span>`;
+        } else {
+            dispHTML = `<span style="color:var(--danger); font-weight:700;">-$${Math.round(Math.abs(dif)).toLocaleString('es-AR')}</span>`;
+        }
+
+        // Mini-barra de progreso debajo del gasto real
+        let miniBarHTML = '';
+        if (c.meta > 0) {
+            const pctRow = Math.min(100, Math.max(0, (c.gasto / c.meta) * 100));
+            const pctRealLabel = ((c.gasto / c.meta) * 100).toFixed(1);
+            miniBarHTML = `
+                <div class="mini-progress-track" title="${pctRealLabel}% del presupuesto utilizado">
+                    <div class="mini-progress-fill" style="width:${pctRow}%; background-color:${badgeColor};"></div>
+                </div>
+            `;
+        } else if (c.gasto > 0) {
+            miniBarHTML = `
+                <div class="mini-progress-track" title="Gasto sin presupuesto asignado">
+                    <div class="mini-progress-fill" style="width:100%; background-color:var(--danger); opacity:0.65;"></div>
+                </div>
+            `;
+        }
+
         const safeCat = c.nombre.replace(/'/g, "\\'");
         const safeFecha = c.fechaVenc || '';
 
@@ -600,8 +692,12 @@ function renderAccuracyTable(categoriesMes) {
                     ${campanaHTML}
                 </div>
             </td>
-            <td style="text-align:right;">$${c.meta.toLocaleString('es-AR')}</td>
-            <td style="text-align:right; font-weight:700;">$${c.gasto.toLocaleString('es-AR')}</td>
+            <td style="text-align:right; white-space:nowrap;">$${c.meta.toLocaleString('es-AR')}</td>
+            <td style="text-align:right; font-weight:700; white-space:nowrap;">
+                <div>$${c.gasto.toLocaleString('es-AR')}</div>
+                ${miniBarHTML}
+            </td>
+            <td style="text-align:right; white-space:nowrap;">${dispHTML}</td>
             <td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${c.estado}</span></td>
             <td style="text-align:center; white-space:nowrap;">
                 <button class="btn-action" onclick="window.UI.editBudgetDirect('${safeCat}', ${c.meta}, '${safeFecha}')" title="Editar Presupuesto y Vencimiento"><i class="fa-solid fa-pen-to-square"></i></button>
