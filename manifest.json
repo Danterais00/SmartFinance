@@ -1,0 +1,19 @@
+{
+  "name": "SmartFinance AI",
+  "short_name": "SmartFinance",
+  "description": "Consola financiera personal y patrimonial PWA",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='110' fill='%2314141f'/><circle cx='256' cy='256' r='180' fill='none' stroke='%233b82f6' stroke-width='30'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='800' font-size='190' fill='%2310b981'>$</text></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
