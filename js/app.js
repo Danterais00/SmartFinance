@@ -828,7 +828,7 @@ function renderAccuracyTable(categoriesMes) {
         tbody.dataset.eventsBound = 'true';
     }
     
-    if (isTruncated) {
+   if (isTruncated) {
         tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:15px; font-size:11px; font-weight:600;"><i class="fa-solid fa-circle-info"></i> Mostrando 150 de ${list.length} movimientos en este período.</td></tr>`;
     }
 }
