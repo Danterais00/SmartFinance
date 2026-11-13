@@ -5,6 +5,24 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v7.7",
+        fecha: "2026-11-12",
+        tipo: "LÓGICA CONTABLE & AUDITORÍA (FASE 2)",
+        color: "var(--blue)",
+        icon: "fa-scale-balanced",
+        archivos: ["index.html", "js/financeEngine.js", "js/app.js", "js/pdfReport.js", "sw.js", "js/changelog.js"],
+        descripcion: "Remediación de hallazgos AUD-04 a AUD-09: corte patrimonial histórico exacto al cierre del mes seleccionado; cálculo y persistencia de cotización implícita real en operaciones de divisas; paridad 1:1 del Reporte PDF con los ingresos, gastos totales y ahorro real del dashboard; selector opcional de devengamiento mensual para ingresos y sueldos; refinamiento del detector de duplicados por moneda y descripción, y sincronización completa de glosas en asientos espejo."
+    },
+    {
+        version: "v7.6",
+        fecha: "2026-11-12",
+        tipo: "SEGURIDAD & BLINDAJE CONTABLE (FASE 1)",
+        color: "var(--danger)",
+        icon: "fa-shield-halved",
+        archivos: ["js/state.js", "js/financeEngine.js", "js/app.js", "js/charts.js", "index.html", "sw.js"],
+        descripcion: "Remediación de hallazgos críticos AUD-01, AUD-02 y AUD-03: sanitización HTML (escapeHTML) y delegación segura de eventos para eliminar riesgos XSS; incorporación de 'Servicios Bancarios' al catálogo maestro, normalización de ingresos bajo 'Ingresos Laborales / Honorarios' y preservación de categorías legadas al editar; bloqueos estrictos contra transferencias circulares (origen = destino), montos nulos/negativos y divisas sin importe recibido."
+    },
+    {
         version: "v7.5",
         fecha: "2026-11-11",
         tipo: "FEATURE CONTROL PRESUPUESTARIO & UX",
