@@ -44,6 +44,7 @@ export const CATEGORIAS_DEFAULT = [
     'Regalos',
     'Rendimiento Inversiones',
     'Restaurantes',
+    'Servicios Bancarios',
     'Supermercado',
     'Tarjeta de Crédito Galicia',
     'Tarjeta de Crédito Santander',
@@ -80,6 +81,19 @@ export const state = {
     selectedCategoryHistoryName: null,
     selectedCategoryHistoryRange: 6
 };
+
+/**
+ * Sanitiza cadenas de texto antes de inyectarlas en el DOM (Protección XSS)
+ */
+export function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 export function getLocalDateString() {
     const d = new Date();
