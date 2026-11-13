@@ -1,4 +1,4 @@
-import { state, CUENTAS_COMITENTES, getLocalDateString } from './state.js';
+import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js';
 import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js';
 
 let performanceChart = null;
@@ -228,7 +228,6 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
 
     legend.innerHTML = items.map(item => {
         let fontColor = item.value < 0 ? 'var(--danger)' : '#ffffff';
-        // Sub-línea para dólares con alineación derecha exacta
         const usdBadge = item.valUSD > 0 
             ? `<span class="sub-usd-val" style="font-size:11px; color:var(--text-muted); font-weight:600; white-space:nowrap; margin-top:2px;">(u$d ${item.valUSD.toFixed(2)})</span>` 
             : '';
@@ -237,7 +236,7 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
             <div class="legend-flat-item">
                 <span class="label-bank">
                     <span class="account-dot" style="background:${item.color};"></span>
-                    <span>${item.name}</span>
+                    <span>${escapeHTML(item.name)}</span>
                 </span>
                 <div class="value-bank" style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; text-align:right;">
                     <span style="color:${fontColor}; font-size:16px; font-weight:700; font-family:'Urbanist', sans-serif; white-space:nowrap;">$${item.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -273,7 +272,7 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
 
         area.innerHTML += `
             <div class="broker-card">
-                <div class="broker-title"><i class="fa-solid fa-vault"></i> ${b}</div>
+                <div class="broker-title"><i class="fa-solid fa-vault"></i> ${escapeHTML(b)}</div>
                 <div style="font-size: 19px; font-weight: 700; font-family: 'Urbanist'; color: #fff;">
                     $${Math.round(totalEquivARS).toLocaleString('es-AR')}
                 </div>
@@ -568,7 +567,7 @@ export function renderCategoryHistoryChart(categoryName, monthsCount) {
                 <div class="micro-kpi-card">
                     <span class="micro-kpi-title">Mes Pico / Máximo</span>
                     <span class="micro-kpi-val">$${Math.round(maxGasto).toLocaleString('es-AR')}</span>
-                    <span class="micro-kpi-sub">${maxGastoMonth || 'Sin consumos'}</span>
+                    <span class="micro-kpi-sub">${escapeHTML(maxGastoMonth || 'Sin consumos')}</span>
                 </div>
             `;
         }
