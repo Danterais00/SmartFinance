@@ -30,40 +30,52 @@ export function exportAuditPDF(auditResult) {
     doc.setFontSize(8);
     doc.text(`Emitido el: ${getLocalDateString()} | Usuario: ${state.currentUser ? state.currentUser.email : 'Dante'}`, 14, 32);
 
-    // 2. Resumen Ejecutivo (Consolidado 1:1 con recalculateFinancialMetrics)
+    // 2. Resumen Ejecutivo (Paridad 1:1 con state.currentMonthMetrics del Dashboard) (AUD-06)
     let y = 46;
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
     doc.text("1. Resumen Patrimonial y Flujo del Mes", 14, y);
 
-    const cuentasActivoUnicas = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES])];
-    let totalActivos = 0;
-    cuentasActivoUnicas.forEach(acc => {
-        totalActivos += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO);
-    });
+    const m = state.currentMonthMetrics || {};
+    let totalActivos = m.totalActivos;
+    let deudaTarjetas = m.deudaTarjetasTotal;
+    let patrimonioNeto = m.patrimonioNeto;
 
-    let deudaTarjetas = 0;
-    CUENTAS_TARJETAS.forEach(c => {
-        deudaTarjetas += (state.creditCardDebtARS[c] || 0) + ((state.creditCardDebtUSD[c] || 0) * TIPO_CAMBIO_PRESUPUESTO);
-    });
+    if (totalActivos === undefined) {
+        const cuentasActivoUnicas = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES])];
+        totalActivos = 0;
+        cuentasActivoUnicas.forEach(acc => {
+            totalActivos += (state.currentAccountBalancesARS[acc] || 0) + ((state.currentAccountBalancesUSD[acc] || 0) * TIPO_CAMBIO_PRESUPUESTO);
+        });
+        deudaTarjetas = 0;
+        CUENTAS_TARJETAS.forEach(c => {
+            deudaTarjetas += (state.creditCardDebtARS[c] || 0) + ((state.creditCardDebtUSD[c] || 0) * TIPO_CAMBIO_PRESUPUESTO);
+        });
+        patrimonioNeto = totalActivos - deudaTarjetas;
+    }
 
-    const patrimonioNeto = totalActivos - deudaTarjetas;
-
-    let gastoMes = 0;
+    let gastoComputado = 0;
     let metaMes = 0;
     (state.cachedCategoriesDataForChart || []).forEach(c => {
-        gastoMes += c.gasto;
+        gastoComputado += c.gasto;
         metaMes += c.meta;
     });
 
+    const ingresosMes = m.totalIngresosMes !== undefined ? m.totalIngresosMes : 0;
+    const gastosRealesTotales = m.totalEgresosRealesMes !== undefined ? m.totalEgresosRealesMes : gastoComputado;
+    const ahorroNetoReal = m.ahorroMes !== undefined ? m.ahorroMes : (ingresosMes - gastosRealesTotales);
+    const disponiblePresupuestario = metaMes - gastoComputado;
+
     const summaryTableData = [
-        ["Patrimonio Neto Consolidado", `$${Math.round(patrimonioNeto).toLocaleString('es-AR')}`],
+        ["Patrimonio Neto al Cierre del Período", `$${Math.round(patrimonioNeto).toLocaleString('es-AR')}`],
         ["Activos Totales (Bancos + Inversiones)", `$${Math.round(totalActivos).toLocaleString('es-AR')}`],
         ["Pasivo Exigible (Tarjetas de Crédito)", deudaTarjetas > 0 ? `-$${Math.round(deudaTarjetas).toLocaleString('es-AR')}` : (deudaTarjetas < 0 ? `+$${Math.round(Math.abs(deudaTarjetas)).toLocaleString('es-AR')} (A favor)` : '$0')],
-        ["Gasto Real Total del Período", `$${Math.round(gastoMes).toLocaleString('es-AR')}`],
+        ["Ingresos Reales del Período", `$${Math.round(ingresosMes).toLocaleString('es-AR')}`],
+        ["Gastos Reales Totales del Período", `$${Math.round(gastosRealesTotales).toLocaleString('es-AR')} (Computado: $${Math.round(gastoComputado).toLocaleString('es-AR')})`],
         ["Presupuesto Meta Planificado", `$${Math.round(metaMes).toLocaleString('es-AR')}`],
-        ["Ahorro / Superávit Presupuestario", `$${Math.round(metaMes - gastoMes).toLocaleString('es-AR')}`]
+        ["Ahorro Neto Real (Ingresos - Gastos Reales)", `${ahorroNetoReal >= 0 ? '+' : '-'}$${Math.round(Math.abs(ahorroNetoReal)).toLocaleString('es-AR')}`],
+        ["Disponible / Desvío Presupuestario Global", `${disponiblePresupuestario >= 0 ? '+' : '-'}$${Math.round(Math.abs(disponiblePresupuestario)).toLocaleString('es-AR')}`]
     ];
 
     doc.autoTable({
@@ -84,17 +96,20 @@ export function exportAuditPDF(auditResult) {
     doc.setTextColor(30, 41, 59);
     doc.text("2. Desempeño Presupuestario por Categoría (RAG)", 14, y);
 
-    const categoriesTableData = (state.cachedCategoriesDataForChart || []).map(c => [
-        c.nombre,
-        `$${Math.round(c.meta).toLocaleString('es-AR')}`,
-        `$${Math.round(c.gasto).toLocaleString('es-AR')}`,
-        `$${Math.round(c.meta - c.gasto).toLocaleString('es-AR')}`,
-        c.estado
-    ]);
+    const categoriesTableData = (state.cachedCategoriesDataForChart || []).map(c => {
+        const disp = c.meta - c.gasto;
+        return [
+            c.nombre,
+            `$${Math.round(c.meta).toLocaleString('es-AR')}`,
+            `$${Math.round(c.gasto).toLocaleString('es-AR')}`,
+            `${disp >= 0 ? '+' : '-'}$${Math.round(Math.abs(disp)).toLocaleString('es-AR')}`,
+            c.estado
+        ];
+    });
 
     doc.autoTable({
         startY: y + 4,
-        head: [['Categoría', 'Presupuesto', 'Gasto Real', 'Desvío', 'Estado']],
+        head: [['Categoría', 'Presupuesto', 'Gasto Real', 'Disponible / Desvío', 'Estado']],
         body: categoriesTableData,
         theme: 'grid',
         headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
