@@ -37,13 +37,51 @@ import { renderChangelogTable } from './changelog.js';
 
 let parsedStatementItems = [];
 
-function isDateWithinRange(targetDateStr, baseDateStr, daysBefore = 20, daysAfter = 15) {
-    if (!targetDateStr || !baseDateStr) return false;
-    const target = new Date(targetDateStr + 'T00:00:00');
-    const base = new Date(baseDateStr + 'T00:00:00');
-    if (isNaN(target.getTime()) || isNaN(base.getTime())) return false;
-    const diffDays = (target.getTime() - base.getTime()) / (1000 * 60 * 60 * 24);
-    return diffDays >= -daysBefore && diffDays <= daysAfter;
+function getEndOfMonthDateStr(yyyyMm) {
+    if (!yyyyMm || yyyyMm.length < 7) return getLocalDateString();
+    const [y, m] = yyyyMm.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+function getNextMonthStr(yyyyMm) {
+    if (!yyyyMm || yyyyMm.length < 7) return getLocalDateString().substring(0, 7);
+    let [y, m] = yyyyMm.split('-').map(Number);
+    m += 1;
+    if (m > 12) {
+        m = 1;
+        y += 1;
+    }
+    return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+function updateIncomeAccrualOptions() {
+    const sel = document.getElementById('uni-periodo-imputacion');
+    const fechaInput = document.getElementById('uni-fecha');
+    if (!sel) return;
+
+    const fechaStr = (fechaInput && fechaInput.value) ? fechaInput.value : getLocalDateString();
+    const basePeriod = fechaStr.substring(0, 7);
+    const nextPeriod = getNextMonthStr(basePeriod);
+
+    const formatPeriodLabel = (ym) => {
+        const [y, m] = ym.split('-').map(Number);
+        return `${MESES_ES[m - 1]} ${y}`;
+    };
+
+    sel.innerHTML = `
+        <option value="">Mismo mes de cobro (${formatPeriodLabel(basePeriod)} - Caja)</option>
+        <option value="${nextPeriod}">Devengar a ${formatPeriodLabel(nextPeriod)} (Mes siguiente)</option>
+    `;
+
+    // Añadir también el mes activo global si difiere de basePeriod y nextPeriod
+    const globalSel = document.getElementById('global-month-selector');
+    if (globalSel && globalSel.value && globalSel.value !== basePeriod && globalSel.value !== nextPeriod) {
+        const opt = document.createElement('option');
+        opt.value = globalSel.value;
+        opt.innerText = `Devengar a ${formatPeriodLabel(globalSel.value)}`;
+        sel.appendChild(opt);
+    }
 }
 
 // EXPOSICIÓN GLOBAL UI
@@ -204,7 +242,6 @@ window.UI = {
         if (fConcepto) fConcepto.value = t.descripcion || '';
         if (fMetodo) fMetodo.value = t.cuenta || '';
 
-        // Preserva categorías históricas o legadas (ej. 'Ingreso') sin caer en fallback erróneo (AUD-02)
         if (fCategoria) {
             const catVal = t.categoria || '';
             if (catVal && !Array.from(fCategoria.options).some(opt => opt.value === catVal)) {
@@ -314,7 +351,6 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
     document.getElementById(targetSubViewId)?.classList.add('active');
     document.getElementById(targetSubBtnId)?.classList.add('active');
     
-    // Al activar la subvista de gráficos, sincroniza y recalcula los 3 gráficos
     if (targetSubViewId === 'subview-graficos') {
         buildHistoricalChartData();
         renderInteractiveChart(state.cachedCategoriesDataForChart);
@@ -371,6 +407,8 @@ function initMonthSelector() {
         preFechaInput.min = `${selector.value}-01`;
         preFechaInput.max = `${selector.value}-${String(lastDay).padStart(2, '0')}`;
     }
+
+    updateIncomeAccrualOptions();
 }
 
 function populateSelectOptions() {
@@ -394,7 +432,6 @@ function populateSelectOptions() {
     fillSelect('filter-cuenta', CUENTAS_SISTEMA_TOTAL, true);
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
     
-    // Poblado del selector de categoría para el gráfico histórico
     fillSelect('cat-history-category-select', state.misCategoriasUnificadas);
     const catHistSel = document.getElementById('cat-history-category-select');
     if (catHistSel && state.selectedCategoryHistoryName) {
@@ -405,6 +442,7 @@ function populateSelectOptions() {
 function recalculateFinancialMetrics() {
     const selector = document.getElementById('global-month-selector');
     const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
+    const cutoffDateStr = getEndOfMonthDateStr(activeMonth);
 
     state.currentAccountBalancesARS = {}; state.currentAccountBalancesUSD = {};
     state.brokerEarningsARS = {}; state.brokerEarningsUSD = {};
@@ -423,27 +461,48 @@ function recalculateFinancialMetrics() {
 
     state.globalTransData.forEach(t => {
         const monto = parseFloat(t.monto) || 0;
-        const isCurrentMonth = t.fecha && t.fecha.substring(0, 7) === activeMonth;
+        const txDate = t.fecha || '';
+        const isUpToSelectedMonthEnd = txDate && txDate <= cutoffDateStr;
+        const isCurrentMonth = txDate && txDate.substring(0, 7) === activeMonth;
         
         const appliedFx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
         const convUSD = (t.moneda === 'USD') ? monto * appliedFx : monto;
         const esTarjeta = CUENTAS_TARJETAS.includes(t.cuenta);
 
-        if (esTarjeta) {
-            if (t.moneda === 'USD') { 
-                if (t.tipo === 'gasto') state.creditCardDebtUSD[t.cuenta] += monto; 
-                else if (t.tipo === 'ingreso') state.creditCardDebtUSD[t.cuenta] -= monto; 
-            } else { 
-                if (t.tipo === 'gasto') state.creditCardDebtARS[t.cuenta] += monto; 
-                else if (t.tipo === 'ingreso') state.creditCardDebtARS[t.cuenta] -= monto; 
+        // Corte patrimonial exacto al último día del período activo (AUD-04)
+        if (isUpToSelectedMonthEnd) {
+            if (esTarjeta) {
+                if (t.moneda === 'USD') { 
+                    if (t.tipo === 'gasto') state.creditCardDebtUSD[t.cuenta] += monto; 
+                    else if (t.tipo === 'ingreso') state.creditCardDebtUSD[t.cuenta] -= monto; 
+                } else { 
+                    if (t.tipo === 'gasto') state.creditCardDebtARS[t.cuenta] += monto; 
+                    else if (t.tipo === 'ingreso') state.creditCardDebtARS[t.cuenta] -= monto; 
+                }
+            } else {
+                if (t.moneda === 'USD') { 
+                    if (t.tipo === 'ingreso') state.currentAccountBalancesUSD[t.cuenta] += monto; 
+                    else if (t.tipo === 'gasto') state.currentAccountBalancesUSD[t.cuenta] -= monto; 
+                } else { 
+                    if (t.tipo === 'ingreso') state.currentAccountBalancesARS[t.cuenta] += monto; 
+                    else if (t.tipo === 'gasto') state.currentAccountBalancesARS[t.cuenta] -= monto; 
+                }
             }
-        } else {
-            if (t.moneda === 'USD') { 
-                if (t.tipo === 'ingreso') state.currentAccountBalancesUSD[t.cuenta] += monto; 
-                else if (t.tipo === 'gasto') state.currentAccountBalancesUSD[t.cuenta] -= monto; 
-            } else { 
-                if (t.tipo === 'ingreso') state.currentAccountBalancesARS[t.cuenta] += monto; 
-                else if (t.tipo === 'gasto') state.currentAccountBalancesARS[t.cuenta] -= monto; 
+        }
+
+        const esTransferenciaOPago = (
+            t.categoria === 'Transferencia Interna' || 
+            t.categoria === 'Compra/Venta Divisas' || 
+            t.categoria === 'Pago Tarjeta de Crédito' || 
+            t.categoria === 'Ajuste Técnico Saldos'
+        );
+
+        // Reconocimiento de ingresos por devengamiento opcional (AUD-08) o fecha de caja
+        if (t.tipo === 'ingreso' && !esTransferenciaOPago && txDate) {
+            const hasDevengamiento = (typeof t.presupuestado === 'string' && t.presupuestado.startsWith('DEV:'));
+            const effectiveIncomeMonth = hasDevengamiento ? t.presupuestado.substring(4, 11) : txDate.substring(0, 7);
+            if (effectiveIncomeMonth === activeMonth) {
+                totalIngresosMes += convUSD;
             }
         }
 
@@ -453,16 +512,7 @@ function recalculateFinancialMetrics() {
                 else state.brokerEarningsARS[t.cuenta] += monto;
             }
 
-            const esTransferenciaOPago = (
-                t.categoria === 'Transferencia Interna' || 
-                t.categoria === 'Compra/Venta Divisas' || 
-                t.categoria === 'Pago Tarjeta de Crédito' || 
-                t.categoria === 'Ajuste Técnico Saldos'
-            );
-
-            if (t.tipo === 'ingreso' && !esTransferenciaOPago) {
-                totalIngresosMes += convUSD;
-            } else if (t.tipo === 'gasto' && !esTransferenciaOPago) {
+            if (t.tipo === 'gasto' && !esTransferenciaOPago) {
                 totalEgresosRealesMes += convUSD;
 
                 if (t.presupuestado !== 'NO_COMPUTA') {
@@ -511,6 +561,22 @@ function recalculateFinancialMetrics() {
 
     let patrimonioNeto = totalActivos - deudaTarjetasTotal;
     let ahorroMes = totalIngresosMes - totalEgresosRealesMes;
+
+    // Almacena las métricas consolidadas en state para paridad 1:1 con el reporte PDF (AUD-06)
+    state.currentMonthMetrics = {
+        activeMonth,
+        cutoffDateStr,
+        totalActivos,
+        deudaTarjetasTotal,
+        patrimonioNeto,
+        totalIngresosMes,
+        totalPlanificadoMes,
+        totalGastosPresupuestados,
+        totalEgresosRealesMes,
+        ahorroMes,
+        totalLiquidezARS,
+        totalLiquidezUSD
+    };
 
     const setCard = (id, mainText, subText = '', subColor = '') => {
         const el = document.getElementById(id);
@@ -664,7 +730,6 @@ function renderAccuracyTable(categoriesMes) {
             campanaHTML = `<span style="margin-left:8px; font-size:11px; color:var(--primary); font-weight:600;" title="Pagado en el mes activo"><i class="fa-solid fa-circle-check"></i> Pagado</span>`;
         }
 
-        // Cálculo de Disponible / Desvío por fila
         const dif = c.meta - c.gasto;
         let dispHTML = '';
         if (c.meta === 0 && c.gasto > 0) {
@@ -678,7 +743,6 @@ function renderAccuracyTable(categoriesMes) {
             dispHTML = `<span style="color:var(--danger); font-weight:700;">-$${Math.round(Math.abs(dif)).toLocaleString('es-AR')}</span>`;
         }
 
-        // Mini-barra de progreso debajo del gasto real
         let miniBarHTML = '';
         if (c.meta > 0) {
             const pctRow = Math.min(100, Math.max(0, (c.gasto / c.meta) * 100));
@@ -720,7 +784,6 @@ function renderAccuracyTable(categoriesMes) {
         </tr>`;
     });
 
-    // Delegación segura de eventos (evita inyección en atributos onclick)
     if (!tbody.dataset.eventsBound) {
         tbody.addEventListener('click', (e) => {
             const editBtn = e.target.closest('.btn-edit-budget');
@@ -798,11 +861,17 @@ function renderTransactionHistoryTable(dataset) {
         const displayMonto = Math.abs(numMonto).toLocaleString('es-AR', { minimumFractionDigits: 2 });
         const author = t.autor ? (t.autor.includes('dante') ? 'Dante' : 'Lore') : 'Dante';
         const reintegroBadge = isNegExpense ? `<span style="font-size:9.5px; color:var(--primary); font-weight:700; margin-left:4px;">[Reintegro]</span>` : '';
+        
+        const hasDevengamiento = (t.tipo === 'ingreso' && typeof t.presupuestado === 'string' && t.presupuestado.startsWith('DEV:'));
+        const devengamientoBadge = hasDevengamiento 
+            ? `<span style="font-size:9.5px; color:var(--blue); font-weight:700; margin-left:6px; background:rgba(59,130,246,0.12); padding:2px 6px; border-radius:4px;">[Devengado: ${escapeHTML(t.presupuestado.substring(4, 11))}]</span>` 
+            : '';
+
         const safeId = escapeHTML(t.id);
 
         tbody.innerHTML += `<tr>
             <td>${escapeHTML(t.fecha)}</td>
-            <td style="font-weight:500;">${escapeHTML(t.descripcion || '-')} ${reintegroBadge}</td>
+            <td style="font-weight:500;">${escapeHTML(t.descripcion || '-')} ${reintegroBadge}${devengamientoBadge}</td>
             <td style="color:${color}; font-weight:700; white-space:nowrap !important;">${sign} ${sym} ${displayMonto}</td>
             <td>${escapeHTML(t.cuenta)}</td>
             <td><span style="font-size:11px; background:var(--bg-card); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">${escapeHTML(t.categoria)}</span></td>
@@ -814,7 +883,6 @@ function renderTransactionHistoryTable(dataset) {
         </tr>`;
     });
 
-    // Delegación segura de eventos para editar/eliminar movimientos
     if (!tbody.dataset.eventsBound) {
         tbody.addEventListener('click', (e) => {
             const editBtn = e.target.closest('.btn-edit-tx');
@@ -842,7 +910,9 @@ const applyFilters = () => {
     const fCat = document.getElementById('filter-categoria')?.value || 'TODOS';
     const fAutor = document.getElementById('filter-autor')?.value || 'TODOS';
     const filtrados = state.globalTransData.filter(t => {
-        const matchMonth = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
+        const matchCashMonth = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
+        const matchAccrualMonth = (t.tipo === 'ingreso' && typeof t.presupuestado === 'string' && t.presupuestado === `DEV:${activeMonth}`);
+        const matchMonth = matchCashMonth || matchAccrualMonth;
         const matchQuery = (t.descripcion || '').toLowerCase().includes(query) || (t.categoria || '').toLowerCase().includes(query) || String(t.monto).includes(query);
         const matchTipo = (fTipo === 'TODOS') || (t.tipo === fTipo);
         const matchCuenta = (fCuenta === 'TODOS') || (t.cuenta === fCuenta);
@@ -1155,7 +1225,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initMonthSelector(); fetchMarketData();
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
     
-    // Reactividad offline en reconexión
     window.addEventListener('online', () => {
         syncOfflineQueue(async () => {
             window.UI.showToast("Operaciones sincronizadas automáticamente");
@@ -1172,7 +1241,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('dashboard-screen').style.display = 'block';
             loadUserDataFromDatabase(); 
             
-            // Reactividad offline tras login
             syncOfflineQueue(async () => {
                 window.UI.showToast("Operaciones offline sincronizadas");
                 await loadUserDataFromDatabase();
@@ -1246,6 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const boxDestino = document.getElementById('box-uni-destino');
         const elDestino = document.getElementById('uni-destino');
         const boxCat = document.getElementById('box-uni-categoria');
+        const boxDevengamiento = document.getElementById('box-uni-devengamiento');
         const boxPureza = document.getElementById('box-uni-pureza');
         const boxExcluir = document.getElementById('box-uni-excluir');
         const boxMontoDestino = document.getElementById('box-uni-monto-destino');
@@ -1257,6 +1326,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elDestino) elDestino.required = needsDestino;
 
         if (boxCat) boxCat.style.display = (t === 'GASTO') ? 'block' : 'none';
+        if (boxDevengamiento) {
+            boxDevengamiento.style.display = (t === 'INGRESO') ? 'block' : 'none';
+            if (t === 'INGRESO') updateIncomeAccrualOptions();
+        }
         if (boxPureza) boxPureza.style.display = (t === 'RENDIMIENTO') ? 'block' : 'none';
         if (boxExcluir) boxExcluir.style.display = (t === 'GASTO' && !esTarjeta) ? 'block' : 'none';
         
@@ -1275,13 +1348,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     window.updateUnifiedFormUI = updateUnifiedFormUI;
     document.getElementById('uni-origen')?.addEventListener('change', updateUnifiedFormUI);
+    document.getElementById('uni-fecha')?.addEventListener('change', updateIncomeAccrualOptions);
 
     const hoyIso = getLocalDateString();
     if (document.getElementById('uni-fecha')) document.getElementById('uni-fecha').value = hoyIso;
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
     if (document.getElementById('close-card-fecha')) document.getElementById('close-card-fecha').value = hoyIso;
+    updateIncomeAccrualOptions();
 
-    // REGISTRO DE MOVIMIENTOS CON VALIDACIÓN DURA (AUD-03)
+    // REGISTRO DE MOVIMIENTOS CON VALIDACIÓN DURA Y DEVENGAMIENTO (AUD-03, AUD-08)
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btnSubmit = document.getElementById('btn-unified-submit');
@@ -1308,12 +1383,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const elPureza = document.getElementById('uni-pureza');
             const elExcluir = document.getElementById('uni-excluir');
             const elMontoDestino = document.getElementById('uni-monto-destino');
+            const elPeriodoImputacion = document.getElementById('uni-periodo-imputacion');
 
             const opType = elTipo ? elTipo.value : 'GASTO';
             const montoNum = parseFloat(elMonto ? elMonto.value : 0);
             const montoDestNum = parseFloat(elMontoDestino ? elMontoDestino.value : 0) || 0;
             const origenVal = elOrigen ? elOrigen.value : '';
             const destinoVal = elDestino ? elDestino.value : '';
+            const periodoImputacionVal = (opType === 'INGRESO' && elPeriodoImputacion) ? elPeriodoImputacion.value : '';
 
             if (!origenVal) {
                 window.UI.showAppAlert("Atención", "Por favor, seleccioná una cuenta de origen.");
@@ -1351,7 +1428,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 moneda: elMoneda ? elMoneda.value : 'ARS',
                 pureza: elPureza ? elPureza.value : 'REINVERSION',
                 excluirGasto: elExcluir ? elExcluir.checked : false,
-                montoDestino: montoDestNum
+                montoDestino: montoDestNum,
+                periodoImputacion: periodoImputacionVal
             });
 
             const batch = (Array.isArray(rawBatch) ? rawBatch : [rawBatch]).map(item => ({
@@ -1374,10 +1452,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (error) {
                 window.UI.showAppAlert("Error al Guardar", error.message);
             } else {
-                window.UI.showToast("Movimiento registrado con éxito");
+                window.UI.showToast(periodoImputacionVal ? `Ingreso devengado a ${periodoImputacionVal}` : "Movimiento registrado con éxito");
                 if (elMonto) { elMonto.value = ""; elMonto.focus(); }
                 if (elConcepto) elConcepto.value = "";
                 if (elMontoDestino) elMontoDestino.value = "";
+                if (elPeriodoImputacion) elPeriodoImputacion.value = "";
                 loadUserDataFromDatabase();
             }
         } catch (err) {
@@ -1676,7 +1755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // GUARDAR EDICIÓN DE MOVIMIENTO
+    // GUARDAR EDICIÓN DE MOVIMIENTO CON SINCRONIZACIÓN COMPLETA DE ASIENTO ESPEJO (AUD-09)
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
@@ -1716,7 +1795,7 @@ document.addEventListener('DOMContentLoaded', () => {
             descripcion: document.getElementById('edit-form-concepto').value.trim(), 
             cuenta: document.getElementById('edit-form-metodo').value, 
             categoria: document.getElementById('edit-form-categoria').value, 
-            presupuestado: document.getElementById('edit-form-presupuestado').value || 'SI', 
+            presupuestado: document.getElementById('edit-form-presupuestado').value || 'NO', 
             moneda: nuevaMoneda,
             tipo_cambio: nuevoTipoCambio
         };
@@ -1732,13 +1811,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isGroup) { 
                 const peer = state.globalTransData.find(item => item.transfer_group_id === t.transfer_group_id && item.id !== t.id); 
-                if (peer) { 
+                if (peer) {
+                    if (t.categoria === 'Transferencia Interna' && payload.cuenta === peer.cuenta) {
+                        window.UI.showAppAlert("Operación Inválida", "La cuenta de origen y destino de la transferencia no pueden coincidir.");
+                        if (btnSubmit) {
+                            btnSubmit.disabled = false;
+                            btnSubmit.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Guardar Cambios`;
+                        }
+                        return;
+                    }
+
                     const peerPayload = { fecha: payload.fecha }; 
                     if (t.categoria !== 'Compra/Venta Divisas') { 
                         peerPayload.monto = Math.abs(payload.monto); 
                         peerPayload.moneda = payload.moneda;
                         peerPayload.tipo_cambio = payload.tipo_cambio;
-                    } 
+                    }
+                    // Sincroniza glosas de ambos asientos si cambió la cuenta en una transferencia (AUD-09)
+                    if (t.categoria === 'Transferencia Interna' && payload.cuenta !== t.cuenta) {
+                        if (t.tipo === 'gasto') {
+                            payload.descripcion = `Pase hacia ${peer.cuenta}`;
+                            peerPayload.descripcion = `Pase desde ${payload.cuenta}`;
+                        } else {
+                            payload.descripcion = `Pase desde ${peer.cuenta}`;
+                            peerPayload.descripcion = `Pase hacia ${payload.cuenta}`;
+                        }
+                        updates[0] = _supabase.from('transacciones').update(payload).eq('id', state.editingTransactionId);
+                    }
                     updates.push(_supabase.from('transacciones').update(peerPayload).eq('id', peer.id)); 
                 } 
             }
