@@ -6,6 +6,7 @@ import {
     CUENTAS_TARJETAS,
     CUENTAS_SISTEMA_TOTAL, 
     MESES_ES, 
+    escapeHTML,
     getLocalDateString, 
     getPreviousMonthStr, 
     saveOfflineQueue, 
@@ -36,13 +37,51 @@ import { renderChangelogTable } from './changelog.js';
 
 let parsedStatementItems = [];
 
-function isDateWithinRange(targetDateStr, baseDateStr, daysBefore = 20, daysAfter = 15) {
-    if (!targetDateStr || !baseDateStr) return false;
-    const target = new Date(targetDateStr + 'T00:00:00');
-    const base = new Date(baseDateStr + 'T00:00:00');
-    if (isNaN(target.getTime()) || isNaN(base.getTime())) return false;
-    const diffDays = (target.getTime() - base.getTime()) / (1000 * 60 * 60 * 24);
-    return diffDays >= -daysBefore && diffDays <= daysAfter;
+function getEndOfMonthDateStr(yyyyMm) {
+    if (!yyyyMm || yyyyMm.length < 7) return getLocalDateString();
+    const [y, m] = yyyyMm.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+function getNextMonthStr(yyyyMm) {
+    if (!yyyyMm || yyyyMm.length < 7) return getLocalDateString().substring(0, 7);
+    let [y, m] = yyyyMm.split('-').map(Number);
+    m += 1;
+    if (m > 12) {
+        m = 1;
+        y += 1;
+    }
+    return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+function updateIncomeAccrualOptions() {
+    const sel = document.getElementById('uni-periodo-imputacion');
+    const fechaInput = document.getElementById('uni-fecha');
+    if (!sel) return;
+
+    const fechaStr = (fechaInput && fechaInput.value) ? fechaInput.value : getLocalDateString();
+    const basePeriod = fechaStr.substring(0, 7);
+    const nextPeriod = getNextMonthStr(basePeriod);
+
+    const formatPeriodLabel = (ym) => {
+        const [y, m] = ym.split('-').map(Number);
+        return `${MESES_ES[m - 1]} ${y}`;
+    };
+
+    sel.innerHTML = `
+        <option value="">Mismo mes de cobro (${formatPeriodLabel(basePeriod)} - Caja)</option>
+        <option value="${nextPeriod}">Devengar a ${formatPeriodLabel(nextPeriod)} (Mes siguiente)</option>
+    `;
+
+    // Añadir también el mes activo global si difiere de basePeriod y nextPeriod
+    const globalSel = document.getElementById('global-month-selector');
+    if (globalSel && globalSel.value && globalSel.value !== basePeriod && globalSel.value !== nextPeriod) {
+        const opt = document.createElement('option');
+        opt.value = globalSel.value;
+        opt.innerText = `Devengar a ${formatPeriodLabel(globalSel.value)}`;
+        sel.appendChild(opt);
+    }
 }
 
 // EXPOSICIÓN GLOBAL UI
@@ -52,7 +91,7 @@ window.UI = {
         if (!container) return;
         const toast = document.createElement('div');
         toast.className = `toast ${isError ? 'error' : ''}`;
-        toast.innerHTML = `<i class="fa-solid ${isError ? 'fa-triangle-exclamation' : 'fa-circle-check'}"></i> ${message}`;
+        toast.innerHTML = `<i class="fa-solid ${isError ? 'fa-triangle-exclamation' : 'fa-circle-check'}"></i> ${escapeHTML(message)}`;
         container.appendChild(toast);
         setTimeout(() => {
             toast.style.animation = 'fadeOut 0.4s forwards';
@@ -202,7 +241,18 @@ window.UI = {
         if (fImporte) fImporte.value = Math.abs(rawMonto);
         if (fConcepto) fConcepto.value = t.descripcion || '';
         if (fMetodo) fMetodo.value = t.cuenta || '';
-        if (fCategoria) fCategoria.value = t.categoria || '';
+
+        if (fCategoria) {
+            const catVal = t.categoria || '';
+            if (catVal && !Array.from(fCategoria.options).some(opt => opt.value === catVal)) {
+                const legacyOpt = document.createElement('option');
+                legacyOpt.value = catVal;
+                legacyOpt.innerText = catVal;
+                fCategoria.appendChild(legacyOpt);
+            }
+            fCategoria.value = catVal;
+        }
+
         if (fMoneda) fMoneda.value = t.moneda || 'ARS';
         if (fPresup) fPresup.value = t.presupuestado || 'SI';
         if (fEsCredito) fEsCredito.value = (rawMonto < 0) ? 'true' : 'false';
@@ -264,10 +314,11 @@ window.UI = {
         const text = forcedText || input.value.trim();
         if (!text) return;
         
+        const safeText = escapeHTML(text);
         const chatBody = document.getElementById('chat-body');
         chatBody.innerHTML += `
             <div class="chat-msg user">
-                <div class="msg-bubble">${text}</div>
+                <div class="msg-bubble">${safeText}</div>
                 <div class="chat-time">Ahora</div>
             </div>
         `;
@@ -277,7 +328,7 @@ window.UI = {
         setTimeout(() => {
             chatBody.innerHTML += `
                 <div class="chat-msg bot">
-                    <div class="msg-bubble"><em>[Modo Diseño]</em> Entiendo tu consulta sobre: "<strong>${text}</strong>". Próximamente me conectarán a la base de conocimiento de Supabase para responderte con exactitud.</div>
+                    <div class="msg-bubble"><em>[Modo Diseño]</em> Entiendo tu consulta sobre: "<strong>${safeText}</strong>". Próximamente me conectarán a la base de conocimiento de Supabase para responderte con exactitud.</div>
                     <div class="chat-time">Ahora</div>
                 </div>
             `;
@@ -300,7 +351,6 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
     document.getElementById(targetSubViewId)?.classList.add('active');
     document.getElementById(targetSubBtnId)?.classList.add('active');
     
-    // Al activar la subvista de gráficos, sincroniza y recalcula los 3 gráficos
     if (targetSubViewId === 'subview-graficos') {
         buildHistoricalChartData();
         renderInteractiveChart(state.cachedCategoriesDataForChart);
@@ -357,6 +407,8 @@ function initMonthSelector() {
         preFechaInput.min = `${selector.value}-01`;
         preFechaInput.max = `${selector.value}-${String(lastDay).padStart(2, '0')}`;
     }
+
+    updateIncomeAccrualOptions();
 }
 
 function populateSelectOptions() {
@@ -380,7 +432,6 @@ function populateSelectOptions() {
     fillSelect('filter-cuenta', CUENTAS_SISTEMA_TOTAL, true);
     fillSelect('filter-categoria', state.misCategoriasUnificadas, true);
     
-    // Poblado del selector de categoría para el gráfico histórico
     fillSelect('cat-history-category-select', state.misCategoriasUnificadas);
     const catHistSel = document.getElementById('cat-history-category-select');
     if (catHistSel && state.selectedCategoryHistoryName) {
@@ -391,6 +442,7 @@ function populateSelectOptions() {
 function recalculateFinancialMetrics() {
     const selector = document.getElementById('global-month-selector');
     const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
+    const cutoffDateStr = getEndOfMonthDateStr(activeMonth);
 
     state.currentAccountBalancesARS = {}; state.currentAccountBalancesUSD = {};
     state.brokerEarningsARS = {}; state.brokerEarningsUSD = {};
@@ -409,27 +461,48 @@ function recalculateFinancialMetrics() {
 
     state.globalTransData.forEach(t => {
         const monto = parseFloat(t.monto) || 0;
-        const isCurrentMonth = t.fecha && t.fecha.substring(0, 7) === activeMonth;
+        const txDate = t.fecha || '';
+        const isUpToSelectedMonthEnd = txDate && txDate <= cutoffDateStr;
+        const isCurrentMonth = txDate && txDate.substring(0, 7) === activeMonth;
         
         const appliedFx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
         const convUSD = (t.moneda === 'USD') ? monto * appliedFx : monto;
         const esTarjeta = CUENTAS_TARJETAS.includes(t.cuenta);
 
-        if (esTarjeta) {
-            if (t.moneda === 'USD') { 
-                if (t.tipo === 'gasto') state.creditCardDebtUSD[t.cuenta] += monto; 
-                else if (t.tipo === 'ingreso') state.creditCardDebtUSD[t.cuenta] -= monto; 
-            } else { 
-                if (t.tipo === 'gasto') state.creditCardDebtARS[t.cuenta] += monto; 
-                else if (t.tipo === 'ingreso') state.creditCardDebtARS[t.cuenta] -= monto; 
+        // Corte patrimonial exacto al último día del período activo (AUD-04)
+        if (isUpToSelectedMonthEnd) {
+            if (esTarjeta) {
+                if (t.moneda === 'USD') { 
+                    if (t.tipo === 'gasto') state.creditCardDebtUSD[t.cuenta] += monto; 
+                    else if (t.tipo === 'ingreso') state.creditCardDebtUSD[t.cuenta] -= monto; 
+                } else { 
+                    if (t.tipo === 'gasto') state.creditCardDebtARS[t.cuenta] += monto; 
+                    else if (t.tipo === 'ingreso') state.creditCardDebtARS[t.cuenta] -= monto; 
+                }
+            } else {
+                if (t.moneda === 'USD') { 
+                    if (t.tipo === 'ingreso') state.currentAccountBalancesUSD[t.cuenta] += monto; 
+                    else if (t.tipo === 'gasto') state.currentAccountBalancesUSD[t.cuenta] -= monto; 
+                } else { 
+                    if (t.tipo === 'ingreso') state.currentAccountBalancesARS[t.cuenta] += monto; 
+                    else if (t.tipo === 'gasto') state.currentAccountBalancesARS[t.cuenta] -= monto; 
+                }
             }
-        } else {
-            if (t.moneda === 'USD') { 
-                if (t.tipo === 'ingreso') state.currentAccountBalancesUSD[t.cuenta] += monto; 
-                else if (t.tipo === 'gasto') state.currentAccountBalancesUSD[t.cuenta] -= monto; 
-            } else { 
-                if (t.tipo === 'ingreso') state.currentAccountBalancesARS[t.cuenta] += monto; 
-                else if (t.tipo === 'gasto') state.currentAccountBalancesARS[t.cuenta] -= monto; 
+        }
+
+        const esTransferenciaOPago = (
+            t.categoria === 'Transferencia Interna' || 
+            t.categoria === 'Compra/Venta Divisas' || 
+            t.categoria === 'Pago Tarjeta de Crédito' || 
+            t.categoria === 'Ajuste Técnico Saldos'
+        );
+
+        // Reconocimiento de ingresos por devengamiento opcional (AUD-08) o fecha de caja
+        if (t.tipo === 'ingreso' && !esTransferenciaOPago && txDate) {
+            const hasDevengamiento = (typeof t.presupuestado === 'string' && t.presupuestado.startsWith('DEV:'));
+            const effectiveIncomeMonth = hasDevengamiento ? t.presupuestado.substring(4, 11) : txDate.substring(0, 7);
+            if (effectiveIncomeMonth === activeMonth) {
+                totalIngresosMes += convUSD;
             }
         }
 
@@ -439,16 +512,7 @@ function recalculateFinancialMetrics() {
                 else state.brokerEarningsARS[t.cuenta] += monto;
             }
 
-            const esTransferenciaOPago = (
-                t.categoria === 'Transferencia Interna' || 
-                t.categoria === 'Compra/Venta Divisas' || 
-                t.categoria === 'Pago Tarjeta de Crédito' || 
-                t.categoria === 'Ajuste Técnico Saldos'
-            );
-
-            if (t.tipo === 'ingreso' && !esTransferenciaOPago) {
-                totalIngresosMes += convUSD;
-            } else if (t.tipo === 'gasto' && !esTransferenciaOPago) {
+            if (t.tipo === 'gasto' && !esTransferenciaOPago) {
                 totalEgresosRealesMes += convUSD;
 
                 if (t.presupuestado !== 'NO_COMPUTA') {
@@ -497,6 +561,22 @@ function recalculateFinancialMetrics() {
 
     let patrimonioNeto = totalActivos - deudaTarjetasTotal;
     let ahorroMes = totalIngresosMes - totalEgresosRealesMes;
+
+    // Almacena las métricas consolidadas en state para paridad 1:1 con el reporte PDF (AUD-06)
+    state.currentMonthMetrics = {
+        activeMonth,
+        cutoffDateStr,
+        totalActivos,
+        deudaTarjetasTotal,
+        patrimonioNeto,
+        totalIngresosMes,
+        totalPlanificadoMes,
+        totalGastosPresupuestados,
+        totalEgresosRealesMes,
+        ahorroMes,
+        totalLiquidezARS,
+        totalLiquidezUSD
+    };
 
     const setCard = (id, mainText, subText = '', subColor = '') => {
         const el = document.getElementById(id);
@@ -645,12 +725,11 @@ function renderAccuracyTable(categoriesMes) {
                 animacion = 'fa-shake';
             }
             const [, m, d] = c.fechaVenc.split('-');
-            campanaHTML = `<span style="margin-left:8px; font-size:11px; color:${colorCampana}; font-weight:600;" title="Vence el ${d}/${m}"><i class="fa-solid fa-bell ${animacion}"></i> ${d}/${m}</span>`;
+            campanaHTML = `<span style="margin-left:8px; font-size:11px; color:${colorCampana}; font-weight:600;" title="Vence el ${escapeHTML(d)}/${escapeHTML(m)}"><i class="fa-solid fa-bell ${animacion}"></i> ${escapeHTML(d)}/${escapeHTML(m)}</span>`;
         } else if (c.fechaVenc && c.isPaid) {
             campanaHTML = `<span style="margin-left:8px; font-size:11px; color:var(--primary); font-weight:600;" title="Pagado en el mes activo"><i class="fa-solid fa-circle-check"></i> Pagado</span>`;
         }
 
-        // Cálculo de Disponible / Desvío por fila
         const dif = c.meta - c.gasto;
         let dispHTML = '';
         if (c.meta === 0 && c.gasto > 0) {
@@ -664,7 +743,6 @@ function renderAccuracyTable(categoriesMes) {
             dispHTML = `<span style="color:var(--danger); font-weight:700;">-$${Math.round(Math.abs(dif)).toLocaleString('es-AR')}</span>`;
         }
 
-        // Mini-barra de progreso debajo del gasto real
         let miniBarHTML = '';
         if (c.meta > 0) {
             const pctRow = Math.min(100, Math.max(0, (c.gasto / c.meta) * 100));
@@ -682,13 +760,13 @@ function renderAccuracyTable(categoriesMes) {
             `;
         }
 
-        const safeCat = c.nombre.replace(/'/g, "\\'");
-        const safeFecha = c.fechaVenc || '';
+        const safeCatAttr = escapeHTML(c.nombre);
+        const safeFechaAttr = escapeHTML(c.fechaVenc || '');
 
         tbody.innerHTML += `<tr>
             <td style="font-weight:600;">
                 <div style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px;">
-                    <span>${c.nombre}</span>
+                    <span>${safeCatAttr}</span>
                     ${campanaHTML}
                 </div>
             </td>
@@ -698,13 +776,32 @@ function renderAccuracyTable(categoriesMes) {
                 ${miniBarHTML}
             </td>
             <td style="text-align:right; white-space:nowrap;">${dispHTML}</td>
-            <td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${c.estado}</span></td>
+            <td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${escapeHTML(c.estado)}</span></td>
             <td style="text-align:center; white-space:nowrap;">
-                <button class="btn-action" onclick="window.UI.editBudgetDirect('${safeCat}', ${c.meta}, '${safeFecha}')" title="Editar Presupuesto y Vencimiento"><i class="fa-solid fa-pen-to-square"></i></button>
-                <button class="btn-delete" onclick="window.UI.deleteBudgetDirect('${safeCat}')" title="Eliminar Presupuesto"><i class="fa-solid fa-trash"></i></button>
+                <button type="button" class="btn-action btn-edit-budget" data-cat="${safeCatAttr}" data-meta="${c.meta}" data-fecha="${safeFechaAttr}" title="Editar Presupuesto y Vencimiento"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button type="button" class="btn-delete btn-delete-budget" data-cat="${safeCatAttr}" title="Eliminar Presupuesto"><i class="fa-solid fa-trash"></i></button>
             </td>
         </tr>`;
     });
+
+    if (!tbody.dataset.eventsBound) {
+        tbody.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.btn-edit-budget');
+            if (editBtn) {
+                const cat = editBtn.getAttribute('data-cat');
+                const meta = parseFloat(editBtn.getAttribute('data-meta')) || 0;
+                const fecha = editBtn.getAttribute('data-fecha') || '';
+                window.UI.editBudgetDirect(cat, meta, fecha);
+                return;
+            }
+            const delBtn = e.target.closest('.btn-delete-budget');
+            if (delBtn) {
+                const cat = delBtn.getAttribute('data-cat');
+                window.UI.deleteBudgetDirect(cat);
+            }
+        });
+        tbody.dataset.eventsBound = 'true';
+    }
 }
 
 function buildHistoricalChartData() {
@@ -764,20 +861,42 @@ function renderTransactionHistoryTable(dataset) {
         const displayMonto = Math.abs(numMonto).toLocaleString('es-AR', { minimumFractionDigits: 2 });
         const author = t.autor ? (t.autor.includes('dante') ? 'Dante' : 'Lore') : 'Dante';
         const reintegroBadge = isNegExpense ? `<span style="font-size:9.5px; color:var(--primary); font-weight:700; margin-left:4px;">[Reintegro]</span>` : '';
+        
+        const hasDevengamiento = (t.tipo === 'ingreso' && typeof t.presupuestado === 'string' && t.presupuestado.startsWith('DEV:'));
+        const devengamientoBadge = hasDevengamiento 
+            ? `<span style="font-size:9.5px; color:var(--blue); font-weight:700; margin-left:6px; background:rgba(59,130,246,0.12); padding:2px 6px; border-radius:4px;">[Devengado: ${escapeHTML(t.presupuestado.substring(4, 11))}]</span>` 
+            : '';
+
+        const safeId = escapeHTML(t.id);
 
         tbody.innerHTML += `<tr>
-            <td>${t.fecha}</td>
-            <td style="font-weight:500;">${t.descripcion || '-'} ${reintegroBadge}</td>
+            <td>${escapeHTML(t.fecha)}</td>
+            <td style="font-weight:500;">${escapeHTML(t.descripcion || '-')} ${reintegroBadge}${devengamientoBadge}</td>
             <td style="color:${color}; font-weight:700; white-space:nowrap !important;">${sign} ${sym} ${displayMonto}</td>
-            <td>${t.cuenta}</td>
-            <td><span style="font-size:11px; background:var(--bg-card); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">${t.categoria}</span></td>
-            <td>${author}</td>
+            <td>${escapeHTML(t.cuenta)}</td>
+            <td><span style="font-size:11px; background:var(--bg-card); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">${escapeHTML(t.categoria)}</span></td>
+            <td>${escapeHTML(author)}</td>
             <td style="text-align:center;">
-                <button class="btn-action" onclick="window.UI.openEditTransactionModal('${t.id}')" title="Editar Movimiento"><i class="fa-solid fa-pen-to-square"></i></button>
-                <button class="btn-delete" onclick="window.UI.deleteTransaction('${t.id}')" title="Eliminar Movimiento"><i class="fa-solid fa-trash"></i></button>
+                <button type="button" class="btn-action btn-edit-tx" data-id="${safeId}" title="Editar Movimiento"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button type="button" class="btn-delete btn-delete-tx" data-id="${safeId}" title="Eliminar Movimiento"><i class="fa-solid fa-trash"></i></button>
             </td>
         </tr>`;
     });
+
+    if (!tbody.dataset.eventsBound) {
+        tbody.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.btn-edit-tx');
+            if (editBtn) {
+                window.UI.openEditTransactionModal(editBtn.getAttribute('data-id'));
+                return;
+            }
+            const delBtn = e.target.closest('.btn-delete-tx');
+            if (delBtn) {
+                window.UI.deleteTransaction(delBtn.getAttribute('data-id'));
+            }
+        });
+        tbody.dataset.eventsBound = 'true';
+    }
 }
 
 const applyFilters = () => {
@@ -791,7 +910,9 @@ const applyFilters = () => {
     const fCat = document.getElementById('filter-categoria')?.value || 'TODOS';
     const fAutor = document.getElementById('filter-autor')?.value || 'TODOS';
     const filtrados = state.globalTransData.filter(t => {
-        const matchMonth = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
+        const matchCashMonth = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
+        const matchAccrualMonth = (t.tipo === 'ingreso' && typeof t.presupuestado === 'string' && t.presupuestado === `DEV:${activeMonth}`);
+        const matchMonth = matchCashMonth || matchAccrualMonth;
         const matchQuery = (t.descripcion || '').toLowerCase().includes(query) || (t.categoria || '').toLowerCase().includes(query) || String(t.monto).includes(query);
         const matchTipo = (fTipo === 'TODOS') || (t.tipo === fTipo);
         const matchCuenta = (fCuenta === 'TODOS') || (t.cuenta === fCuenta);
@@ -921,15 +1042,16 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
 
         if (state.currentMonthAlertsCache.length > 0) {
             state.currentMonthAlertsCache.forEach(a => {
+                const safeCat = escapeHTML(a.categoria);
                 listContainer.innerHTML += `
-                    <div class="alert-item-row ${a.status}">
+                    <div class="alert-item-row ${escapeHTML(a.status)}">
                         <div>
-                            <div style="font-weight:700; font-size:13px; color:#fff;">${a.categoria}</div>
-                            <div style="font-size:11px; color:var(--text-muted);">Vencimiento: ${a.fechaFormateada}</div>
+                            <div style="font-weight:700; font-size:13px; color:#fff;">${safeCat}</div>
+                            <div style="font-size:11px; color:var(--text-muted);">Vencimiento: ${escapeHTML(a.fechaFormateada)}</div>
                         </div>
                         <div style="display:flex; align-items:center; gap:10px;">
                             <div style="font-weight:700; color:var(--warning); font-size:14px;">$${Number(a.monto).toLocaleString('es-AR')}</div>
-                            <button type="button" class="btn btn-sm" onclick="window.UI.payPendingAlert('${a.categoria}', ${a.monto})" style="background:var(--blue); padding:6px 12px; font-size:11px;">
+                            <button type="button" class="btn btn-sm btn-pay-alert" data-cat="${safeCat}" data-monto="${a.monto}" style="background:var(--blue); padding:6px 12px; font-size:11px;">
                                 <i class="fa-solid fa-arrow-right"></i> Pagar
                             </button>
                         </div>
@@ -945,11 +1067,11 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
                     </div>
             `;
             paidCommitments.forEach(p => {
-                const subText = p.fechaPago ? `Abonado el ${p.fechaPago}` : `Vencimiento cubierto (${p.fechaVto})`;
+                const subText = p.fechaPago ? `Abonado el ${escapeHTML(p.fechaPago)}` : `Vencimiento cubierto (${escapeHTML(p.fechaVto)})`;
                 paidHTML += `
                     <div class="alert-item-row paid">
                         <div>
-                            <div style="font-weight:600; font-size:12.5px; color:#fff;">${p.categoria}</div>
+                            <div style="font-weight:600; font-size:12.5px; color:#fff;">${escapeHTML(p.categoria)}</div>
                             <div style="font-size:10.5px; color:var(--text-muted);">${subText}</div>
                         </div>
                         <div style="display:flex; align-items:center; gap:8px;">
@@ -961,6 +1083,18 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
             });
             paidHTML += `</div>`;
             listContainer.innerHTML += paidHTML;
+        }
+
+        if (!listContainer.dataset.eventsBound) {
+            listContainer.addEventListener('click', (e) => {
+                const payBtn = e.target.closest('.btn-pay-alert');
+                if (payBtn) {
+                    const cat = payBtn.getAttribute('data-cat');
+                    const monto = parseFloat(payBtn.getAttribute('data-monto')) || 0;
+                    window.UI.payPendingAlert(cat, monto);
+                }
+            });
+            listContainer.dataset.eventsBound = 'true';
         }
     }
 
@@ -1021,15 +1155,15 @@ function renderStagingTable() {
         if (item.esCredito) tags += `<span style="font-size:9.5px; font-weight:700; color:var(--primary); margin-left:6px;">[Reintegro]</span>`;
         if (item.esPendiente) tags += `<span style="font-size:9.5px; font-weight:700; color:var(--text-muted); margin-left:6px;">[Pendiente]</span>`;
 
-        let catOptions = state.misCategoriasUnificadas.map(c => `<option value="${c}" ${c === item.categoria ? 'selected' : ''}>${c}</option>`).join('');
+        let catOptions = state.misCategoriasUnificadas.map(c => `<option value="${escapeHTML(c)}" ${c === item.categoria ? 'selected' : ''}>${escapeHTML(c)}</option>`).join('');
 
         tr.innerHTML = `
             <td style="text-align:center; vertical-align:middle;">
                 <input type="checkbox" class="staging-item-checkbox" data-index="${index}" ${item.selected ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; accent-color:var(--primary);">
             </td>
-            <td style="white-space:nowrap; font-size:12px; vertical-align:middle;">${item.fecha}</td>
+            <td style="white-space:nowrap; font-size:12px; vertical-align:middle;">${escapeHTML(item.fecha)}</td>
             <td style="white-space:nowrap; font-weight:700; color:${item.esCredito ? 'var(--primary)' : (item.moneda === 'USD' ? 'var(--primary)' : '#fff')}; font-size:13px; vertical-align:middle;">${formattedMonto}</td>
-            <td style="vertical-align:middle;"><div style="font-weight:500; font-size:12.5px;">${item.descripcion} ${tags}</div></td>
+            <td style="vertical-align:middle;"><div style="font-weight:500; font-size:12.5px;">${escapeHTML(item.descripcion)} ${tags}</div></td>
             <td style="vertical-align:middle;"><select class="staging-category-select" data-index="${index}">${catOptions}</select></td>
             <td style="text-align:center; vertical-align:middle;"><button type="button" class="btn-staging-remove" data-index="${index}" title="Quitar consumo de la lista"><i class="fa-solid fa-xmark"></i></button></td>
         `;
@@ -1091,7 +1225,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initMonthSelector(); fetchMarketData();
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
     
-    // Reactividad offline en reconexión
     window.addEventListener('online', () => {
         syncOfflineQueue(async () => {
             window.UI.showToast("Operaciones sincronizadas automáticamente");
@@ -1108,7 +1241,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('dashboard-screen').style.display = 'block';
             loadUserDataFromDatabase(); 
             
-            // Reactividad offline tras login
             syncOfflineQueue(async () => {
                 window.UI.showToast("Operaciones offline sincronizadas");
                 await loadUserDataFromDatabase();
@@ -1167,7 +1299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-trigger-report')?.addEventListener('click', () => {
         const audit = executeFinancialAuditEngine(); 
         const body = document.getElementById('audit-modal-body');
-        if (body) body.innerHTML = `<div style="background:var(--bg-input); padding:16px; border-radius:10px; margin-bottom:12px; border-left:4px solid ${audit.ratingColor};"><div style="font-weight:700; font-size:15px; color:#fff;">Score Contable: ${audit.score}/100</div><div style="font-size:12px; color:var(--text-muted); margin-top:2px;">Dictamen: <strong>${audit.ratingText}</strong></div></div><ul style="font-size:12px; color:var(--text-muted); line-height:1.6; padding-left:18px;"><li>${audit.transferenciasHuerfanas.length === 0 ? "✓ Partida doble cuadrada" : `⚠ ${audit.transferenciasHuerfanas.length} transferencias desalineadas`}</li><li>${audit.cuentasEnRojo.length === 0 ? "✓ Cajas operativas en positivo" : `⚠ Cuentas en saldo negativo: ${audit.cuentasEnRojo.join(', ')}`}</li><li>${audit.tarjetasConDeuda.length === 0 ? "✓ Tarjetas al día" : `💳 Deuda en tarjetas: ${audit.tarjetasConDeuda.join(', ')}`}</li><li>${audit.posiblesDuplicados.length === 0 ? "✓ Sin consumos duplicados" : `⚠ ${audit.posiblesDuplicados.length} posibles consumos repetidos`}</li></ul>`;
+        if (body) body.innerHTML = `<div style="background:var(--bg-input); padding:16px; border-radius:10px; margin-bottom:12px; border-left:4px solid ${audit.ratingColor};"><div style="font-weight:700; font-size:15px; color:#fff;">Score Contable: ${audit.score}/100</div><div style="font-size:12px; color:var(--text-muted); margin-top:2px;">Dictamen: <strong>${escapeHTML(audit.ratingText)}</strong></div></div><ul style="font-size:12px; color:var(--text-muted); line-height:1.6; padding-left:18px;"><li>${audit.transferenciasHuerfanas.length === 0 ? "✓ Partida doble cuadrada" : `⚠ ${audit.transferenciasHuerfanas.length} transferencias desalineadas`}</li><li>${audit.cuentasEnRojo.length === 0 ? "✓ Cajas operativas en positivo" : `⚠ Cuentas en saldo negativo: ${escapeHTML(audit.cuentasEnRojo.join(', '))}`}</li><li>${audit.tarjetasConDeuda.length === 0 ? "✓ Tarjetas al día" : `💳 Deuda en tarjetas: ${escapeHTML(audit.tarjetasConDeuda.join(', '))}`}</li><li>${audit.posiblesDuplicados.length === 0 ? "✓ Sin consumos duplicados" : `⚠ ${audit.posiblesDuplicados.length} posibles consumos repetidos`}</li></ul>`;
         window.UI.openModal('audit-preflight-modal');
     });
     document.getElementById('btn-confirm-export-pdf')?.addEventListener('click', () => { window.UI.closeModal('audit-preflight-modal'); exportAuditPDF(state.cachedAuditResult); });
@@ -1180,17 +1312,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const esTarjeta = CUENTAS_TARJETAS.includes(origenVal);
 
         const boxDestino = document.getElementById('box-uni-destino');
+        const elDestino = document.getElementById('uni-destino');
         const boxCat = document.getElementById('box-uni-categoria');
+        const boxDevengamiento = document.getElementById('box-uni-devengamiento');
         const boxPureza = document.getElementById('box-uni-pureza');
         const boxExcluir = document.getElementById('box-uni-excluir');
         const boxMontoDestino = document.getElementById('box-uni-monto-destino');
+        const elMontoDestino = document.getElementById('uni-monto-destino');
         const lblOrigen = document.getElementById('lbl-uni-origen');
 
-        if (boxDestino) boxDestino.style.display = (t === 'TRANSFERENCIA' || t === 'CAMBIO_DIVISAS' || t === 'RENDIMIENTO') ? 'block' : 'none';
+        const needsDestino = (t === 'TRANSFERENCIA' || t === 'CAMBIO_DIVISAS' || t === 'RENDIMIENTO');
+        if (boxDestino) boxDestino.style.display = needsDestino ? 'block' : 'none';
+        if (elDestino) elDestino.required = needsDestino;
+
         if (boxCat) boxCat.style.display = (t === 'GASTO') ? 'block' : 'none';
+        if (boxDevengamiento) {
+            boxDevengamiento.style.display = (t === 'INGRESO') ? 'block' : 'none';
+            if (t === 'INGRESO') updateIncomeAccrualOptions();
+        }
         if (boxPureza) boxPureza.style.display = (t === 'RENDIMIENTO') ? 'block' : 'none';
         if (boxExcluir) boxExcluir.style.display = (t === 'GASTO' && !esTarjeta) ? 'block' : 'none';
+        
         if (boxMontoDestino) boxMontoDestino.style.display = (t === 'CAMBIO_DIVISAS') ? 'block' : 'none';
+        if (elMontoDestino) elMontoDestino.required = (t === 'CAMBIO_DIVISAS');
         
         if (lblOrigen) {
             const labelText = (t === 'INGRESO') ? 'Cuenta Receptora' : 'Cuenta Débito / Origen';
@@ -1204,13 +1348,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     window.updateUnifiedFormUI = updateUnifiedFormUI;
     document.getElementById('uni-origen')?.addEventListener('change', updateUnifiedFormUI);
+    document.getElementById('uni-fecha')?.addEventListener('change', updateIncomeAccrualOptions);
 
     const hoyIso = getLocalDateString();
     if (document.getElementById('uni-fecha')) document.getElementById('uni-fecha').value = hoyIso;
     if (document.getElementById('audit-fecha')) document.getElementById('audit-fecha').value = hoyIso;
     if (document.getElementById('close-card-fecha')) document.getElementById('close-card-fecha').value = hoyIso;
+    updateIncomeAccrualOptions();
 
-    // REGISTRO DE MOVIMIENTOS
+    // REGISTRO DE MOVIMIENTOS CON VALIDACIÓN DURA Y DEVENGAMIENTO (AUD-03, AUD-08)
     document.getElementById('unified-engine-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btnSubmit = document.getElementById('btn-unified-submit');
@@ -1237,9 +1383,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const elPureza = document.getElementById('uni-pureza');
             const elExcluir = document.getElementById('uni-excluir');
             const elMontoDestino = document.getElementById('uni-monto-destino');
+            const elPeriodoImputacion = document.getElementById('uni-periodo-imputacion');
 
-            if (!elOrigen || !elOrigen.value) {
+            const opType = elTipo ? elTipo.value : 'GASTO';
+            const montoNum = parseFloat(elMonto ? elMonto.value : 0);
+            const montoDestNum = parseFloat(elMontoDestino ? elMontoDestino.value : 0) || 0;
+            const origenVal = elOrigen ? elOrigen.value : '';
+            const destinoVal = elDestino ? elDestino.value : '';
+            const periodoImputacionVal = (opType === 'INGRESO' && elPeriodoImputacion) ? elPeriodoImputacion.value : '';
+
+            if (!origenVal) {
                 window.UI.showAppAlert("Atención", "Por favor, seleccioná una cuenta de origen.");
+                return;
+            }
+
+            if (!isFinite(montoNum) || montoNum <= 0) {
+                window.UI.showAppAlert("Importe Inválido", "El importe debe ser mayor a cero.");
+                return;
+            }
+
+            if (opType === 'TRANSFERENCIA' && origenVal === destinoVal) {
+                window.UI.showAppAlert("Operación Inválida", "La cuenta de origen y la cuenta destino no pueden ser la misma.");
+                return;
+            }
+
+            if (opType === 'CAMBIO_DIVISAS' && (!isFinite(montoDestNum) || montoDestNum <= 0)) {
+                window.UI.showAppAlert("Importe Destino Requerido", "Debés ingresar el importe equivalente recibido mayor a cero.");
                 return;
             }
 
@@ -1249,17 +1418,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const rawBatch = buildUnifiedTransactionBatch({
-                type: elTipo ? elTipo.value : 'GASTO',
+                type: opType,
                 fecha: elFecha ? elFecha.value : getLocalDateString(),
-                monto: parseFloat(elMonto ? elMonto.value : 0),
+                monto: montoNum,
                 concepto: elConcepto ? elConcepto.value.trim() : '',
-                origen: elOrigen.value,
-                destino: elDestino ? elDestino.value : '',
+                origen: origenVal,
+                destino: destinoVal,
                 categoria: elCat ? elCat.value : '',
                 moneda: elMoneda ? elMoneda.value : 'ARS',
                 pureza: elPureza ? elPureza.value : 'REINVERSION',
                 excluirGasto: elExcluir ? elExcluir.checked : false,
-                montoDestino: parseFloat(elMontoDestino ? elMontoDestino.value : 0) || 0
+                montoDestino: montoDestNum,
+                periodoImputacion: periodoImputacionVal
             });
 
             const batch = (Array.isArray(rawBatch) ? rawBatch : [rawBatch]).map(item => ({
@@ -1273,6 +1443,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.UI.showToast("Operación encolada offline");
                 if (elMonto) { elMonto.value = ""; elMonto.focus(); }
                 if (elConcepto) elConcepto.value = "";
+                if (elMontoDestino) elMontoDestino.value = "";
                 return;
             }
 
@@ -1281,15 +1452,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (error) {
                 window.UI.showAppAlert("Error al Guardar", error.message);
             } else {
-                window.UI.showToast("Movimiento registrado con éxito");
+                window.UI.showToast(periodoImputacionVal ? `Ingreso devengado a ${periodoImputacionVal}` : "Movimiento registrado con éxito");
                 if (elMonto) { elMonto.value = ""; elMonto.focus(); }
                 if (elConcepto) elConcepto.value = "";
                 if (elMontoDestino) elMontoDestino.value = "";
+                if (elPeriodoImputacion) elPeriodoImputacion.value = "";
                 loadUserDataFromDatabase();
             }
         } catch (err) {
             console.error("Error en procesamiento de movimiento:", err);
-            window.UI.showAppAlert("Error Inesperado", "Ocurrió un error al procesar el movimiento: " + err.message);
+            window.UI.showAppAlert("Error de Validación", err.message);
         } finally {
             if (btnSubmit) {
                 btnSubmit.disabled = false;
@@ -1306,6 +1478,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const cat = document.getElementById('pre-cat').value;
         const monto = parseFloat(document.getElementById('pre-mon').value);
         let vencimiento = document.getElementById('pre-fecha').value || null;
+
+        if (!isFinite(monto) || monto < 0) {
+            window.UI.showAppAlert("Monto Inválido", "Ingresá un presupuesto numérico mayor o igual a cero.");
+            return;
+        }
 
         if (vencimiento) {
             const rawDay = vencimiento.split('-')[2] || '10';
@@ -1360,7 +1537,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const num = parseFloat(document.getElementById('edit-budget-amount').value);
         let fechaVenc = document.getElementById('edit-budget-date')?.value || null;
 
-        if (isNaN(num) || num < 0) {
+        if (!isFinite(num) || num < 0) {
             window.UI.showAppAlert("Entrada inválida", "Ingresá un monto numérico positivo.");
             return;
         }
@@ -1422,6 +1599,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const otros = parseFloat(document.getElementById('close-card-otros').value) || 0;
         const moneda = document.getElementById('close-card-moneda').value;
 
+        if (sellos < 0 || intereses < 0 || otros < 0) {
+            window.UI.showAppAlert("Valores Inválidos", "Los cargos de resumen no pueden ser negativos.");
+            return;
+        }
+
         if (sellos === 0 && intereses === 0 && otros === 0) {
             window.UI.showAppAlert("Atención", "Ingresá al menos un cargo en impuestos, intereses o renovación.");
             return;
@@ -1431,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingClosing = state.globalTransData.filter(t => 
             t.cuenta === tarjeta && 
             t.fecha && t.fecha.substring(0, 7) === mesPeriodo &&
-            (t.categoria === 'Impuestos y Sellos' || t.categoria === 'Intereses Financieros' || (t.descripcion || '').toLowerCase().includes('resumen'))
+            (t.categoria === 'Impuestos y Sellos' || t.categoria === 'Intereses Financieros' || t.categoria === 'Servicios Bancarios' || (t.descripcion || '').toLowerCase().includes('resumen'))
         );
 
         const executeClosingInsert = async () => {
@@ -1573,7 +1755,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // GUARDAR EDICIÓN DE MOVIMIENTO
+    // GUARDAR EDICIÓN DE MOVIMIENTO CON SINCRONIZACIÓN COMPLETA DE ASIENTO ESPEJO (AUD-09)
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
@@ -1583,6 +1765,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!t) return;
 
         let numMonto = parseFloat(document.getElementById('edit-form-importe').value) || 0;
+        if (!isFinite(numMonto) || numMonto <= 0) {
+            window.UI.showAppAlert("Importe Inválido", "El importe del movimiento debe ser mayor a cero.");
+            return;
+        }
+
         const esCredito = (document.getElementById('edit-form-es-credito')?.value === 'true');
         
         if (esCredito) {
@@ -1608,7 +1795,7 @@ document.addEventListener('DOMContentLoaded', () => {
             descripcion: document.getElementById('edit-form-concepto').value.trim(), 
             cuenta: document.getElementById('edit-form-metodo').value, 
             categoria: document.getElementById('edit-form-categoria').value, 
-            presupuestado: document.getElementById('edit-form-presupuestado').value || 'SI', 
+            presupuestado: document.getElementById('edit-form-presupuestado').value || 'NO', 
             moneda: nuevaMoneda,
             tipo_cambio: nuevoTipoCambio
         };
@@ -1624,13 +1811,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isGroup) { 
                 const peer = state.globalTransData.find(item => item.transfer_group_id === t.transfer_group_id && item.id !== t.id); 
-                if (peer) { 
+                if (peer) {
+                    if (t.categoria === 'Transferencia Interna' && payload.cuenta === peer.cuenta) {
+                        window.UI.showAppAlert("Operación Inválida", "La cuenta de origen y destino de la transferencia no pueden coincidir.");
+                        if (btnSubmit) {
+                            btnSubmit.disabled = false;
+                            btnSubmit.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Guardar Cambios`;
+                        }
+                        return;
+                    }
+
                     const peerPayload = { fecha: payload.fecha }; 
                     if (t.categoria !== 'Compra/Venta Divisas') { 
                         peerPayload.monto = Math.abs(payload.monto); 
                         peerPayload.moneda = payload.moneda;
                         peerPayload.tipo_cambio = payload.tipo_cambio;
-                    } 
+                    }
+                    // Sincroniza glosas de ambos asientos si cambió la cuenta en una transferencia (AUD-09)
+                    if (t.categoria === 'Transferencia Interna' && payload.cuenta !== t.cuenta) {
+                        if (t.tipo === 'gasto') {
+                            payload.descripcion = `Pase hacia ${peer.cuenta}`;
+                            peerPayload.descripcion = `Pase desde ${payload.cuenta}`;
+                        } else {
+                            payload.descripcion = `Pase desde ${peer.cuenta}`;
+                            peerPayload.descripcion = `Pase hacia ${payload.cuenta}`;
+                        }
+                        updates[0] = _supabase.from('transacciones').update(payload).eq('id', state.editingTransactionId);
+                    }
                     updates.push(_supabase.from('transacciones').update(peerPayload).eq('id', peer.id)); 
                 } 
             }
@@ -1659,6 +1866,11 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const btnSubmit = document.getElementById('btn-audit-adjust-submit');
         const numMonto = parseFloat(document.getElementById('audit-monto').value);
+
+        if (!isFinite(numMonto) || numMonto <= 0) {
+            window.UI.showAppAlert("Importe Inválido", "El importe del ajuste técnico debe ser mayor a cero.");
+            return;
+        }
 
         if (btnSubmit) {
             btnSubmit.disabled = true;
