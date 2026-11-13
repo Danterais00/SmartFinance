@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=7.9';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -12,13 +12,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js';
+} from './state.js?v=7.9';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js';
+} from './financeEngine.js?v=7.9';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -30,10 +30,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js';
-import { exportAuditPDF } from './pdfReport.js';
-import { parseVisaStatement } from './statementImporter.js';
-import { renderChangelogTable } from './changelog.js';
+} from './charts.js?v=7.9';
+import { exportAuditPDF } from './pdfReport.js?v=7.9';
+import { parseVisaStatement } from './statementImporter.js?v=7.9';
+import { renderChangelogTable } from './changelog.js?v=7.9';
 
 let parsedStatementItems = [];
 
@@ -964,9 +964,7 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
                 }
             } else {
                 const matchCat = (tCat === bNombreLower);
-                const matchDesc = tDesc.includes(bNombreLower);
-
-                if (t.tipo === 'gasto' && (matchCat || matchDesc)) {
+                if (t.tipo === 'gasto' && matchCat) {
                     totalPagadoDetectado += Math.abs(tMonto);
                     if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
                 }
@@ -1109,9 +1107,9 @@ async function loadUserDataFromDatabase() {
         const selector = document.getElementById('global-month-selector');
         const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
         const [tRes, bMesRes, bHistRes] = await Promise.all([
-            _supabase.from('transacciones').select('*').order('fecha', { ascending: false }),
-            _supabase.from('categorias').select('*').eq('periodo', activeMonth),
-            _supabase.from('categorias').select('*')
+            _supabase.from('transacciones').select('*').eq('user_id', state.currentUser.id).order('fecha', { ascending: false }),
+            _supabase.from('categorias').select('*').eq('user_id', state.currentUser.id).eq('periodo', activeMonth),
+            _supabase.from('categorias').select('*').eq('user_id', state.currentUser.id)
         ]);
         if (tRes.error) throw tRes.error; if (bMesRes.error) throw bMesRes.error; if (bHistRes.error) throw bHistRes.error;
         state.globalTransData = tRes.data || []; state.globalBudgetData = bMesRes.data || []; state.allBudgetDataHistorico = bHistRes.data || [];
@@ -1223,6 +1221,11 @@ function processStatementFile(file) {
 document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').then((reg) => reg.update());
     initMonthSelector(); fetchMarketData();
+    setInterval(() => {
+        if (!document.hidden && navigator.onLine) {
+            fetchMarketData();
+        }
+    }, 300000);
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
     
     window.addEventListener('online', () => {
@@ -1801,6 +1804,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const isGroup = !!t.transfer_group_id;
+        
+        // AUD-N07: Proteger partida doble en categorías de transferencias
+        if (isGroup && t.categoria === 'Transferencia Interna' && payload.categoria !== 'Transferencia Interna') {
+            window.UI.showAppAlert("Edición Bloqueada", "No podés cambiar la categoría de una transferencia vinculada.");
+            return;
+        }
+
         if (btnSubmit) {
             btnSubmit.disabled = true;
             btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Guardando...`;
