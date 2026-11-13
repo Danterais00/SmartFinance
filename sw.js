@@ -1,15 +1,16 @@
 /**
- * SmartFinance PWA - Service Worker v7.7
+ * SmartFinance PWA - Service Worker v7.6
  * Estrategia: Cache-First para App Shell / Network-Only para APIs y Supabase
  */
 
-const CACHE_NAME = 'smartfinance-cache-v7.7';
+const CACHE_NAME = 'smartfinance-cache-v7.6';
 
+// Recursos estáticos locales y librerías CDN indispensables para arranque offline
 const STATIC_ASSETS = [
     './',
     './index.html',
-    './css/styles.css?v=7.7',
-    './js/app.js?v=7.7',
+    './css/styles.css?v=7.6',
+    './js/app.js?v=7.6',
     './js/state.js',
     './js/financeEngine.js',
     './js/charts.js',
@@ -28,12 +29,14 @@ const STATIC_ASSETS = [
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
 
+// Dominios que NUNCA deben pasar por caché bajo ninguna circunstancia
 const NETWORK_ONLY_PATTERNS = [
     'supabase.co',
     'dolarapi.com',
     'identitytoolkit.googleapis.com'
 ];
 
+// Instalación: Precaching de componentes base
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
@@ -42,6 +45,7 @@ self.addEventListener('install', (event) => {
     );
 });
 
+// Activación: Purga inmediata de versiones anteriores de caché
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
@@ -56,20 +60,24 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+// Interceptor de peticiones de red
 self.addEventListener('fetch', (event) => {
     const request = event.request;
     const url = new URL(request.url);
 
+    // 1. Omitir peticiones que no sean GET (POST/PUT/DELETE directos a Supabase o encolados)
     if (request.method !== 'GET') {
         return;
     }
 
+    // 2. Bypass total para Supabase (Auth/PostgREST/Realtime) y API Macro en vivo
     const isNetworkOnly = NETWORK_ONLY_PATTERNS.some(domain => url.hostname.includes(domain));
     if (isNetworkOnly) {
         event.respondWith(fetch(request));
         return;
     }
 
+    // 3. Navegación principal (HTML): Network-First con fallback a caché offline
     if (request.mode === 'navigate') {
         event.respondWith(
             fetch(request)
@@ -84,6 +92,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // 4. Recursos estáticos (JS, CSS, Fuentes, Iconos): Stale-While-Revalidate
     event.respondWith(
         caches.match(request).then((cachedResponse) => {
             const fetchPromise = fetch(request).then((networkResponse) => {
@@ -93,7 +102,9 @@ self.addEventListener('fetch', (event) => {
                     });
                 }
                 return networkResponse;
-            }).catch(() => {});
+            }).catch(() => {
+                // Silencia errores en caso de falta de conexión si el recurso ya está en caché
+            });
 
             return cachedResponse || fetchPromise;
         })
