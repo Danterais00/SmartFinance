@@ -35,10 +35,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=7.5">
+    <link rel="stylesheet" href="css/styles.css?v=7.7">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=7.5"></script>
+    <script type="module" src="js/app.js?v=7.7"></script>
 </head>
 <body>
 
@@ -49,7 +49,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V7.5</span>
+            <span class="app-ver-tag">PWA CONSOLE V7.7</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -199,12 +199,12 @@
 
                     <div class="input-group">
                         <label>Importe</label>
-                        <input type="number" step="0.01" id="uni-monto" placeholder="0.00" required>
+                        <input type="number" step="0.01" min="0.01" id="uni-monto" placeholder="0.00" required>
                     </div>
 
                     <div class="input-group" id="box-uni-monto-destino" style="display: none;">
                         <label>Importe Equivalente Recibido</label>
-                        <input type="number" step="0.01" id="uni-monto-destino" placeholder="0.00">
+                        <input type="number" step="0.01" min="0.01" id="uni-monto-destino" placeholder="0.00">
                     </div>
 
                     <div class="input-group">
@@ -225,6 +225,11 @@
                     <div class="input-group" id="box-uni-categoria">
                         <label>Categoría Presupuestaria</label>
                         <select id="uni-categoria"></select>
+                    </div>
+
+                    <div class="input-group" id="box-uni-devengamiento" style="display: none;">
+                        <label>Mes de Imputación Presupuestaria (Devengamiento)</label>
+                        <select id="uni-periodo-imputacion"></select>
                     </div>
 
                     <div class="input-group" id="box-uni-pureza" style="display: none;">
@@ -312,7 +317,7 @@
                         </div>
                         <div class="input-group" style="margin: 0;">
                             <label>Meta Asignada ($)</label>
-                            <input type="number" step="0.01" id="pre-mon" placeholder="0.00" required>
+                            <input type="number" step="0.01" min="0" id="pre-mon" placeholder="0.00" required>
                         </div>
                         <div class="input-group" style="margin: 0;">
                             <label>Vencimiento (Opcional)</label>
@@ -482,7 +487,7 @@
                     </div>
                     <div class="input-group">
                         <label>Importe</label>
-                        <input type="number" step="0.01" id="audit-monto" placeholder="0.00" required>
+                        <input type="number" step="0.01" min="0.01" id="audit-monto" placeholder="0.00" required>
                     </div>
                     <div class="input-group">
                         <label>Moneda</label>
@@ -686,7 +691,7 @@
                 </div>
                 <div class="input-group">
                     <label>Importe</label>
-                    <input type="number" step="0.01" id="edit-form-importe" required>
+                    <input type="number" step="0.01" min="0.01" id="edit-form-importe" required>
                 </div>
                 <div class="input-group">
                     <label>Concepto / Detalle</label>
@@ -726,7 +731,7 @@
                 <input type="hidden" id="edit-budget-cat-name">
                 <div class="input-group">
                     <label>Nueva Meta Mensual ($)</label>
-                    <input type="number" step="0.01" id="edit-budget-amount" required placeholder="0.00">
+                    <input type="number" step="0.01" min="0" id="edit-budget-amount" required placeholder="0.00">
                 </div>
                 <div class="input-group">
                     <label>Fecha de Vencimiento (Opcional)</label>
@@ -767,15 +772,15 @@
                 </div>
                 <div class="input-group">
                     <label>Impuestos y Sellos ($)</label>
-                    <input type="number" step="0.01" id="close-card-sellos" placeholder="0.00">
+                    <input type="number" step="0.01" min="0" id="close-card-sellos" placeholder="0.00">
                 </div>
                 <div class="input-group">
                     <label>Intereses Financieros ($)</label>
-                    <input type="number" step="0.01" id="close-card-intereses" placeholder="0.00">
+                    <input type="number" step="0.01" min="0" id="close-card-intereses" placeholder="0.00">
                 </div>
                 <div class="input-group">
                     <label>Cargos de Renovación / Emisión ($)</label>
-                    <input type="number" step="0.01" id="close-card-otros" placeholder="0.00">
+                    <input type="number" step="0.01" min="0" id="close-card-otros" placeholder="0.00">
                 </div>
                 <div style="display:flex; gap:10px; margin-top:15px;">
                     <button type="submit" class="btn" id="btn-card-closing-submit"><i class="fa-solid fa-file-invoice-dollar"></i> Imputar Cargos</button>
