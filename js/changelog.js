@@ -5,6 +5,24 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v7.9",
+        fecha: "2026-11-13",
+        tipo: "FEED MACRO EN VIVO (INFLACIÓN & RIESGO PAÍS)",
+        color: "var(--primary)",
+        icon: "fa-chart-line",
+        archivos: ["js/supabaseClient.js", "sw.js", "js/app.js", "index.html", "js/changelog.js"],
+        descripcion: "Automatización en vivo de los 5 indicadores de la barra macro: conexión a ArgentinaDatos para Inflación IPC mensual (INDEC) y Riesgo País (EMBI+), cálculo dinámico de variaciones diarias para Dólar Oficial, Blue y MEP, persistencia en localStorage del último Dólar MEP como respaldo offline y auto-refresco cada 5 minutos."
+    },
+    {
+        version: "v7.8",
+        fecha: "2026-11-12",
+        tipo: "REVISIÓN INTEGRAL & REFACTOR FINAL (FASE 3)",
+        color: "var(--blue)",
+        icon: "fa-check-double",
+        archivos: ["js/statementImporter.js", "sw.js", "js/state.js", "js/app.js", "js/charts.js", "index.html"],
+        descripcion: "Soporte para múltiples plásticos (titulares y adicionales) en importador de extractos y captura de cargos impositivos de cierre (Otros Conceptos). Eliminación de la cuenta Mercado Pago de las métricas comitentes para evitar duplicación de liquidez. Precaching aislado tolerante a fallos para CDN en Service Worker y control estricto de edición de categorías en asientos vinculados."
+    },
+    {
         version: "v7.7",
         fecha: "2026-11-12",
         tipo: "LÓGICA CONTABLE & AUDITORÍA (FASE 2)",
