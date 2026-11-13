@@ -47,6 +47,7 @@ export const CATEGORIAS_DEFAULT = [
     'Servicios Bancarios',
     'Supermercado',
     'Tarjeta de Crédito Galicia',
+    'Tarjeta de Crédito Mercado Pago',
     'Tarjeta de Crédito Santander',
     'Tenis',
     'Tintorería',
@@ -56,7 +57,7 @@ export const CATEGORIAS_DEFAULT = [
 ];
 
 export const CUENTAS_OPERATIVAS = ["Santander", "Efectivo", "Mercado Pago Dante", "Mercado Pago Lore", "Galicia"];
-export const CUENTAS_COMITENTES = ["Inviu", "Balanz", "Bull Market Brokers", "Mercado Pago Dante"];
+export const CUENTAS_COMITENTES = ["Inviu", "Balanz", "Bull Market Brokers"];
 export const CUENTAS_TARJETAS = ["Tarjeta de Crédito Galicia", "Tarjeta de Crédito Santander", "Tarjeta de Crédito Mercado Pago"];
 export const CUENTAS_SISTEMA_TOTAL = [...new Set([...CUENTAS_OPERATIVAS, ...CUENTAS_COMITENTES, ...CUENTAS_TARJETAS])];
 export const MESES_ES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];

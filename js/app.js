@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=7.9';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=7.8';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -12,13 +12,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=7.9';
+} from './state.js?v=7.8';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=7.9';
+} from './financeEngine.js?v=7.8';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -30,10 +30,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=7.9';
-import { exportAuditPDF } from './pdfReport.js?v=7.9';
-import { parseVisaStatement } from './statementImporter.js?v=7.9';
-import { renderChangelogTable } from './changelog.js?v=7.9';
+} from './charts.js?v=7.8';
+import { exportAuditPDF } from './pdfReport.js?v=7.8';
+import { parseVisaStatement } from './statementImporter.js?v=7.8';
+import { renderChangelogTable } from './changelog.js?v=7.8';
 
 let parsedStatementItems = [];
 
@@ -326,9 +326,34 @@ window.UI = {
         chatBody.scrollTop = chatBody.scrollHeight;
 
         setTimeout(() => {
+            let responseHtml = `<em>[Modo Diseño]</em> Entiendo tu consulta sobre: "<strong>${safeText}</strong>". Próximamente me conectarán a la base de conocimiento de Supabase para responderte con exactitud.`;
+            const queryLower = safeText.toLowerCase();
+            
+            if (queryLower.includes('importo') || queryLower.includes('excel')) {
+                responseHtml = `Para importar tu Excel de Visa:<br><br>1. Ve a "Historial de Movimientos" y tocá <strong>Importar Consumos</strong>.<br>2. Elegí a qué tarjeta corresponden los gastos y en qué mes los vas a pagar.<br>3. Subí el Excel y quitá lo que ya tenías cargado.<br><br>¡Yo me encargo de imputar todo a tu presupuesto!`;
+            } else if (queryLower.includes('duplicada') || queryLower.includes('huérfana') || queryLower.includes('partida doble')) {
+                responseHtml = `En SmartFinance, las transferencias, pagos de tarjeta y compra de divisas usan <strong>partida doble</strong>. Si cargás solo el gasto y no marcás qué cuenta recibe el dinero, el sistema lo marca como "huérfano" porque el dinero parece desaparecer. Siempre usá el botón <strong>Pase / Tarjeta</strong> para estos casos.`;
+            } else if (queryLower.includes('rag') || queryLower.includes('semáforo')) {
+                responseHtml = `El semáforo <strong>RAG</strong> (Red, Amber, Green) te avisa cómo venís con tus metas:<br><br>🟢 <strong>Target:</strong> Gastaste igual o menos de lo planeado.<br>🟡 <strong>Riesgo:</strong> Te pasaste hasta un 10% del presupuesto.<br>🔴 <strong>Fuera:</strong> Excediste tu meta por más de un 10%.`;
+            } else if (queryLower.includes('patrimonio') || queryLower.includes('activos') || queryLower.includes('tengo')) {
+                const m = state.currentMonthMetrics;
+                if (m) {
+                    responseHtml = `Según tu corte al <strong>${m.cutoffDateStr}</strong>:<br><br>• Activos (ARS+USD): <strong>$${Math.round(m.totalActivos).toLocaleString('es-AR')}</strong><br>• Deuda Tarjetas: <strong>$${Math.round(m.deudaTarjetasTotal).toLocaleString('es-AR')}</strong><br>• Patrimonio Neto Real: <strong style="color:var(--primary);">$${Math.round(m.patrimonioNeto).toLocaleString('es-AR')}</strong>.`;
+                } else {
+                    responseHtml = `Por favor recargá la pantalla de Inicio para que pueda leer tus saldos en vivo.`;
+                }
+            } else if (queryLower.includes('deuda') || queryLower.includes('pasivo') || queryLower.includes('tarjeta')) {
+                const m = state.currentMonthMetrics;
+                if (m && m.deudaTarjetasTotal > 0) {
+                    responseHtml = `Tu pasivo total exigible al <strong>${m.cutoffDateStr}</strong> es de <strong style="color:var(--danger);">-$${Math.round(m.deudaTarjetasTotal).toLocaleString('es-AR')}</strong> consolidando todas tus tarjetas.`;
+                } else {
+                    responseHtml = `Actualmente <strong>no tenés deuda exigible</strong> en tarjetas para el período activo.`;
+                }
+            }
+
             chatBody.innerHTML += `
                 <div class="chat-msg bot">
-                    <div class="msg-bubble"><em>[Modo Diseño]</em> Entiendo tu consulta sobre: "<strong>${safeText}</strong>". Próximamente me conectarán a la base de conocimiento de Supabase para responderte con exactitud.</div>
+                    <div class="msg-bubble">${responseHtml}</div>
                     <div class="chat-time">Ahora</div>
                 </div>
             `;
@@ -621,7 +646,7 @@ function recalculateFinancialMetrics() {
         let fechaVenc = catFechaMap[c] || null;
         let commitInfo = commitmentsStatusMap[c] || null;
 
-        if (meta > 0 || gasto > 0) {
+        if (meta > 0 || gasto > 0 || fechaVenc) {
             categoriesMes.push({ 
                 nombre: c, 
                 meta, 
@@ -802,6 +827,10 @@ function renderAccuracyTable(categoriesMes) {
         });
         tbody.dataset.eventsBound = 'true';
     }
+    
+    if (isTruncated) {
+        tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:15px; font-size:11px; font-weight:600;"><i class="fa-solid fa-circle-info"></i> Mostrando 150 de ${list.length} movimientos en este período.</td></tr>`;
+    }
 }
 
 function buildHistoricalChartData() {
@@ -851,7 +880,12 @@ function renderTransactionHistoryTable(dataset) {
         return; 
     }
     
-    list.slice(0, 150).forEach(t => {
+    
+    const maxRows = 150;
+    const isTruncated = list.length > maxRows;
+    const displayList = isTruncated ? list.slice(0, maxRows) : list;
+    
+    displayList.forEach(t => {
         const numMonto = parseFloat(t.monto) || 0;
         const isNegExpense = (t.tipo === 'gasto' && numMonto < 0);
         const isIngreso = (t.tipo === 'ingreso' || isNegExpense);
@@ -896,6 +930,10 @@ function renderTransactionHistoryTable(dataset) {
             }
         });
         tbody.dataset.eventsBound = 'true';
+    }
+    
+    if (isTruncated) {
+        tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:15px; font-size:11px; font-weight:600;"><i class="fa-solid fa-circle-info"></i> Mostrando 150 de ${list.length} movimientos en este período.</td></tr>`;
     }
 }
 
@@ -976,7 +1014,7 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
             totalPagadoDetectado = gastoDirectoMes;
         }
 
-        const isPaid = (totalPagadoDetectado > 0) || (montoPresupuestado <= 0);
+        const isPaid = (montoPresupuestado <= 0) || (totalPagadoDetectado > 0 && totalPagadoDetectado >= montoPresupuestado * 0.95);
 
         statusMap[b.nombre] = {
             isPaid,
@@ -1106,7 +1144,7 @@ async function loadUserDataFromDatabase() {
         populateSelectOptions();
         const selector = document.getElementById('global-month-selector');
         const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
-        const [tRes, bMesRes, bHistRes] = await Promise.all([
+                const [tRes, bMesRes, bHistRes] = await Promise.all([
             _supabase.from('transacciones').select('*').eq('user_id', state.currentUser.id).order('fecha', { ascending: false }),
             _supabase.from('categorias').select('*').eq('user_id', state.currentUser.id).eq('periodo', activeMonth),
             _supabase.from('categorias').select('*').eq('user_id', state.currentUser.id)
@@ -1221,11 +1259,6 @@ function processStatementFile(file) {
 document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').then((reg) => reg.update());
     initMonthSelector(); fetchMarketData();
-    setInterval(() => {
-        if (!document.hidden && navigator.onLine) {
-            fetchMarketData();
-        }
-    }, 300000);
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
     
     window.addEventListener('online', () => {

@@ -62,7 +62,7 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
         } else if (zone === 'x') {
             e.preventDefault();
             const factor = e.deltaY > 0 ? 1.2 : 0.8;
-            zoomPerformanceChart('x', factor);
+            chart.zoom({ x: factor });
         }
     }, { capture: true, passive: false });
 
@@ -228,7 +228,7 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
 
     legend.innerHTML = items.map(item => {
         let fontColor = item.value < 0 ? 'var(--danger)' : '#ffffff';
-        const usdBadge = item.valUSD > 0 
+        const usdBadge = item.valUSD !== 0 
             ? `<span class="sub-usd-val" style="font-size:11px; color:var(--text-muted); font-weight:600; white-space:nowrap; margin-top:2px;">(u$d ${item.valUSD.toFixed(2)})</span>` 
             : '';
 
@@ -281,7 +281,7 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
                     <span>USD: u$d ${saldoUSD.toFixed(2)}</span>
                 </div>
                 <div style="font-size: 11px; color: var(--primary); font-weight: 600;">
-                    Rendimiento Mes: +$${Math.round(rendARS).toLocaleString('es-AR')} ${rendUSD > 0 ? `(+u$d ${rendUSD.toFixed(2)})` : ''}
+                    Rendimiento Mes: ${rendARS >= 0 ? '+' : '-'}$${Math.round(Math.abs(rendARS)).toLocaleString('es-AR')} ${rendUSD !== 0 ? `(${rendUSD > 0 ? '+' : '-'}u$d ${Math.abs(rendUSD).toFixed(2)})` : ''}
                 </div>
             </div>
         `;
@@ -460,12 +460,24 @@ export function renderCategoryHistoryChart(categoryName, monthsCount) {
     const monthSelector = document.getElementById('global-month-selector');
     const activePeriod = monthSelector ? monthSelector.value : getLocalDateString().substring(0, 7);
 
-    const [actY, actM] = activePeriod.split('-').map(Number);
+        const [actY, actM] = activePeriod.split('-').map(Number);
+    
+    // AUD-N08: No promediar meses futuros vacíos
+    const today = new Date();
+    const currY = today.getFullYear();
+    const currM = today.getMonth() + 1;
+    let limitM = actM;
+    let limitY = actY;
+    if (actY > currY || (actY === currY && actM > currM)) {
+        limitM = currM;
+        limitY = currY;
+    }
+
     const mesesAbrev = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
     const timeline = [];
     for (let i = n - 1; i >= 0; i--) {
-        let curM = actM - i;
-        let curY = actY;
+        let curM = limitM - i;
+        let curY = limitY;
         while (curM <= 0) {
             curM += 12;
             curY -= 1;
@@ -860,6 +872,11 @@ export function zoomPerformanceChart(axis, factor) {
 
 export function zoomHistoryChart(factor) {
     if (historyChart) {
-        historyChart.zoom({ y: factor });
+        let curMax = historyChart.options.scales.y.max ?? historyChart.scales.y.max;
+        let newMax = curMax * factor;
+        if (newMax <= 10000) newMax = 10000;
+        historyChart.options.scales.y.min = 0;
+        historyChart.options.scales.y.max = newMax;
+        historyChart.update('none');
     }
 }

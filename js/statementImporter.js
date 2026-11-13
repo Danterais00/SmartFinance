@@ -70,6 +70,7 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
             let currentCardHeader = "";
             let inCardSection = false;
             let tableStarted = false;
+            let inOtrosConceptos = false;
 
             for (let i = 0; i < rawData.length; i++) {
                 const row = rawData[i];
@@ -78,12 +79,46 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                 const col0 = String(row[0] || '').trim();
                 const col1 = String(row[1] || '').trim();
 
+                if (col0.toLowerCase() === 'otros conceptos') {
+                    inOtrosConceptos = true;
+                    inCardSection = false;
+                    tableStarted = false;
+                    continue;
+                }
+
+                if (inOtrosConceptos) {
+                    if (col0.toLowerCase() === 'descripción' || (col0 === '' && col1 === '')) continue;
+                    if (col0.toLowerCase().startsWith('aviso importante') || col0.toLowerCase().startsWith('total')) { inOtrosConceptos = false; continue; }
+                    const monto = parseMonto(row[1]);
+                    if (monto > 0) {
+                        const descImpuesto = `Resumen - ${col0} [Cierre]`;
+                        const isDuplicate = state.globalTransData.some(t => t.cuenta === selectedAccount && t.moneda === 'ARS' && Math.abs(Math.abs(parseFloat(t.monto)) - monto) < 1.0 && (t.fecha && t.fecha.substring(0,7) === targetPeriod) && t.descripcion === descImpuesto);
+                        consumos.push({
+                            id_temp: `imp_${Date.now()}_${i}`,
+                            fecha: targetPeriod ? `${targetPeriod}-01` : lastValidDate,
+                            fechaOriginal: lastValidDate,
+                            monto: monto,
+                            montoRaw: monto,
+                            moneda: 'ARS',
+                            tipo_cambio: 1,
+                            descripcion: `Resumen - ${col0} [Cierre]`,
+                            categoria: 'Impuestos y Sellos',
+                            esPendiente: false,
+                            esCredito: false,
+                            isDuplicate: isDuplicate,
+                            selected: !isDuplicate
+                        });
+                    }
+                    continue;
+                }
+
                 // 1. Detección de una sección formal de tarjeta (Titular, renovación o adicional)
                 // Excluye subtotales y títulos genéricos de cabecera de cuenta
                 if (
-                    col0.toLowerCase().includes('terminada en') && 
-                    col0.toLowerCase().includes('tarjeta de') && 
-                    !col0.toLowerCase().startsWith('subtotal')
+                    col0.toLowerCase().includes('terminada en') &&
+                    (col0.toLowerCase().includes('tarjeta de') || col0.toLowerCase().includes('adicional de')) &&
+                    !col0.toLowerCase().startsWith('subtotal') &&
+                    !col0.toLowerCase().startsWith('total de')
                 ) {
                     currentCardHeader = col0;
                     inCardSection = true;
@@ -104,7 +139,7 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
 
                 // 4. Fin del bloque de consumos del plástico actual:
                 // No abortamos con break; reseteamos el estado para permitir leer siguientes plásticos.
-                if (col0.toLowerCase().startsWith('subtotal') || (col0 === '' && col1 === '')) {
+                if (col0.toLowerCase().startsWith('subtotal') || col0.toLowerCase().startsWith('total de') || (col0 === '' && col1 === '')) {
                     tableStarted = false;
                     inCardSection = false;
                     currentCardHeader = "";
