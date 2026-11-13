@@ -88,14 +88,31 @@ export function executeFinancialAuditEngine() {
         }
     });
 
-    // 4. Auditoría de Posibles Gastos Duplicados (Mismo día, cuenta, categoría y monto)
-    let gastosMes = currentMonthTxs.filter(t => t.tipo === 'gasto' && t.presupuestado !== 'NO_COMPUTA' && t.categoria !== 'Transferencia Interna' && t.categoria !== 'Compra/Venta Divisas');
+    // 4. Auditoría de Posibles Gastos Duplicados (Mismo día, cuenta, categoría, moneda, monto y glosa) (AUD-07)
+    let gastosMes = currentMonthTxs.filter(t => 
+        t.tipo === 'gasto' && 
+        t.presupuestado !== 'NO_COMPUTA' && 
+        t.categoria !== 'Transferencia Interna' && 
+        t.categoria !== 'Compra/Venta Divisas'
+    );
     for (let i = 0; i < gastosMes.length; i++) {
         for (let j = i + 1; j < gastosMes.length; j++) {
             let t1 = gastosMes[i];
             let t2 = gastosMes[j];
-            if (t1.monto === t2.monto && t1.categoria === t2.categoria && t1.cuenta === t2.cuenta && t1.fecha === t2.fecha) {
-                auditFindings.posiblesDuplicados.push(`$${parseFloat(t1.monto).toLocaleString('es-AR')} en ${t1.categoria} (${t1.fecha})`);
+            const mon1 = t1.moneda || 'ARS';
+            const mon2 = t2.moneda || 'ARS';
+            const m1 = parseFloat(t1.monto) || 0;
+            const m2 = parseFloat(t2.monto) || 0;
+
+            if (m1 === m2 && mon1 === mon2 && t1.categoria === t2.categoria && t1.cuenta === t2.cuenta && t1.fecha === t2.fecha) {
+                const desc1 = (t1.descripcion || '').trim().toLowerCase();
+                const desc2 = (t2.descripcion || '').trim().toLowerCase();
+                // Si ambas glosas existen y son distintas (ej. dos peajes o consumos diferentes en resumen mensual), no es duplicado
+                if (desc1 && desc2 && desc1 !== desc2) {
+                    continue;
+                }
+                const sym = mon1 === 'USD' ? 'u$d' : '$';
+                auditFindings.posiblesDuplicados.push(`${sym} ${m1.toLocaleString('es-AR')} en ${t1.categoria} (${t1.fecha})`);
                 auditFindings.score -= 5;
             }
         }
@@ -138,7 +155,8 @@ export function buildUnifiedTransactionBatch(params) {
         moneda,
         pureza,
         excluirGasto,
-        montoDestino
+        montoDestino,
+        periodoImputacion
     } = params;
 
     // Guardarraíles duros de dominio contable (AUD-03)
@@ -186,7 +204,10 @@ export function buildUnifiedTransactionBatch(params) {
             tipo_cambio: (moneda === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1
         });
     } else if (type === 'INGRESO') {
-        // Categoría normalizada al catálogo maestro oficial (AUD-02)
+        // Soporta devengamiento opcional al mes presupuestario elegido (AUD-08)
+        const hasValidAccrual = periodoImputacion && /^\d{4}-\d{2}$/.test(periodoImputacion);
+        const presupTag = hasValidAccrual ? `DEV:${periodoImputacion}` : 'NO';
+
         batch.push({
             tipo: 'ingreso',
             monto: Math.abs(monto),
@@ -194,7 +215,7 @@ export function buildUnifiedTransactionBatch(params) {
             categoria: 'Ingresos Laborales / Honorarios',
             cuenta: origen,
             descripcion: concepto,
-            presupuestado: 'NO',
+            presupuestado: presupTag,
             moneda,
             tipo_cambio: (moneda === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1
         });
@@ -279,6 +300,11 @@ export function buildUnifiedTransactionBatch(params) {
         }
     } else if (type === 'CAMBIO_DIVISAS') {
         const monedaDestino = (moneda === 'ARS') ? 'USD' : 'ARS';
+        // Cotización implícita real pactada en la operación (AUD-05)
+        const implicitFx = (moneda === 'ARS')
+            ? Number((Math.abs(monto) / Math.abs(montoDestino)).toFixed(4))
+            : Number((Math.abs(montoDestino) / Math.abs(monto)).toFixed(4));
+
         batch.push(
             {
                 tipo: 'gasto',
@@ -289,7 +315,7 @@ export function buildUnifiedTransactionBatch(params) {
                 descripcion: concepto,
                 presupuestado: 'NO_COMPUTA',
                 moneda,
-                tipo_cambio: (moneda === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1,
+                tipo_cambio: (moneda === 'USD') ? implicitFx : 1,
                 transfer_group_id: transferGroupId
             },
             {
@@ -301,7 +327,7 @@ export function buildUnifiedTransactionBatch(params) {
                 descripcion: concepto,
                 presupuestado: 'NO',
                 moneda: monedaDestino,
-                tipo_cambio: (monedaDestino === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1,
+                tipo_cambio: (monedaDestino === 'USD') ? implicitFx : 1,
                 transfer_group_id: transferGroupId
             }
         );
