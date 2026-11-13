@@ -1,22 +1,22 @@
 /**
- * SmartFinance PWA - Service Worker v7.7
+ * SmartFinance PWA - Service Worker v7.9
  * Estrategia: Cache-First para App Shell / Network-Only para APIs y Supabase
  */
 
-const CACHE_NAME = 'smartfinance-cache-v7.7';
+const CACHE_NAME = 'smartfinance-cache-v7.9';
 
 const STATIC_ASSETS = [
     './',
     './index.html',
-    './css/styles.css?v=7.7',
-    './js/app.js?v=7.7',
-    './js/state.js',
-    './js/financeEngine.js',
-    './js/charts.js',
-    './js/statementImporter.js',
-    './js/pdfReport.js',
-    './js/changelog.js',
-    './js/supabaseClient.js',
+    './css/styles.css?v=7.9',
+    './js/app.js?v=7.9',
+    './js/state.js?v=7.9',
+    './js/financeEngine.js?v=7.9',
+    './js/charts.js?v=7.9',
+    './js/statementImporter.js?v=7.9',
+    './js/pdfReport.js?v=7.9',
+    './js/changelog.js?v=7.9',
+    './js/supabaseClient.js?v=7.9',
     './manifest.json',
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
     'https://cdn.jsdelivr.net/npm/chart.js',
@@ -31,13 +31,25 @@ const STATIC_ASSETS = [
 const NETWORK_ONLY_PATTERNS = [
     'supabase.co',
     'dolarapi.com',
+    'argentinadatos.com',
     'identitytoolkit.googleapis.com'
 ];
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(STATIC_ASSETS);
+            const localAssets = STATIC_ASSETS.filter(url => url.startsWith('./'));
+            const cdnAssets = STATIC_ASSETS.filter(url => url.startsWith('http'));
+            
+            const localPromise = cache.addAll(localAssets);
+            
+            const cdnPromises = cdnAssets.map(url => 
+                fetch(url).then(res => {
+                    if (res.ok) cache.put(url, res);
+                }).catch(err => console.warn('CDN offline during install:', url))
+            );
+            
+            return Promise.all([localPromise, ...cdnPromises]);
         }).then(() => self.skipWaiting())
     );
 });
