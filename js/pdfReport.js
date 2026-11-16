@@ -1,9 +1,13 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, getLocalDateString } from './state.js';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.1';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.1';
 
 export function exportAuditPDF(auditResult) {
     if (!window.jspdf || !window.jspdf.jsPDF) {
-        alert("La librería jsPDF aún se está cargando. Intenta de nuevo en unos segundos.");
+        if (window.UI && typeof window.UI.showAppAlert === 'function') {
+            window.UI.showAppAlert("Cargando Librería", "La librería jsPDF aún se está cargando. Intentá de nuevo en unos segundos.");
+        } else {
+            alert("La librería jsPDF aún se está cargando. Intenta de nuevo en unos segundos.");
+        }
         return;
     }
 
@@ -11,7 +15,10 @@ export function exportAuditPDF(auditResult) {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
     const selector = document.getElementById('global-month-selector');
-    const periodo = selector ? selector.options[selector.selectedIndex].text : getLocalDateString().substring(0, 7);
+    const periodo = (selector && selector.selectedIndex >= 0)
+        ? selector.options[selector.selectedIndex].text
+        : getLocalDateString().substring(0, 7);
+    const usuarioEmail = (state.currentUser && state.currentUser.email) ? state.currentUser.email : 'Usuario';
 
     // 1. Encabezado institucional
     doc.setFillColor(20, 20, 31);
@@ -28,9 +35,9 @@ export function exportAuditPDF(auditResult) {
     doc.text(`Informe Financiero y Auditoría de Cierre - ${periodo}`, 14, 26);
 
     doc.setFontSize(8);
-    doc.text(`Emitido el: ${getLocalDateString()} | Usuario: ${state.currentUser ? state.currentUser.email : 'Dante'}`, 14, 32);
+    doc.text(`Emitido el: ${getLocalDateString()} | Usuario: ${usuarioEmail}`, 14, 32);
 
-    // 2. Resumen Ejecutivo (Paridad 1:1 con state.currentMonthMetrics del Dashboard) (AUD-06)
+    // 2. Resumen Ejecutivo (Paridad 1:1 con state.currentMonthMetrics del Dashboard)
     let y = 46;
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
@@ -56,11 +63,12 @@ export function exportAuditPDF(auditResult) {
     }
 
     let gastoComputado = 0;
-    let metaMes = 0;
     (state.cachedCategoriesDataForChart || []).forEach(c => {
         gastoComputado += c.gasto;
-        metaMes += c.meta;
     });
+    const metaMes = (m.totalPlanificadoMes !== undefined)
+        ? m.totalPlanificadoMes
+        : (state.cachedCategoriesDataForChart || []).reduce((acc, c) => acc + (parseFloat(c.meta) || 0), 0);
 
     const ingresosMes = m.totalIngresosMes !== undefined ? m.totalIngresosMes : 0;
     const gastosRealesTotales = m.totalEgresosRealesMes !== undefined ? m.totalEgresosRealesMes : gastoComputado;
@@ -68,7 +76,7 @@ export function exportAuditPDF(auditResult) {
     const disponiblePresupuestario = metaMes - gastoComputado;
 
     const summaryTableData = [
-        ["Patrimonio Neto al Cierre del Período", `$${Math.round(patrimonioNeto).toLocaleString('es-AR')}`],
+        ["Patrimonio Neto al Cierre del Período", `${patrimonioNeto < 0 ? '-' : ''}$${Math.round(Math.abs(patrimonioNeto)).toLocaleString('es-AR')}`],
         ["Activos Totales (Bancos + Inversiones)", `$${Math.round(totalActivos).toLocaleString('es-AR')}`],
         ["Pasivo Exigible (Tarjetas de Crédito)", deudaTarjetas > 0 ? `-$${Math.round(deudaTarjetas).toLocaleString('es-AR')}` : (deudaTarjetas < 0 ? `+$${Math.round(Math.abs(deudaTarjetas)).toLocaleString('es-AR')} (A favor)` : '$0')],
         ["Ingresos Reales del Período", `$${Math.round(ingresosMes).toLocaleString('es-AR')}`],
@@ -85,7 +93,19 @@ export function exportAuditPDF(auditResult) {
         styles: { font: 'helvetica', fontSize: 9.5, cellPadding: 3 },
         columnStyles: {
             0: { fontStyle: 'bold', textColor: [55, 65, 81], cellWidth: 110 },
-            1: { halign: 'right', fontStyle: 'bold', textColor: [16, 185, 129] }
+            1: { halign: 'right', fontStyle: 'bold' }
+        },
+        didParseCell: function(data) {
+            if (data.section === 'body' && data.column.index === 1) {
+                const text = String(data.cell.raw || '');
+                if (text === '$0' || text === '+$0' || text === '-$0') {
+                    data.cell.styles.textColor = [107, 114, 128]; // Gris neutro
+                } else if (text.startsWith('-$')) {
+                    data.cell.styles.textColor = [239, 68, 68];   // Rojo (déficit, pasivo o desvío negativo)
+                } else {
+                    data.cell.styles.textColor = [16, 185, 129];  // Verde (superávit / saldo positivo)
+                }
+            }
         }
     });
 
@@ -96,16 +116,19 @@ export function exportAuditPDF(auditResult) {
     doc.setTextColor(30, 41, 59);
     doc.text("2. Desempeño Presupuestario por Categoría (RAG)", 14, y);
 
-    const categoriesTableData = (state.cachedCategoriesDataForChart || []).map(c => {
-        const disp = c.meta - c.gasto;
-        return [
-            c.nombre,
-            `$${Math.round(c.meta).toLocaleString('es-AR')}`,
-            `$${Math.round(c.gasto).toLocaleString('es-AR')}`,
-            `${disp >= 0 ? '+' : '-'}$${Math.round(Math.abs(disp)).toLocaleString('es-AR')}`,
-            c.estado
-        ];
-    });
+    const rawCategories = state.cachedCategoriesDataForChart || [];
+    const categoriesTableData = rawCategories.length > 0
+        ? rawCategories.map(c => {
+            const disp = c.meta - c.gasto;
+            return [
+                c.nombre,
+                `$${Math.round(c.meta).toLocaleString('es-AR')}`,
+                `$${Math.round(c.gasto).toLocaleString('es-AR')}`,
+                `${disp >= 0 ? '+' : '-'}$${Math.round(Math.abs(disp)).toLocaleString('es-AR')}`,
+                c.estado
+            ];
+        })
+        : [['Sin categorías presupuestadas ni consumos registrados en este período.', '-', '-', '-', '-']];
 
     doc.autoTable({
         startY: y + 4,
@@ -129,10 +152,10 @@ export function exportAuditPDF(auditResult) {
         }
     });
 
-    // 4. Dictamen de Auditoría
+    // 4. Dictamen de Auditoría Pre-Flight
     if (auditResult) {
         y = doc.lastAutoTable.finalY + 10;
-        if (y > 240) {
+        if (y > 220) {
             doc.addPage();
             y = 20;
         }
@@ -142,12 +165,18 @@ export function exportAuditPDF(auditResult) {
         doc.setTextColor(30, 41, 59);
         doc.text("3. Dictamen de Auditoría Pre-Flight", 14, y);
 
+        const vencimientosList = auditResult.vencimientosImpagos || [];
+        const vencimientosText = vencimientosList.length === 0
+            ? "Todos los vencimientos al día"
+            : `${vencimientosList.length} pendientes (${vencimientosList.join(', ')})`;
+
         const auditData = [
             ["Score de Integridad", `${auditResult.score} / 100 (${auditResult.ratingText})`],
             ["Partida Doble en Transferencias", auditResult.transferenciasHuerfanas.length === 0 ? "Cuadrada (Sin desfasajes)" : `${auditResult.transferenciasHuerfanas.length} huérfanas`],
             ["Cajas Operativas en Rojo", auditResult.cuentasEnRojo.length === 0 ? "Todas en saldo positivo" : auditResult.cuentasEnRojo.join(', ')],
             ["Deudas en Tarjetas de Crédito", auditResult.tarjetasConDeuda.length === 0 ? "Sin saldo exigible pendiente" : auditResult.tarjetasConDeuda.join(', ')],
-            ["Consumos Duplicados", auditResult.posiblesDuplicados.length === 0 ? "Sin duplicados detectados" : `${auditResult.posiblesDuplicados.length} alertas`]
+            ["Consumos Duplicados", auditResult.posiblesDuplicados.length === 0 ? "Sin duplicados detectados" : `${auditResult.posiblesDuplicados.length} alertas`],
+            ["Compromisos y Vencimientos", vencimientosText]
         ];
 
         doc.autoTable({
@@ -160,6 +189,19 @@ export function exportAuditPDF(auditResult) {
                 1: { textColor: [31, 41, 55] }
             }
         });
+    }
+
+    // 5. Pie de página institucional con cotización MEP aplicada
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setTextColor(120, 120, 130);
+        doc.text(
+            `Cotización referencial Dólar MEP aplicada: $${Number(TIPO_CAMBIO_PRESUPUESTO).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Página ${i} de ${pageCount}`,
+            14,
+            290
+        );
     }
 
     doc.save(`SmartFinance_Reporte_${periodo.replace(/\s+/g, '_')}.pdf`);
