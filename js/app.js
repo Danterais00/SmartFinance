@@ -1,4 +1,4 @@
-mport { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
