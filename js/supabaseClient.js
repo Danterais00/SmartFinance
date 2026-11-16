@@ -1,6 +1,6 @@
 /**
  * SmartFinance - Módulo de Cliente Supabase & Feed Financiero Macro en Vivo
- * Archivo: js/supabaseClient.js (v8.2)
+ * Archivo: js/supabaseClient.js (v8.3)
  */
 
 export const SUPABASE_URL = "https://uszneehbjssjractaleh.supabase.co";
@@ -339,7 +339,8 @@ export async function fetchMarketData() {
                 varBlue,
                 varMep,
                 ipcCard,
-                rpCard
+                rpCard,
+                updatedAt: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
             }));
         } catch (e) {}
 
@@ -364,17 +365,18 @@ export async function fetchMarketData() {
     } catch (error) {
         console.warn('Fallo en la sincronización en vivo del mercado, utilizando último respaldo:', error);
 
-        if (statusTag) {
-            statusTag.innerHTML = `<span class="status-pulse-dot" style="background:var(--warning);"></span> MODO RESPALDO`;
-            statusTag.style.borderColor = 'var(--warning)';
-            statusTag.style.color = 'var(--warning)';
-        }
-
         let snap = null;
         try {
             snap = JSON.parse(localStorage.getItem('sf_last_macro_snapshot') || 'null');
         } catch (e) {
             snap = null;
+        }
+
+        if (statusTag) {
+            const timeLabel = (snap && snap.updatedAt) ? ` (${snap.updatedAt})` : '';
+            statusTag.innerHTML = `<span class="status-pulse-dot" style="background:var(--warning);"></span> MODO RESPALDO${timeLabel}`;
+            statusTag.style.borderColor = 'var(--warning)';
+            statusTag.style.color = 'var(--warning)';
         }
 
         if (container) {
