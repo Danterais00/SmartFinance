@@ -18,7 +18,7 @@ const PREDICTIVE_CATEGORIES = [
 ];
 
 export function matchUserCategory(desc, userCategories = []) {
-    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Otros Gastos (Sin Categorizar)';
+    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Otros';
     const d = desc.toLowerCase();
 
     for (let cat of userCategories) {
@@ -37,7 +37,7 @@ export function matchUserCategory(desc, userCategories = []) {
     }
 
     const generic = userCategories.find(c => /varios|otros|general/i.test(c));
-    return generic || userCategories[0];
+    return generic || 'Otros';
 }
 
 function parseMonto(val) {
