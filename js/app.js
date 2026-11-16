@@ -1165,7 +1165,7 @@ function updateStagingTotals() {
         } 
     });
     const lbl = document.getElementById('import-totals-label');
-    if (lbl) lbl.innerText = `${count} selected | $${Math.round(totalARS).toLocaleString('es-AR')} ARS | u$d ${totalUSD.toFixed(2)} USD`;
+    if (lbl) lbl.innerText = `${count} seleccionados | $${Math.round(totalARS).toLocaleString('es-AR')} ARS | u$d ${totalUSD.toFixed(2)} USD`;
 }
 
 function renderStagingTable() {
@@ -1653,7 +1653,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingClosing = state.globalTransData.filter(t => 
             t.cuenta === tarjeta && 
             t.fecha && t.fecha.substring(0, 7) === mesPeriodo &&
-            (t.categoria === 'Impuestos y Sellos' || t.categoria === 'Intereses Financieros' || t.categoria === 'Servicios Bancarios' || (t.descripcion || '').toLowerCase().includes('resumen'))
+            (t.categoria === 'Impuestos cuentas bancarias' || t.categoria === 'Intereses Financieros' || t.categoria === 'Servicios Bancarios' || (t.descripcion || '').toLowerCase().includes('resumen'))
         );
 
         const executeClosingInsert = async () => {
@@ -1795,7 +1795,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // GUARDAR EDICIÓN DE MOVIMIENTO CON SINCRONIZACIÓN COMPLETA DE ASIENTO ESPEJO (AUD-09)
+    // GUARDAR EDICIÓN DE MOVIMIENTO CON SINCRONIZACIÓN COMPLETA DE ASIENTO ESPEJO
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
@@ -1842,7 +1842,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isGroup = !!t.transfer_group_id;
         
-        // AUD-N07: Proteger partida doble en categorías de transferencias
+        // Proteger partida doble en categorías de transferencias
         if (isGroup && t.categoria === 'Transferencia Interna' && payload.categoria !== 'Transferencia Interna') {
             window.UI.showAppAlert("Edición Bloqueada", "No podés cambiar la categoría de una transferencia vinculada.");
             return;
@@ -1874,7 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         peerPayload.moneda = payload.moneda;
                         peerPayload.tipo_cambio = payload.tipo_cambio;
                     }
-                    // Sincroniza glosas de ambos asientos si cambió la cuenta en una transferencia (AUD-09)
+                    // Sincroniza glosas de ambos asientos si cambió la cuenta en una transferencia
                     if (t.categoria === 'Transferencia Interna' && payload.cuenta !== t.cuenta) {
                         if (t.tipo === 'gasto') {
                             payload.descripcion = `Pase hacia ${peer.cuenta}`;
