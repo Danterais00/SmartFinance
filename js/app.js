@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -12,13 +12,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=8.2';
+} from './state.js?v=8.3';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=8.2';
+} from './financeEngine.js?v=8.3';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -30,10 +30,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=8.2';
-import { exportAuditPDF } from './pdfReport.js?v=8.2';
-import { parseVisaStatement } from './statementImporter.js?v=8.2';
-import { renderChangelogTable } from './changelog.js?v=8.2';
+} from './charts.js?v=8.3';
+import { exportAuditPDF } from './pdfReport.js?v=8.3';
+import { parseVisaStatement } from './statementImporter.js?v=8.3';
+import { renderChangelogTable } from './changelog.js?v=8.3';
 
 let parsedStatementItems = [];
 
@@ -234,6 +234,8 @@ window.UI = {
         const fMoneda = document.getElementById('edit-form-moneda');
         const fPresup = document.getElementById('edit-form-presupuestado');
         const fEsCredito = document.getElementById('edit-form-es-credito');
+        const fExcluir = document.getElementById('edit-form-excluir');
+        const boxEditExcluir = document.getElementById('box-edit-excluir');
 
         const rawMonto = parseFloat(t.monto) || 0;
 
@@ -256,6 +258,16 @@ window.UI = {
         if (fMoneda) fMoneda.value = t.moneda || 'ARS';
         if (fPresup) fPresup.value = t.presupuestado || 'SI';
         if (fEsCredito) fEsCredito.value = (rawMonto < 0) ? 'true' : 'false';
+        const esOperacionNoPresupuestable = (
+            t.tipo !== 'gasto' ||
+            !!t.transfer_group_id ||
+            t.categoria === 'Transferencia Interna' ||
+            t.categoria === 'Compra/Venta Divisas' ||
+            t.categoria === 'Pago Tarjeta de Crédito' ||
+            t.categoria === 'Ajuste Técnico Saldos'
+        );
+        if (boxEditExcluir) boxEditExcluir.style.display = esOperacionNoPresupuestable ? 'none' : 'flex';
+        if (fExcluir) fExcluir.checked = (t.presupuestado === 'NO_COMPUTA');
 
         window.UI.openModal('edit-transaction-modal');
     },
@@ -1479,10 +1491,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!navigator.onLine) {
                 saveOfflineQueue(batch);
-                window.UI.showToast("Operación encolada offline");
+                const optimisticRows = batch.map((row, idx) => ({
+                    ...row,
+                    id: `offline_${Date.now()}_${idx}`
+                }));
+                state.globalTransData = [...optimisticRows, ...state.globalTransData];
+                recalculateFinancialMetrics();
+                applyFilters();
+                window.UI.showToast("Operación guardada localmente (se sincronizará al volver la red)");
                 if (elMonto) { elMonto.value = ""; elMonto.focus(); }
                 if (elConcepto) elConcepto.value = "";
                 if (elMontoDestino) elMontoDestino.value = "";
+                if (elPeriodoImputacion) elPeriodoImputacion.value = "";
                 return;
             }
 
@@ -1652,7 +1672,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingClosing = state.globalTransData.filter(t => 
             t.cuenta === tarjeta && 
             t.fecha && t.fecha.substring(0, 7) === mesPeriodo &&
-            (t.categoria === 'Impuestos y Sellos' || t.categoria === 'Intereses Financieros' || t.categoria === 'Servicios Bancarios' || (t.descripcion || '').toLowerCase().includes('resumen'))
+            (t.categoria === 'Impuestos cuentas bancarias' || t.categoria === 'Impuestos y Sellos' || t.categoria === 'Intereses Financieros' || t.categoria === 'Servicios Bancarios' || (t.descripcion || '').toLowerCase().includes('resumen'))
         );
 
         const executeClosingInsert = async () => {
@@ -1828,13 +1848,25 @@ document.addEventListener('DOMContentLoaded', () => {
             nuevoTipoCambio = 1;
         }
 
+        const elEditExcluir = document.getElementById('edit-form-excluir');
+        const boxEditExcluirVis = document.getElementById('box-edit-excluir');
+        let nuevoPresupuestado = document.getElementById('edit-form-presupuestado').value || 'NO';
+        if (boxEditExcluirVis && boxEditExcluirVis.style.display !== 'none' && elEditExcluir) {
+            if (elEditExcluir.checked) {
+                nuevoPresupuestado = 'NO_COMPUTA';
+            } else {
+                const catElegida = document.getElementById('edit-form-categoria').value;
+                nuevoPresupuestado = state.globalBudgetData.some(b => b.nombre === catElegida && parseFloat(b.presupuesto_mensual) > 0) ? 'SI' : 'NO';
+            }
+        }
+
         const payload = { 
             fecha: document.getElementById('edit-form-fecha').value, 
             monto: numMonto, 
             descripcion: document.getElementById('edit-form-concepto').value.trim(), 
             cuenta: document.getElementById('edit-form-metodo').value, 
             categoria: document.getElementById('edit-form-categoria').value, 
-            presupuestado: document.getElementById('edit-form-presupuestado').value || 'NO', 
+            presupuestado: nuevoPresupuestado, 
             moneda: nuevaMoneda,
             tipo_cambio: nuevoTipoCambio
         };
