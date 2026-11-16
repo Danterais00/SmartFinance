@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v8.2",
+        fecha: "2026-11-16",
+        tipo: "HOLISTIC MASTER RELEASE",
+        color: "var(--primary)",
+        icon: "fa-rocket",
+        archivos: ["js/changelog.js", "sw.js", "index.html", "js/app.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Consolidación holística de la arquitectura: 1) Reincorporación de los Gráficos de Alta Resolución y el 'Resumen Ejecutivo Global' (Excesos y Ajustes) en el Reporte PDF mediante canvas offscreen; 2) Limpieza del catálogo de categorías (unificación de 'Impuestos y Sellos' a 'Impuestos cuentas bancarias' y consolidación de 'Otros'); 3) Sincronización del módulo Supabase para obtener Inflación y Riesgo País de la API real de ArgentinaDatos sin hardcodeos; y 4) Unificación final de caché PWA bajo etiqueta v8.2."
+    },
+    {
         version: "v8.1",
         fecha: "2026-11-15",
         tipo: "HOTFIX & PARIDAD PDF",
@@ -21,15 +30,6 @@ export const APP_CHANGELOG = [
         icon: "fa-check-double",
         archivos: ["js/statementImporter.js", "sw.js", "js/state.js", "js/app.js", "js/charts.js", "index.html"],
         descripcion: "Consolidación matemática final y QA funcional: soporte integrado para plásticos adicionales y cierres de impuestos, deduplicación estricta de percepciones, eliminación de falsos positivos en alertas de pago parcial, corte de meses futuros vacíos en RAG, y conexión del chat de Soporte AI con el estado patrimonial y deuda en vivo del usuario."
-    },
-    {
-        version: "v7.9",
-        fecha: "2026-11-13",
-        tipo: "FEED MACRO EN VIVO (INFLACIÓN & RIESGO PAÍS)",
-        color: "var(--primary)",
-        icon: "fa-chart-line",
-        archivos: ["js/supabaseClient.js", "sw.js", "js/app.js", "index.html", "js/changelog.js"],
-        descripcion: "Automatización en vivo de los 5 indicadores de la barra macro: conexión a ArgentinaDatos para Inflación IPC mensual (INDEC) y Riesgo País (EMBI+), cálculo dinámico de variaciones diarias para Dólar Oficial, Blue y MEP, persistencia en localStorage del último Dólar MEP como respaldo offline y auto-refresco cada 5 minutos."
     },
     {
         version: "v7.8",
