@@ -1,22 +1,22 @@
 /**
- * SmartFinance PWA - Service Worker v8.0
+ * SmartFinance PWA - Service Worker v7.8
  * Estrategia: Cache-First para App Shell / Network-Only para APIs y Supabase
  */
 
-const CACHE_NAME = 'smartfinance-cache-v8.0';
+const CACHE_NAME = 'smartfinance-cache-v7.8';
 
 const STATIC_ASSETS = [
     './',
     './index.html',
-    './css/styles.css?v=8.0',
-    './js/app.js?v=8.0',
-    './js/state.js?v=8.0',
-    './js/financeEngine.js?v=8.0',
-    './js/charts.js?v=8.0',
-    './js/statementImporter.js?v=8.0',
-    './js/pdfReport.js?v=8.0',
-    './js/changelog.js?v=8.0',
-    './js/supabaseClient.js?v=8.0',
+    './css/styles.css?v=7.8',
+    './js/app.js?v=7.8',
+    './js/state.js',
+    './js/financeEngine.js',
+    './js/charts.js',
+    './js/statementImporter.js',
+    './js/pdfReport.js',
+    './js/changelog.js',
+    './js/supabaseClient.js',
     './manifest.json',
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
     'https://cdn.jsdelivr.net/npm/chart.js',
@@ -31,7 +31,6 @@ const STATIC_ASSETS = [
 const NETWORK_ONLY_PATTERNS = [
     'supabase.co',
     'dolarapi.com',
-    'argentinadatos.com',
     'identitytoolkit.googleapis.com'
 ];
 
