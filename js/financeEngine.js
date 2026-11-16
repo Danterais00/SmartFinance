@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.2';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.3';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
 
 /**
  * Generador estándar de UUID v4 compatible al 100% con el tipo de datos UUID de PostgreSQL.
@@ -75,14 +75,19 @@ export function executeFinancialAuditEngine() {
         }
     });
 
-    // 3. Auditoría de Pasivos Exigibles en Tarjetas de Crédito
+    // 3. Auditoría de Pasivos Exigibles en Tarjetas de Crédito (Evaluación neta bimonetaria AUD-12)
     CUENTAS_TARJETAS.forEach(tarjeta => {
         const dARS = state.creditCardDebtARS[tarjeta] || 0;
         const dUSD = state.creditCardDebtUSD[tarjeta] || 0;
-        if (dARS > 0 || dUSD > 0) {
+        const netEquivARS = dARS + (dUSD * TIPO_CAMBIO_PRESUPUESTO);
+        if (netEquivARS > 100) {
             let detalle = [];
-            if (dARS > 0) detalle.push(`$${Math.round(dARS).toLocaleString('es-AR')}`);
-            if (dUSD > 0) detalle.push(`u$d ${dUSD.toFixed(2)}`);
+            if (dARS > 0 && dUSD > 0) {
+                detalle.push(`$${Math.round(dARS).toLocaleString('es-AR')}`);
+                detalle.push(`u$d ${dUSD.toFixed(2)}`);
+            } else {
+                detalle.push(`$${Math.round(netEquivARS).toLocaleString('es-AR')} equiv.`);
+            }
             auditFindings.tarjetasConDeuda.push(`${tarjeta} (${detalle.join(' + ')})`);
             auditFindings.score -= 5;
         }
@@ -346,7 +351,7 @@ export function buildCreditCardClosingBatch(params) {
             tipo: 'gasto',
             monto: impuestosSellos,
             fecha,
-            categoria: 'Impuestos y Sellos',
+            categoria: 'Impuestos cuentas bancarias',
             cuenta: tarjeta,
             descripcion: `Resumen ${tarjeta} - Impuestos y Sellos`,
             presupuestado: 'SI',
