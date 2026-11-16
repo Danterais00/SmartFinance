@@ -1,26 +1,27 @@
 /**
- * SmartFinance PWA - Service Worker v8.1
+ * SmartFinance PWA - Service Worker v8.2
  * Estrategia: Cache-First para App Shell / Network-Only para APIs y Supabase
  */
 
-const CACHE_NAME = 'smartfinance-cache-v8.1';
+const CACHE_NAME = 'smartfinance-cache-v8.2';
 
 const STATIC_ASSETS = [
     './',
     './index.html',
-    './css/styles.css?v=8.1',
-    './js/app.js?v=8.1',
-    './js/state.js?v=8.1',
-    './js/financeEngine.js?v=8.1',
-    './js/charts.js?v=8.1',
-    './js/statementImporter.js?v=8.1',
-    './js/pdfReport.js?v=8.1',
-    './js/changelog.js?v=8.1',
-    './js/supabaseClient.js?v=8.1',
+    './css/styles.css?v=8.2',
+    './js/app.js?v=8.2',
+    './js/state.js?v=8.2',
+    './js/financeEngine.js?v=8.2',
+    './js/charts.js?v=8.2',
+    './js/statementImporter.js?v=8.2',
+    './js/pdfReport.js?v=8.2',
+    './js/changelog.js?v=8.2',
+    './js/supabaseClient.js?v=8.2',
     './manifest.json',
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
     'https://cdn.jsdelivr.net/npm/chart.js',
     'https://cdn.jsdelivr.net/npm/hammerjs@2.0.8',
+    'https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js',
     'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',
