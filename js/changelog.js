@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v8.3",
+        fecha: "2026-11-16",
+        tipo: "AUDITORÍA INTEGRAL & BLINDAJE QA",
+        color: "var(--primary)",
+        icon: "fa-shield-halved",
+        archivos: ["sw.js", "index.html", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Remediación holística de hallazgos AUD-10 a AUD-18: unificación definitiva de 'Impuestos cuentas bancarias' y 'Otros' en cierre manual de tarjetas y catálogo; corrección de variable de desvío en Reporte PDF (v8.3); evaluación bimonetaria neta de deuda en tarjetas; paridad entre centro del gráfico Donut y tarjeta Liquidez Inmediata; filtrado de filas en $0,00 y soporte de reintegros impositivos en importador Excel; actualización visual inmediata en modo offline; selector de exclusión presupuestaria al editar gastos; y mejoras de accesibilidad y respaldo macro."
+    },
+    {
         version: "v8.2",
         fecha: "2026-11-16",
         tipo: "HOLISTIC MASTER RELEASE",
