@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=7.8';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.1';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -12,13 +12,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=7.8';
+} from './state.js?v=8.1';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=7.8';
+} from './financeEngine.js?v=8.1';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -30,10 +30,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=7.8';
-import { exportAuditPDF } from './pdfReport.js?v=7.8';
-import { parseVisaStatement } from './statementImporter.js?v=7.8';
-import { renderChangelogTable } from './changelog.js?v=7.8';
+} from './charts.js?v=8.1';
+import { exportAuditPDF } from './pdfReport.js?v=8.1';
+import { parseVisaStatement } from './statementImporter.js?v=8.1';
+import { renderChangelogTable } from './changelog.js?v=8.1';
 
 let parsedStatementItems = [];
 
@@ -828,9 +828,7 @@ function renderAccuracyTable(categoriesMes) {
         tbody.dataset.eventsBound = 'true';
     }
     
-    if (isTruncated) {
-        tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:15px; font-size:11px; font-weight:600;"><i class="fa-solid fa-circle-info"></i> Mostrando 150 de ${list.length} movimientos en este período.</td></tr>`;
-    }
+
 }
 
 function buildHistoricalChartData() {
@@ -1152,7 +1150,7 @@ async function loadUserDataFromDatabase() {
         if (tRes.error) throw tRes.error; if (bMesRes.error) throw bMesRes.error; if (bHistRes.error) throw bHistRes.error;
         state.globalTransData = tRes.data || []; state.globalBudgetData = bMesRes.data || []; state.allBudgetDataHistorico = bHistRes.data || [];
         recalculateFinancialMetrics(); applyFilters();
-    } catch (err) { window.UI.showToast("Error de conexión", true); }
+    } catch (err) { console.error("Error cargando datos:", err); window.UI.showToast(navigator.onLine ? `Error al sincronizar: ${err.message || "Error interno"}` : "Sin conexión a internet", true); }
 }
 
 function updateStagingTotals() {
@@ -1259,6 +1257,11 @@ function processStatementFile(file) {
 document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').then((reg) => reg.update());
     initMonthSelector(); fetchMarketData();
+    setInterval(() => {
+        if (!document.hidden && navigator.onLine) {
+            fetchMarketData();
+        }
+    }, 300000);
     window.addEventListener('market-fx-updated', () => { if (state.currentUser) recalculateFinancialMetrics(); });
     
     window.addEventListener('online', () => {
