@@ -1,5 +1,5 @@
-import { state, getLocalDateString } from './state.js?v=8.2';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
+import { state, getLocalDateString } from './state.js?v=8.3';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
 
 const PREDICTIVE_CATEGORIES = [
     { pattern: /telepeaje|corresur|autopista|ausol|aubasa|camino.*pque|peaje/i, targets: ['peaje', 'transporte', 'auto', 'vehiculo'] },
@@ -18,7 +18,7 @@ const PREDICTIVE_CATEGORIES = [
 ];
 
 export function matchUserCategory(desc, userCategories = []) {
-    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Otros Gastos (Sin Categorizar)';
+    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Otros';
     const d = desc.toLowerCase();
 
     for (let cat of userCategories) {
@@ -37,7 +37,7 @@ export function matchUserCategory(desc, userCategories = []) {
     }
 
     const generic = userCategories.find(c => /varios|otros|general/i.test(c));
-    return generic || userCategories[0];
+    return generic || 'Otros';
 }
 
 function parseMonto(val) {
@@ -89,22 +89,23 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                 if (inOtrosConceptos) {
                     if (col0.toLowerCase() === 'descripción' || (col0 === '' && col1 === '')) continue;
                     if (col0.toLowerCase().startsWith('aviso importante') || col0.toLowerCase().startsWith('total')) { inOtrosConceptos = false; continue; }
-                    const monto = parseMonto(row[1]);
-                    if (monto > 0) {
+                    const montoRawImp = parseMonto(row[1]);
+                    const montoAbsImp = Math.abs(montoRawImp);
+                    if (montoAbsImp > 0) {
                         const descImpuesto = `Resumen - ${col0} [Cierre]`;
-                        const isDuplicate = state.globalTransData.some(t => t.cuenta === selectedAccount && t.moneda === 'ARS' && Math.abs(Math.abs(parseFloat(t.monto)) - monto) < 1.0 && (t.fecha && t.fecha.substring(0,7) === targetPeriod) && t.descripcion === descImpuesto);
+                        const isDuplicate = state.globalTransData.some(t => t.cuenta === selectedAccount && t.moneda === 'ARS' && Math.abs(Math.abs(parseFloat(t.monto)) - montoAbsImp) < 1.0 && (t.fecha && t.fecha.substring(0,7) === targetPeriod) && t.descripcion === descImpuesto);
                         consumos.push({
                             id_temp: `imp_${Date.now()}_${i}`,
                             fecha: targetPeriod ? `${targetPeriod}-01` : lastValidDate,
                             fechaOriginal: lastValidDate,
-                            monto: monto,
-                            montoRaw: monto,
+                            monto: montoAbsImp,
+                            montoRaw: montoRawImp,
                             moneda: 'ARS',
                             tipo_cambio: 1,
-                            descripcion: `Resumen - ${col0} [Cierre]`,
-                            categoria: 'Impuestos y Sellos',
+                            descripcion: descImpuesto,
+                            categoria: 'Impuestos cuentas bancarias',
                             esPendiente: false,
-                            esCredito: false,
+                            esCredito: (montoRawImp < 0),
                             isDuplicate: isDuplicate,
                             selected: !isDuplicate
                         });
@@ -178,7 +179,8 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                 const pesos = parseMonto(row[4]);
                 const dolares = parseMonto(row[5]);
                 
-                const isPesos = (pesos !== 0 || (pesos === 0 && dolares === 0));
+                if (pesos === 0 && dolares === 0) continue;
+                const isPesos = (pesos !== 0);
                 const montoRaw = isPesos ? pesos : dolares;
                 const esCredito = (montoRaw < 0);
                 const montoAbsoluto = Math.abs(montoRaw);
