@@ -1,5 +1,5 @@
-import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js?v=8.2';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
+import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js?v=8.3';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
 
 let performanceChart = null;
 let historyChart = null;
@@ -159,12 +159,14 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
         { name: 'Galicia', color: '#f59e0b' }
     ];
 
-    let totalARS = 0;
+    let totalPositiveARS = 0;
+    let totalNetARS = 0;
     const items = accounts.map(acc => {
         const valARS = parseFloat(balancesARS[acc.name]) || 0;
         const valUSD = parseFloat(balancesUSD[acc.name]) || 0;
         const sliceVal = Math.max(0, valARS);
-        totalARS += sliceVal;
+        totalPositiveARS += sliceVal;
+        totalNetARS += valARS;
 
         return { 
             ...acc, 
@@ -181,12 +183,12 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
     let accumulatedOffset = 0;
 
     let circlesHTML = '';
-    if (totalARS === 0) {
+    if (totalPositiveARS <= 0) {
         circlesHTML = `<circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="#252538" stroke-width="${strokeWidth}" />`;
     } else {
         items.forEach(item => {
             if (item.sliceVal <= 0) return;
-            const ratio = item.sliceVal / totalARS;
+            const ratio = item.sliceVal / totalPositiveARS;
             const strokeDasharray = `${ratio * circumference} ${circumference}`;
             const strokeDashoffset = -accumulatedOffset;
             accumulatedOffset += ratio * circumference;
@@ -207,7 +209,7 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
         });
     }
 
-    const formattedTotal = `$${Math.round(totalARS).toLocaleString('es-AR')}`;
+    const formattedTotal = `${totalNetARS < 0 ? '-' : ''}$${Math.round(Math.abs(totalNetARS)).toLocaleString('es-AR')}`;
 
     container.innerHTML = `
         <svg viewBox="0 0 ${size} ${size}" style="width: 100%; height: 100%; max-width: 360px; max-height: 360px; transform: rotate(-90deg); overflow: visible;">
