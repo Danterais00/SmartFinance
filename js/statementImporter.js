@@ -102,7 +102,7 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                             moneda: 'ARS',
                             tipo_cambio: 1,
                             descripcion: `Resumen - ${col0} [Cierre]`,
-                            categoria: 'Impuestos y Sellos',
+                            categoria: 'Impuestos cuentas bancarias',
                             esPendiente: false,
                             esCredito: false,
                             isDuplicate: isDuplicate,
