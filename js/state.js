@@ -21,6 +21,7 @@ export const CATEGORIAS_DEFAULT = [
     'Google Drive',
     'Impuesto municipal Pilar',
     'Impuestos cuentas bancarias',
+    'Impuestos y Sellos',
     'Ingresos Laborales / Honorarios',
     'Insumos Piscina',
     'Intereses Financieros',
@@ -31,7 +32,7 @@ export const CATEGORIAS_DEFAULT = [
     'Naturgy',
     'Netflix',
     'Ofrenda',
-    'Otros',
+    'Otros Gastos (Sin Categorizar)',
     'Paddle',
     'Pago Tarjeta de Crédito',
     'Panadería',
@@ -133,7 +134,7 @@ export async function syncOfflineQueue(onSuccess) {
         const queue = JSON.parse(raw);
         if (!Array.isArray(queue) || queue.length === 0) return;
 
-        const { _supabase } = await import('./supabaseClient.js?v=8.1');
+        const { _supabase } = await import('./supabaseClient.js?v=8.2');
         const { error } = await _supabase.from('transacciones').insert(queue);
         if (!error) {
             localStorage.removeItem('sf_offline_queue');
@@ -148,7 +149,7 @@ export async function fetchDynamicCategories() {
     try {
         let combined = [...CATEGORIAS_DEFAULT];
         if (state.currentUser) {
-            const { _supabase } = await import('./supabaseClient.js?v=8.1');
+            const { _supabase } = await import('./supabaseClient.js?v=8.2');
             const { data, error } = await _supabase
                 .from('user_categories')
                 .select('nombre_categoria')
