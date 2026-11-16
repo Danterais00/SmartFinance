@@ -21,7 +21,6 @@ const STATIC_ASSETS = [
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
     'https://cdn.jsdelivr.net/npm/chart.js',
     'https://cdn.jsdelivr.net/npm/hammerjs@2.0.8',
-    'https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js',
     'https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js',
