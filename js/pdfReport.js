@@ -1,12 +1,42 @@
 import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.1';
 import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.1';
 
-export function exportAuditPDF(auditResult) {
-    if (!window.jspdf || !window.jspdf.jsPDF) {
+/**
+ * Función auxiliar para generar imágenes de gráficos en memoria sin depender de la vista activa.
+ */
+const generateChartImage = (config) => {
+    return new Promise((resolve) => {
+        if (!window.Chart) { resolve(null); return; }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = 900;
+        canvas.height = 300;
+        canvas.style.display = 'none';
+        document.body.appendChild(canvas);
+        
+        config.options = config.options || {};
+        config.options.animation = false;
+        config.options.responsive = false;
+        config.options.devicePixelRatio = 2; // Alta resolución para el PDF
+        
+        const chart = new window.Chart(canvas, config);
+        
+        // Pequeño delay para asegurar que el render se complete en memoria
+        setTimeout(() => {
+            const imgData = canvas.toDataURL('image/png', 1.0);
+            chart.destroy();
+            canvas.remove();
+            resolve(imgData);
+        }, 150);
+    });
+};
+
+export async function exportAuditPDF(auditResult) {
+    if (!window.jspdf || !window.jspdf.jsPDF || !window.Chart) {
         if (window.UI && typeof window.UI.showAppAlert === 'function') {
-            window.UI.showAppAlert("Cargando Librería", "La librería jsPDF aún se está cargando. Intentá de nuevo en unos segundos.");
+            window.UI.showAppAlert("Cargando Librerías", "Las librerías PDF/Gráficos aún se están cargando. Intentá de nuevo en unos segundos.");
         } else {
-            alert("La librería jsPDF aún se está cargando. Intenta de nuevo en unos segundos.");
+            alert("Librerías aún cargando. Intentá de nuevo en unos segundos.");
         }
         return;
     }
@@ -20,7 +50,9 @@ export function exportAuditPDF(auditResult) {
         : getLocalDateString().substring(0, 7);
     const usuarioEmail = (state.currentUser && state.currentUser.email) ? state.currentUser.email : 'Usuario';
 
-    // 1. Encabezado institucional
+    // ==========================================
+    // ENCABEZADO
+    // ==========================================
     doc.setFillColor(20, 20, 31);
     doc.rect(0, 0, 210, 36, 'F');
 
@@ -37,7 +69,9 @@ export function exportAuditPDF(auditResult) {
     doc.setFontSize(8);
     doc.text(`Emitido el: ${getLocalDateString()} | Usuario: ${usuarioEmail}`, 14, 32);
 
-    // 2. Resumen Ejecutivo (Paridad 1:1 con state.currentMonthMetrics del Dashboard)
+    // ==========================================
+    // 1. RESUMEN EJECUTIVO / PATRIMONIAL
+    // ==========================================
     let y = 46;
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
@@ -99,17 +133,19 @@ export function exportAuditPDF(auditResult) {
             if (data.section === 'body' && data.column.index === 1) {
                 const text = String(data.cell.raw || '');
                 if (text === '$0' || text === '+$0' || text === '-$0') {
-                    data.cell.styles.textColor = [107, 114, 128]; // Gris neutro
+                    data.cell.styles.textColor = [107, 114, 128]; 
                 } else if (text.startsWith('-$')) {
-                    data.cell.styles.textColor = [239, 68, 68];   // Rojo (déficit, pasivo o desvío negativo)
+                    data.cell.styles.textColor = [239, 68, 68];   
                 } else {
-                    data.cell.styles.textColor = [16, 185, 129];  // Verde (superávit / saldo positivo)
+                    data.cell.styles.textColor = [16, 185, 129];  
                 }
             }
         }
     });
 
-    // 3. Semáforo Presupuestario RAG
+    // ==========================================
+    // 2. SEMÁFORO PRESUPUESTARIO RAG
+    // ==========================================
     y = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
@@ -152,18 +188,142 @@ export function exportAuditPDF(auditResult) {
         }
     });
 
-    // 4. Dictamen de Auditoría Pre-Flight
-    if (auditResult) {
-        y = doc.lastAutoTable.finalY + 10;
-        if (y > 220) {
-            doc.addPage();
-            y = 20;
+    // ==========================================
+    // 3. ANÁLISIS GRÁFICO (RECUPERADO)
+    // ==========================================
+    y = doc.lastAutoTable.finalY + 12;
+    if (y > 170) { doc.addPage(); y = 20; }
+    
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text("3. Análisis Gráfico Presupuestario e Histórico", 14, y);
+    y += 8;
+
+    const historicalList = state.cachedHistoricalDataForChart || [];
+    
+    if (rawCategories.length > 0) {
+        // Gráfico 1: Barras de Categorías
+        const barChartConfig = {
+            type: 'bar',
+            data: {
+                labels: rawCategories.map(c => c.nombre),
+                datasets: [
+                    { label: 'Presupuesto Meta ($)', data: rawCategories.map(c => c.meta), backgroundColor: '#3b82f6' },
+                    { label: 'Gasto Real ($)', data: rawCategories.map(c => c.gasto), backgroundColor: '#ef4444' }
+                ]
+            },
+            options: {
+                plugins: { legend: { labels: { font: { size: 12 } } } },
+                scales: { x: { ticks: { font: { size: 9 }, maxRotation: 90, minRotation: 45 } } }
+            }
+        };
+        const barImg = await generateChartImage(barChartConfig);
+        if (barImg) {
+            doc.addImage(barImg, 'PNG', 14, y, 182, 60);
+            y += 65;
         }
+    }
+
+    if (historicalList.length > 0) {
+        if (y > 220) { doc.addPage(); y = 20; }
+        // Gráfico 2: Línea Histórica
+        const lineChartConfig = {
+            type: 'line',
+            data: {
+                labels: historicalList.map(h => h.mes),
+                datasets: [
+                    { label: 'Gasto Total ($)', data: historicalList.map(h => h.gastoTotal), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.2, pointRadius: 4 },
+                    { label: 'Presupuesto Total ($)', data: historicalList.map(h => h.metaTotal), borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.2, pointRadius: 4 }
+                ]
+            },
+            options: { plugins: { legend: { labels: { font: { size: 12 } } } } }
+        };
+        const lineImg = await generateChartImage(lineChartConfig);
+        if (lineImg) {
+            doc.addImage(lineImg, 'PNG', 14, y, 182, 60);
+            y += 65;
+        }
+    }
+
+    // ==========================================
+    // 4. RESUMEN EJECUTIVO GLOBAL (RECUPERADO)
+    // ==========================================
+    if (y > 230) { doc.addPage(); y = 20; }
+    
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text("4. Resumen Ejecutivo Global y Desvíos", 14, y);
+
+    const diffGlobalPct = metaMes > 0 ? ((gastoComputado - metaMes) / metaMes) * 100 : 0;
+    const diffGlobalText = diffGlobalPct > 0 
+        ? `+${diffGlobalPct.toFixed(1)}% (DÉFICIT)` 
+        : `${diffGlobalPct.toFixed(1)}% (SUPERÁVIT)`;
+    
+    const catsTarget = rawCategories.filter(c => c.estado === 'Target').length;
+
+    const execData = [
+        ["Exactitud / Discrepancia:", `Presupuestado: $${Math.round(metaMes).toLocaleString('es-AR')} | Gastado: $${Math.round(gastoComputado).toLocaleString('es-AR')}`],
+        ["Desvío del Mes:", diffGlobalText],
+        ["Métrica de Eficiencia:", `Mantuviste ${catsTarget} de ${rawCategories.length} categorías en Target seguro.`]
+    ];
+
+    // Detalle de Excesos
+    const excesos = rawCategories.filter(c => c.estado === 'Fuera');
+    if (excesos.length > 0) {
+        execData.push(["", ""]);
+        execData.push(["Detalle de Excesos en Categorías 'Fuera':", ""]);
+        excesos.forEach(c => {
+            const txs = (state.globalTransData || []).filter(t => t.categoria === c.nombre && t.fecha && t.fecha.substring(0,7) === m.activeMonth && t.tipo === 'gasto');
+            const memos = txs.map(t => `"${t.descripcion}"`).join(', ');
+            execData.push([
+                `• ${c.nombre}`, 
+                `+$${Math.round(c.gasto - c.meta).toLocaleString('es-AR')} | Memos: ${memos || 'N/D'}`
+            ]);
+        });
+    }
+
+    // Ajustes Técnicos
+    const ajustesTxs = (state.globalTransData || []).filter(t => t.categoria === 'Ajuste Técnico Saldos' && t.fecha && t.fecha.substring(0,7) === m.activeMonth);
+    if (ajustesTxs.length > 0) {
+        execData.push(["", ""]);
+        execData.push(["Reconciliación y Ajustes de Saldos:", ""]);
+        const accs = [...new Set(ajustesTxs.map(t => t.cuenta))];
+        accs.forEach(acc => {
+            const txs = ajustesTxs.filter(t => t.cuenta === acc);
+            let neto = 0;
+            txs.forEach(t => { neto += (t.tipo === 'ingreso' ? parseFloat(t.monto) : -parseFloat(t.monto)); });
+            const textNeto = neto >= 0 
+                ? `+$${Math.round(neto).toLocaleString('es-AR')} (Sobrante neto)` 
+                : `-$${Math.round(Math.abs(neto)).toLocaleString('es-AR')} (Faltante neto)`;
+            const memos = txs.map(t => `"${t.descripcion}"`).join(', ');
+            execData.push([`• ${acc}`, `${textNeto} | Motivos: ${memos || 'N/D'}`]);
+        });
+    }
+
+    doc.autoTable({
+        startY: y + 4,
+        body: execData,
+        theme: 'plain',
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 1.5 },
+        columnStyles: { 
+            0: { fontStyle: 'bold', textColor: [75, 85, 99], cellWidth: 70 }, 
+            1: { textColor: [31, 41, 55] } 
+        }
+    });
+
+    // ==========================================
+    // 5. DICTAMEN DE AUDITORÍA
+    // ==========================================
+    if (auditResult) {
+        y = doc.lastAutoTable.finalY + 12;
+        if (y > 220) { doc.addPage(); y = 20; }
 
         doc.setFontSize(13);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 41, 59);
-        doc.text("3. Dictamen de Auditoría Pre-Flight", 14, y);
+        doc.text("5. Dictamen de Auditoría Pre-Flight", 14, y);
 
         const vencimientosList = auditResult.vencimientosImpagos || [];
         const vencimientosText = vencimientosList.length === 0
@@ -191,7 +351,9 @@ export function exportAuditPDF(auditResult) {
         });
     }
 
-    // 5. Pie de página institucional con cotización MEP aplicada
+    // ==========================================
+    // PAGINACIÓN Y PIE
+    // ==========================================
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
