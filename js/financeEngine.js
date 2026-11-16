@@ -88,7 +88,7 @@ export function executeFinancialAuditEngine() {
         }
     });
 
-    // 4. Auditoría de Posibles Gastos Duplicados (Mismo día, cuenta, categoría, moneda, monto y glosa) (AUD-07)
+    // 4. Auditoría de Posibles Gastos Duplicados (Mismo día, cuenta, categoría, moneda, monto y glosa)
     let gastosMes = currentMonthTxs.filter(t => 
         t.tipo === 'gasto' && 
         t.presupuestado !== 'NO_COMPUTA' && 
@@ -107,7 +107,6 @@ export function executeFinancialAuditEngine() {
             if (m1 === m2 && mon1 === mon2 && t1.categoria === t2.categoria && t1.cuenta === t2.cuenta && t1.fecha === t2.fecha) {
                 const desc1 = (t1.descripcion || '').trim().toLowerCase();
                 const desc2 = (t2.descripcion || '').trim().toLowerCase();
-                // Si ambas glosas existen y son distintas (ej. dos peajes o consumos diferentes en resumen mensual), no es duplicado
                 if (desc1 && desc2 && desc1 !== desc2) {
                     continue;
                 }
@@ -159,7 +158,7 @@ export function buildUnifiedTransactionBatch(params) {
         periodoImputacion
     } = params;
 
-    // Guardarraíles duros de dominio contable (AUD-03)
+    // Guardarraíles duros de dominio contable
     if (!isFinite(monto) || monto <= 0) {
         throw new Error("El importe de la operación debe ser mayor a cero.");
     }
@@ -204,7 +203,6 @@ export function buildUnifiedTransactionBatch(params) {
             tipo_cambio: (moneda === 'USD') ? TIPO_CAMBIO_PRESUPUESTO : 1
         });
     } else if (type === 'INGRESO') {
-        // Soporta devengamiento opcional al mes presupuestario elegido (AUD-08)
         const hasValidAccrual = periodoImputacion && /^\d{4}-\d{2}$/.test(periodoImputacion);
         const presupTag = hasValidAccrual ? `DEV:${periodoImputacion}` : 'NO';
 
@@ -300,7 +298,6 @@ export function buildUnifiedTransactionBatch(params) {
         }
     } else if (type === 'CAMBIO_DIVISAS') {
         const monedaDestino = (moneda === 'ARS') ? 'USD' : 'ARS';
-        // Cotización implícita real pactada en la operación (AUD-05)
         const implicitFx = (moneda === 'ARS')
             ? Number((Math.abs(monto) / Math.abs(montoDestino)).toFixed(4))
             : Number((Math.abs(montoDestino) / Math.abs(monto)).toFixed(4));
@@ -346,7 +343,7 @@ export function buildCreditCardClosingBatch(params) {
             tipo: 'gasto',
             monto: impuestosSellos,
             fecha,
-            categoria: 'Impuestos y Sellos',
+            categoria: 'Impuestos cuentas bancarias',
             cuenta: tarjeta,
             descripcion: `Resumen ${tarjeta} - Impuestos y Sellos`,
             presupuestado: 'SI',
