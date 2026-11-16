@@ -13,7 +13,7 @@ export const CATEGORIAS_DEFAULT = [
     'Edenor Pilar', 'Ekisian', 'Entretenimiento',
     'Farmacia', 'Gastos Automotor', 'Gimnasia',
     'Google Drive', 'Impuesto municipal Pilar', 'Impuestos cuentas bancarias',
-    'Impuestos y Sellos', 'Ingresos Laborales / Honorarios', 'Insumos Piscina',
+    'Ingresos Laborales / Honorarios', 'Insumos Piscina',
     'Intereses Financieros', 'La Caja Seguros', 'Limpieza Hogar',
     'Movistar', 'Nafta', 'Naturgy',
     'Netflix', 'Ofrenda', 'Otros Gastos (Sin Categorizar)',
