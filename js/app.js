@@ -658,6 +658,10 @@ function recalculateFinancialMetrics() {
         }
     });
 
+    state.cachedCategoriesDataForChart = [...categoriesMes].sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+    );
+
     renderBudgetExecutionSummary(categoriesMes);
     renderAccuracyTable(categoriesMes);
     renderInteractiveChart(categoriesMes);
@@ -827,8 +831,6 @@ function renderAccuracyTable(categoriesMes) {
         });
         tbody.dataset.eventsBound = 'true';
     }
-    
-
 }
 
 function buildHistoricalChartData() {
@@ -877,7 +879,6 @@ function renderTransactionHistoryTable(dataset) {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">No se encontraron movimientos.</td></tr>`; 
         return; 
     }
-    
     
     const maxRows = 150;
     const isTruncated = list.length > maxRows;
@@ -1164,7 +1165,7 @@ function updateStagingTotals() {
         } 
     });
     const lbl = document.getElementById('import-totals-label');
-    if (lbl) lbl.innerText = `${count} seleccionados | $${Math.round(totalARS).toLocaleString('es-AR')} ARS | u$d ${totalUSD.toFixed(2)} USD`;
+    if (lbl) lbl.innerText = `${count} selected | $${Math.round(totalARS).toLocaleString('es-AR')} ARS | u$d ${totalUSD.toFixed(2)} USD`;
 }
 
 function renderStagingTable() {
