@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v8.1",
+        fecha: "2026-11-15",
+        tipo: "HOTFIX & PARIDAD PDF",
+        color: "var(--primary)",
+        icon: "fa-file-pdf",
+        archivos: ["js/pdfReport.js", "sw.js", "js/app.js", "js/charts.js", "js/financeEngine.js", "js/state.js", "js/statementImporter.js", "index.html"],
+        descripcion: "Sincronización unificada de módulos (?v=8.1) para eliminar el volcado en cero ($0) de activos, patrimonio e ingresos en el Reporte PDF. Colores dinámicos (rojo/gris/verde) para cifras deficitarias y pasivos, incorporación de la fila de Compromisos y Vencimientos en el Dictamen Pre-Flight, paridad con Presupuesto Planificado y pie de página con cotización Dólar MEP aplicada."
+    },
+    {
         version: "v8.0",
         fecha: "2026-11-13",
         tipo: "REFACTOR FINAL & AUDITORÍA QA",
@@ -12,6 +21,15 @@ export const APP_CHANGELOG = [
         icon: "fa-check-double",
         archivos: ["js/statementImporter.js", "sw.js", "js/state.js", "js/app.js", "js/charts.js", "index.html"],
         descripcion: "Consolidación matemática final y QA funcional: soporte integrado para plásticos adicionales y cierres de impuestos, deduplicación estricta de percepciones, eliminación de falsos positivos en alertas de pago parcial, corte de meses futuros vacíos en RAG, y conexión del chat de Soporte AI con el estado patrimonial y deuda en vivo del usuario."
+    },
+    {
+        version: "v7.9",
+        fecha: "2026-11-13",
+        tipo: "FEED MACRO EN VIVO (INFLACIÓN & RIESGO PAÍS)",
+        color: "var(--primary)",
+        icon: "fa-chart-line",
+        archivos: ["js/supabaseClient.js", "sw.js", "js/app.js", "index.html", "js/changelog.js"],
+        descripcion: "Automatización en vivo de los 5 indicadores de la barra macro: conexión a ArgentinaDatos para Inflación IPC mensual (INDEC) y Riesgo País (EMBI+), cálculo dinámico de variaciones diarias para Dólar Oficial, Blue y MEP, persistencia en localStorage del último Dólar MEP como respaldo offline y auto-refresco cada 5 minutos."
     },
     {
         version: "v7.8",
