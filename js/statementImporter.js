@@ -1,5 +1,5 @@
-import { state, getLocalDateString } from './state.js?v=8.1';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.1';
+import { state, getLocalDateString } from './state.js?v=8.2';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
 
 const PREDICTIVE_CATEGORIES = [
     { pattern: /telepeaje|corresur|autopista|ausol|aubasa|camino.*pque|peaje/i, targets: ['peaje', 'transporte', 'auto', 'vehiculo'] },
@@ -18,7 +18,7 @@ const PREDICTIVE_CATEGORIES = [
 ];
 
 export function matchUserCategory(desc, userCategories = []) {
-    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Otros';
+    if (!desc || !userCategories || userCategories.length === 0) return userCategories?.[0] || 'Otros Gastos (Sin Categorizar)';
     const d = desc.toLowerCase();
 
     for (let cat of userCategories) {
@@ -37,7 +37,7 @@ export function matchUserCategory(desc, userCategories = []) {
     }
 
     const generic = userCategories.find(c => /varios|otros|general/i.test(c));
-    return generic || 'Otros';
+    return generic || userCategories[0];
 }
 
 function parseMonto(val) {
@@ -102,7 +102,7 @@ export function parseVisaStatement(excelFileBuffer, selectedAccount, userCategor
                             moneda: 'ARS',
                             tipo_cambio: 1,
                             descripcion: `Resumen - ${col0} [Cierre]`,
-                            categoria: 'Impuestos cuentas bancarias',
+                            categoria: 'Impuestos y Sellos',
                             esPendiente: false,
                             esCredito: false,
                             isDuplicate: isDuplicate,
