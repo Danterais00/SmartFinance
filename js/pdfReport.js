@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.2';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.3';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
 
 /**
  * Renderiza un gráfico de Chart.js fuera de pantalla y devuelve su imagen PNG
@@ -227,7 +227,6 @@ export async function exportAuditPDF(auditResult) {
             doc.text("3. Análisis Gráfico Presupuestario e Histórico", 14, y);
             y += 8;
 
-            // Gráfico A: Desempeño por Categoría del Mes
             if (rawCategories.length > 0) {
                 const cLabels = rawCategories.map(c => c.nombre);
                 const cMeta = rawCategories.map(c => c.meta);
@@ -260,7 +259,6 @@ export async function exportAuditPDF(auditResult) {
                 }
             }
 
-            // Gráfico B: Evolución Histórica Multimensual
             if (hist.length > 0) {
                 const hLabels = hist.map(h => h.mes);
                 const hGasto = hist.map(h => h.gastoTotal);
@@ -309,7 +307,6 @@ export async function exportAuditPDF(auditResult) {
         doc.text("4. Resumen Ejecutivo Global y Desvíos", 14, y);
         y += 8;
 
-        // A. Exactitud y Métrica de Eficiencia
         const inTarget = rawCategories.filter(c => c.estado === 'Target').length;
         const catFuera = rawCategories.filter(c => c.estado === 'Fuera');
         doc.setFontSize(9.5);
@@ -326,7 +323,6 @@ export async function exportAuditPDF(auditResult) {
         doc.text(`Métrica de Eficiencia: Mantuviste ${inTarget} de ${rawCategories.length} categorías en Target seguro.`, 14, y + 11);
         y += 20;
 
-        // B. Detalle de Excesos en Categorías "Fuera"
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 41, 59);
         doc.text(`Detalle de Excesos en Categorías "Fuera":`, 14, y);
@@ -361,7 +357,6 @@ export async function exportAuditPDF(auditResult) {
             });
         }
 
-        // C. Reconciliación y Ajustes Técnicos de Saldos
         y += 3;
         if (y > 250) {
             doc.addPage();
