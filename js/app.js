@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.1';
+mport { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.2';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -12,13 +12,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=8.1';
+} from './state.js?v=8.2';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=8.1';
+} from './financeEngine.js?v=8.2';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -30,10 +30,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=8.1';
-import { exportAuditPDF } from './pdfReport.js?v=8.1';
-import { parseVisaStatement } from './statementImporter.js?v=8.1';
-import { renderChangelogTable } from './changelog.js?v=8.1';
+} from './charts.js?v=8.2';
+import { exportAuditPDF } from './pdfReport.js?v=8.2';
+import { parseVisaStatement } from './statementImporter.js?v=8.2';
+import { renderChangelogTable } from './changelog.js?v=8.2';
 
 let parsedStatementItems = [];
 
@@ -658,10 +658,6 @@ function recalculateFinancialMetrics() {
         }
     });
 
-    state.cachedCategoriesDataForChart = [...categoriesMes].sort((a, b) =>
-        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
-    );
-
     renderBudgetExecutionSummary(categoriesMes);
     renderAccuracyTable(categoriesMes);
     renderInteractiveChart(categoriesMes);
@@ -831,6 +827,8 @@ function renderAccuracyTable(categoriesMes) {
         });
         tbody.dataset.eventsBound = 'true';
     }
+    
+
 }
 
 function buildHistoricalChartData() {
@@ -879,6 +877,7 @@ function renderTransactionHistoryTable(dataset) {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">No se encontraron movimientos.</td></tr>`; 
         return; 
     }
+    
     
     const maxRows = 150;
     const isTruncated = list.length > maxRows;
@@ -1653,7 +1652,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingClosing = state.globalTransData.filter(t => 
             t.cuenta === tarjeta && 
             t.fecha && t.fecha.substring(0, 7) === mesPeriodo &&
-            (t.categoria === 'Impuestos cuentas bancarias' || t.categoria === 'Intereses Financieros' || t.categoria === 'Servicios Bancarios' || (t.descripcion || '').toLowerCase().includes('resumen'))
+            (t.categoria === 'Impuestos y Sellos' || t.categoria === 'Intereses Financieros' || t.categoria === 'Servicios Bancarios' || (t.descripcion || '').toLowerCase().includes('resumen'))
         );
 
         const executeClosingInsert = async () => {
@@ -1795,7 +1794,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // GUARDAR EDICIÓN DE MOVIMIENTO CON SINCRONIZACIÓN COMPLETA DE ASIENTO ESPEJO
+    // GUARDAR EDICIÓN DE MOVIMIENTO CON SINCRONIZACIÓN COMPLETA DE ASIENTO ESPEJO (AUD-09)
     document.getElementById('modal-edit-form')?.addEventListener('submit', async (e) => {
         e.preventDefault(); 
         if (!state.editingTransactionId) return;
@@ -1842,7 +1841,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isGroup = !!t.transfer_group_id;
         
-        // Proteger partida doble en categorías de transferencias
+        // AUD-N07: Proteger partida doble en categorías de transferencias
         if (isGroup && t.categoria === 'Transferencia Interna' && payload.categoria !== 'Transferencia Interna') {
             window.UI.showAppAlert("Edición Bloqueada", "No podés cambiar la categoría de una transferencia vinculada.");
             return;
@@ -1874,7 +1873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         peerPayload.moneda = payload.moneda;
                         peerPayload.tipo_cambio = payload.tipo_cambio;
                     }
-                    // Sincroniza glosas de ambos asientos si cambió la cuenta en una transferencia
+                    // Sincroniza glosas de ambos asientos si cambió la cuenta en una transferencia (AUD-09)
                     if (t.categoria === 'Transferencia Interna' && payload.cuenta !== t.cuenta) {
                         if (t.tipo === 'gasto') {
                             payload.descripcion = `Pase hacia ${peer.cuenta}`;
