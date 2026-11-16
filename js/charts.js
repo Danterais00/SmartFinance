@@ -1,5 +1,5 @@
-import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js';
+import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js?v=8.1';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.1';
 
 let performanceChart = null;
 let historyChart = null;
@@ -460,7 +460,7 @@ export function renderCategoryHistoryChart(categoryName, monthsCount) {
     const monthSelector = document.getElementById('global-month-selector');
     const activePeriod = monthSelector ? monthSelector.value : getLocalDateString().substring(0, 7);
 
-        const [actY, actM] = activePeriod.split('-').map(Number);
+    const [actY, actM] = activePeriod.split('-').map(Number);
     
     // AUD-N08: No promediar meses futuros vacíos
     const today = new Date();
