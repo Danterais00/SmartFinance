@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.4';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -12,13 +12,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=8.3';
+} from './state.js?v=8.4';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=8.3';
+} from './financeEngine.js?v=8.4';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -30,10 +30,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=8.3';
-import { exportAuditPDF } from './pdfReport.js?v=8.3';
-import { parseVisaStatement } from './statementImporter.js?v=8.3';
-import { renderChangelogTable } from './changelog.js?v=8.3';
+} from './charts.js?v=8.4';
+import { exportAuditPDF } from './pdfReport.js?v=8.4';
+import { parseVisaStatement } from './statementImporter.js?v=8.4';
+import { renderChangelogTable } from './changelog.js?v=8.4';
 
 let parsedStatementItems = [];
 
@@ -642,8 +642,6 @@ function recalculateFinancialMetrics() {
     setCard('metric-gastos', `$${Math.round(totalEgresosRealesMes).toLocaleString('es-AR')}`, subGastos, 'var(--text-muted)');
     setCard('metric-ahorro', `$${Math.round(ahorroMes).toLocaleString('es-AR')}`, ahorroMes >= 0 ? 'Superávit Real' : 'Déficit Real', ahorroMes >= 0 ? 'var(--primary)' : 'var(--danger)');
     
-    const subLiquidezUSD = totalLiquidezUSD > 0 ? `u$d ${totalLiquidezUSD.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : 'u$d 0.00';
-    setCard('metric-disponible', `$${Math.round(totalLiquidezARS).toLocaleString('es-AR')}`, subLiquidezUSD, 'var(--blue)');
 
     renderPortfolioPieChart(state.currentAccountBalancesARS, state.currentAccountBalancesUSD);
     renderSavingsPatrimonialTab(state.currentAccountBalancesARS, state.currentAccountBalancesUSD, state.brokerEarningsARS, state.brokerEarningsUSD);
@@ -718,20 +716,17 @@ function renderBudgetExecutionSummary(categoriesMes) {
     const dispSub = isPositive ? 'Margen restante del mes' : 'Superaste la meta global';
 
     kpiContainer.innerHTML = `
-        <div class="micro-kpi-card">
-            <span class="micro-kpi-title">Presupuesto Total</span>
+        <div class="micro-kpi-card" title="Meta planificada del mes">
+            <span class="micro-kpi-title">Presupuestado</span>
             <span class="micro-kpi-val">$${Math.round(totalMeta).toLocaleString('es-AR')}</span>
-            <span class="micro-kpi-sub">Meta planificada</span>
         </div>
-        <div class="micro-kpi-card">
-            <span class="micro-kpi-title">Gasto Computado</span>
+        <div class="micro-kpi-card" title="Gastos computados dentro del presupuesto">
+            <span class="micro-kpi-title">Ejecutado</span>
             <span class="micro-kpi-val">$${Math.round(totalGasto).toLocaleString('es-AR')}</span>
-            <span class="micro-kpi-sub">Consumos presupuestados</span>
         </div>
-        <div class="micro-kpi-card">
+        <div class="micro-kpi-card" title="${dispSub}">
             <span class="micro-kpi-title">${dispTitle}</span>
             <span class="micro-kpi-val" style="color: ${dispColor};">${dispSign}$${Math.round(Math.abs(diferencia)).toLocaleString('es-AR')}</span>
-            <span class="micro-kpi-sub">${dispSub}</span>
         </div>
     `;
 }
