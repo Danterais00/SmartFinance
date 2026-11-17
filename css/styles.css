@@ -620,3 +620,57 @@ td:nth-child(3) { white-space: nowrap !important; }
     border-radius: 999px;
     transition: width 0.35s ease, background-color 0.3s ease;
 }
+
+/* SEMÁFORO RAG AGRUPADO POR NATURALEZA Y SELECTOR DE VISTA */
+.rag-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.rag-group-header-row td {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.14) 0%, rgba(28, 28, 43, 0.95) 100%) !important;
+    border-top: 1px solid rgba(59, 130, 246, 0.35) !important;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.35) !important;
+    padding: 9px 10px !important;
+    font-size: 12px !important;
+    color: #ffffff !important;
+}
+.rag-group-header-row td:first-child {
+    border-left: 3px solid var(--group-accent, var(--blue)) !important;
+}
+.rag-group-header-row td:last-child {
+    border-right: 1px solid rgba(59, 130, 246, 0.35) !important;
+}
+.rag-group-title-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+}
+.rag-group-count {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    padding: 1px 7px;
+    border-radius: 999px;
+}
+.rag-nature-pill {
+    display: inline-block;
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-main);
+    color: var(--text-muted);
+    margin-left: 6px;
+    vertical-align: middle;
+}
