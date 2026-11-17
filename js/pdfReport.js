@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.4';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.4';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=8.5';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.5';
 
 /**
  * Renderiza un gráfico de Chart.js fuera de pantalla y devuelve su imagen PNG
@@ -182,15 +182,82 @@ export async function exportAuditPDF(auditResult) {
         doc.setTextColor(30, 41, 59);
         doc.text("2. Desempeño Presupuestario por Categoría (RAG)", 14, y);
 
-        const categoriesData = rawCategories.length > 0
-            ? rawCategories.map(c => [
-                c.nombre,
-                `$${Math.round(c.meta).toLocaleString('es-AR')}`,
-                `$${Math.round(c.gasto).toLocaleString('es-AR')}`,
-                `${(c.meta - c.gasto) >= 0 ? '+' : '-'}$${Math.round(Math.abs(c.meta - c.gasto)).toLocaleString('es-AR')}`,
-                c.estado
-            ])
-            : [['Sin categorías presupuestadas ni consumos registrados en este período.', '-', '-', '-', '-']];
+        const ragMode = state.ragViewMode || 'NATURALEZA';
+        const severityRank = { 'Fuera': 0, 'Riesgo': 1, 'Target': 2 };
+        const execRatio = (c) => (c.meta > 0 ? (c.gasto / c.meta) : (c.gasto > 0 ? 999 : -1));
+        const pdfGroupRowIndices = new Set();
+        const categoriesData = [];
+
+        if (rawCategories.length === 0) {
+            categoriesData.push(['Sin categorías presupuestadas ni consumos registrados en este período.', '-', '-', '-', '-']);
+        } else if (ragMode === 'NATURALEZA') {
+            ['FIJO', 'ESENCIAL', 'DISCRECIONAL'].forEach(natKey => {
+                const grpItems = rawCategories.filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey);
+                if (grpItems.length === 0) return;
+
+                if (natKey === 'FIJO') {
+                    grpItems.sort((a, b) => {
+                        const aU = (a.fechaVenc && !a.isPaid) ? 0 : (!a.fechaVenc ? 1 : 2);
+                        const bU = (b.fechaVenc && !b.isPaid) ? 0 : (!b.fechaVenc ? 1 : 2);
+                        if (aU !== bU) return aU - bU;
+                        if (aU === 0 && a.fechaVenc !== b.fechaVenc) return a.fechaVenc.localeCompare(b.fechaVenc);
+                        return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+                    });
+                } else if (natKey === 'ESENCIAL') {
+                    grpItems.sort((a, b) => (Math.abs(execRatio(b) - execRatio(a)) > 0.001) ? execRatio(b) - execRatio(a) : a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+                } else {
+                    grpItems.sort((a, b) => {
+                        const sD = (severityRank[a.estado] ?? 2) - (severityRank[b.estado] ?? 2);
+                        if (sD !== 0) return sD;
+                        return (Math.abs(execRatio(b) - execRatio(a)) > 0.001) ? execRatio(b) - execRatio(a) : a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+                    });
+                }
+
+                const grpMeta = grpItems.reduce((acc, c) => acc + (parseFloat(c.meta) || 0), 0);
+                const grpGasto = grpItems.reduce((acc, c) => acc + (parseFloat(c.gasto) || 0), 0);
+                const grpDif = grpMeta - grpGasto;
+                const grpLabel = (NATURALEZA_META[natKey]?.label || natKey).toUpperCase();
+
+                pdfGroupRowIndices.add(categoriesData.length);
+                categoriesData.push([
+                    `${grpLabel} (${grpItems.length})`,
+                    `$${Math.round(grpMeta).toLocaleString('es-AR')}`,
+                    `$${Math.round(grpGasto).toLocaleString('es-AR')}`,
+                    `${grpDif >= 0 ? '+' : '-'}$${Math.round(Math.abs(grpDif)).toLocaleString('es-AR')}`,
+                    grpMeta > 0 ? `${((grpGasto / grpMeta) * 100).toFixed(0)}%` : '-'
+                ]);
+
+                grpItems.forEach(c => {
+                    categoriesData.push([
+                        `   ${c.nombre}`,
+                        `$${Math.round(c.meta).toLocaleString('es-AR')}`,
+                        `$${Math.round(c.gasto).toLocaleString('es-AR')}`,
+                        `${(c.meta - c.gasto) >= 0 ? '+' : '-'}$${Math.round(Math.abs(c.meta - c.gasto)).toLocaleString('es-AR')}`,
+                        c.estado
+                    ]);
+                });
+            });
+        } else {
+            const sortedCats = [...rawCategories].sort((a, b) => {
+                if (ragMode === 'SEMAFORO') {
+                    const sD = (severityRank[a.estado] ?? 2) - (severityRank[b.estado] ?? 2);
+                    if (sD !== 0) return sD;
+                    const rD = execRatio(b) - execRatio(a);
+                    if (Math.abs(rD) > 0.001) return rD;
+                }
+                return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+            });
+            sortedCats.forEach(c => {
+                const natShort = NATURALEZA_META[resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc)]?.shortLabel || '';
+                categoriesData.push([
+                    natShort ? `${c.nombre} [${natShort}]` : c.nombre,
+                    `$${Math.round(c.meta).toLocaleString('es-AR')}`,
+                    `$${Math.round(c.gasto).toLocaleString('es-AR')}`,
+                    `${(c.meta - c.gasto) >= 0 ? '+' : '-'}$${Math.round(Math.abs(c.meta - c.gasto)).toLocaleString('es-AR')}`,
+                    c.estado
+                ]);
+            });
+        }
 
         doc.autoTable({
             startY: y + 4,
@@ -206,10 +273,16 @@ export async function exportAuditPDF(auditResult) {
                 4: { halign: 'center', fontStyle: 'bold' }
             },
             didParseCell: function(data) {
-                if (data.section === 'body' && data.column.index === 4) {
-                    if (data.cell.raw === 'Target') data.cell.styles.textColor = [16, 185, 129];
-                    else if (data.cell.raw === 'Riesgo') data.cell.styles.textColor = [245, 158, 11];
-                    else if (data.cell.raw === 'Fuera') data.cell.styles.textColor = [239, 68, 68];
+                if (data.section === 'body') {
+                    if (pdfGroupRowIndices.has(data.row.index)) {
+                        data.cell.styles.fillColor = [226, 232, 240];
+                        data.cell.styles.textColor = [15, 23, 42];
+                        data.cell.styles.fontStyle = 'bold';
+                    } else if (data.column.index === 4) {
+                        if (data.cell.raw === 'Target') data.cell.styles.textColor = [16, 185, 129];
+                        else if (data.cell.raw === 'Riesgo') data.cell.styles.textColor = [245, 158, 11];
+                        else if (data.cell.raw === 'Fuera') data.cell.styles.textColor = [239, 68, 68];
+                    }
                 }
             }
         });
@@ -318,10 +391,21 @@ export async function exportAuditPDF(auditResult) {
             ? `SUPERÁVIT (${Math.abs(desvioPct).toFixed(1)}% bajo presupuesto)`
             : `DÉFICIT (+${desvioPct.toFixed(1)}% sobre presupuesto)`;
 
+        const sumByNat = { FIJO: 0, ESENCIAL: 0, DISCRECIONAL: 0 };
+        rawCategories.forEach(c => {
+            const nk = resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc);
+            sumByNat[nk] = (sumByNat[nk] || 0) + (parseFloat(c.gasto) || 0);
+        });
+        const totalNatGasto = sumByNat.FIJO + sumByNat.ESENCIAL + sumByNat.DISCRECIONAL;
+        const pctFijo = totalNatGasto > 0 ? ((sumByNat.FIJO / totalNatGasto) * 100).toFixed(1) : '0.0';
+        const pctEsencial = totalNatGasto > 0 ? ((sumByNat.ESENCIAL / totalNatGasto) * 100).toFixed(1) : '0.0';
+        const pctDisc = totalNatGasto > 0 ? ((sumByNat.DISCRECIONAL / totalNatGasto) * 100).toFixed(1) : '0.0';
+
         doc.text(`Exactitud del Presupuesto: Meta $${Math.round(metaMes).toLocaleString('es-AR')} vs Gasto Real $${Math.round(gastosRealesTotales).toLocaleString('es-AR')}`, 14, y);
         doc.text(`Desvío Global: ${txtDesvio}`, 14, y + 5.5);
         doc.text(`Métrica de Eficiencia: Mantuviste ${inTarget} de ${rawCategories.length} categorías en Target seguro.`, 14, y + 11);
-        y += 20;
+        doc.text(`Rigidez Presupuestaria: ${pctFijo}% Fijos ($${Math.round(sumByNat.FIJO).toLocaleString('es-AR')}) | ${pctEsencial}% Esenciales ($${Math.round(sumByNat.ESENCIAL).toLocaleString('es-AR')}) | ${pctDisc}% Discrecionales ($${Math.round(sumByNat.DISCRECIONAL).toLocaleString('es-AR')})`, 14, y + 16.5);
+        y += 25.5;
 
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 41, 59);
