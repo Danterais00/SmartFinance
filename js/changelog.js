@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v8.4",
+        fecha: "2026-11-16",
+        tipo: "REDISEÑO UX/UI DASHBOARD INICIO",
+        color: "var(--blue)",
+        icon: "fa-layer-group",
+        archivos: ["sw.js", "index.html", "css/styles.css", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Rediseño integral de la pantalla de Inicio: 1) Transformación de 'Mercado Macro & Divisas en Vivo' en marquesina continua (ticker) con Compra/Venta y pausa al interactuar; 2) Reordenamiento de las 5 tarjetas KPI principales (Ingresos Mes, Presupuesto Mes, Gastos Reales Mes, Ahorro Neto Mes y Patrimonio Neto) y eliminación de la tarjeta redundante de Liquidez Inmediata; 3) Traslado de 'Ejecución Presupuestaria Global' desde Presupuestos & RAG hacia Inicio con barra de progreso y valores presupuestado/ejecutado/disponible; y 4) Compactación de 'Distribución de Liquidez Operativa' incorporando el saldo líquido en USD debajo del total en ARS dentro del centro del gráfico Donut."
+    },
+    {
         version: "v8.3",
         fecha: "2026-11-16",
         tipo: "AUDITORÍA INTEGRAL & BLINDAJE QA",
