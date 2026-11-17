@@ -1,5 +1,5 @@
-import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js?v=8.3';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
+import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js?v=8.4';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.4';
 
 let performanceChart = null;
 let historyChart = null;
@@ -161,12 +161,14 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
 
     let totalPositiveARS = 0;
     let totalNetARS = 0;
+    let totalNetUSD = 0;
     const items = accounts.map(acc => {
         const valARS = parseFloat(balancesARS[acc.name]) || 0;
         const valUSD = parseFloat(balancesUSD[acc.name]) || 0;
         const sliceVal = Math.max(0, valARS);
         totalPositiveARS += sliceVal;
         totalNetARS += valARS;
+        totalNetUSD += valUSD;
 
         return { 
             ...acc, 
@@ -176,8 +178,8 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
         };
     });
 
-    const size = 280;
-    const strokeWidth = 34;
+    const size = 230;
+    const strokeWidth = 28;
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
     let accumulatedOffset = 0;
@@ -209,29 +211,41 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
         });
     }
 
-    const formattedTotal = `${totalNetARS < 0 ? '-' : ''}$${Math.round(Math.abs(totalNetARS)).toLocaleString('es-AR')}`;
+    const formattedTotalARS = `${totalNetARS < 0 ? '-' : ''}$${Math.round(Math.abs(totalNetARS)).toLocaleString('es-AR')}`;
+    const formattedTotalUSD = `${totalNetUSD < 0 ? '-' : ''}u$d ${Math.abs(totalNetUSD).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     container.innerHTML = `
-        <svg viewBox="0 0 ${size} ${size}" style="width: 100%; height: 100%; max-width: 360px; max-height: 360px; transform: rotate(-90deg); overflow: visible;">
+        <svg viewBox="0 0 ${size} ${size}" style="width: 100%; height: 100%; max-width: 245px; max-height: 245px; transform: rotate(-90deg); overflow: visible;">
             ${circlesHTML}
-            <text 
-                x="${size/2}" 
-                y="${size/2}" 
-                text-anchor="middle" 
-                dominant-baseline="central" 
-                fill="#ffffff" 
-                font-family="Urbanist, sans-serif" 
-                font-weight="800" 
-                font-size="20" 
-                style="transform: rotate(90deg); transform-origin: ${size/2}px ${size/2}px;"
-            >${formattedTotal}</text>
+            <g style="transform: rotate(90deg); transform-origin: ${size/2}px ${size/2}px;">
+                <text 
+                    x="${size/2}" 
+                    y="${size/2 - 8}" 
+                    text-anchor="middle" 
+                    dominant-baseline="central" 
+                    fill="#ffffff" 
+                    font-family="Urbanist, sans-serif" 
+                    font-weight="800" 
+                    font-size="18.5"
+                >${formattedTotalARS}</text>
+                <text 
+                    x="${size/2}" 
+                    y="${size/2 + 12}" 
+                    text-anchor="middle" 
+                    dominant-baseline="central" 
+                    fill="#60a5fa" 
+                    font-family="Urbanist, sans-serif" 
+                    font-weight="700" 
+                    font-size="11.5"
+                >${formattedTotalUSD}</text>
+            </g>
         </svg>
     `;
 
     legend.innerHTML = items.map(item => {
         let fontColor = item.value < 0 ? 'var(--danger)' : '#ffffff';
         const usdBadge = item.valUSD !== 0 
-            ? `<span class="sub-usd-val" style="font-size:11px; color:var(--text-muted); font-weight:600; white-space:nowrap; margin-top:2px;">(u$d ${item.valUSD.toFixed(2)})</span>` 
+            ? `<span class="sub-usd-val">(u$d ${item.valUSD.toFixed(2)})</span>` 
             : '';
 
         return `
@@ -240,8 +254,8 @@ export function renderPortfolioPieChart(balancesARS, balancesUSD = {}) {
                     <span class="account-dot" style="background:${item.color};"></span>
                     <span>${escapeHTML(item.name)}</span>
                 </span>
-                <div class="value-bank" style="display:flex; flex-direction:column; align-items:flex-end; justify-content:center; text-align:right;">
-                    <span style="color:${fontColor}; font-size:16px; font-weight:700; font-family:'Urbanist', sans-serif; white-space:nowrap;">$${item.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <div class="value-bank">
+                    <span style="color:${fontColor};">$${item.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     ${usdBadge}
                 </div>
             </div>
