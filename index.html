@@ -36,10 +36,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <!-- Hoja de Estilos con control de versión de caché -->
-    <link rel="stylesheet" href="css/styles.css?v=8.3">
+    <link rel="stylesheet" href="css/styles.css?v=8.4">
 
     <!-- Script Modular Orquestador -->
-    <script type="module" src="js/app.js?v=8.3"></script>
+    <script type="module" src="js/app.js?v=8.4"></script>
 </head>
 <body>
 
@@ -50,7 +50,7 @@
     <div id="login-screen">
         <div class="brand" style="margin-bottom: 24px;">
             <h1>Smart<span>Finance</span></h1>
-            <span class="app-ver-tag">PWA CONSOLE V8.3</span>
+            <span class="app-ver-tag">PWA CONSOLE V8.4</span>
         </div>
         <form id="form-auth-login">
             <div class="input-group">
@@ -102,27 +102,21 @@
         <!-- VISTA 1: INICIO (DASHBOARD SIN SCROLL) -->
         <main class="view-container active" id="view-inicio">
             
-            <!-- BLOQUE 1: MACROECONOMÍA -->
-            <section class="macro-section-container">
-                <div class="macro-header-row">
-                    <div class="macro-header-title">
-                        <span class="macro-indicator-bar"></span>
-                        <h2>MERCADO MACRO &amp; DIVISAS EN VIVO</h2>
-                    </div>
+            <!-- BLOQUE 1: MARQUESINA MACROECONOMÍA & DIVISAS EN VIVO -->
+            <section class="macro-ticker-section" aria-label="Mercado Macro y Divisas en Vivo">
+                <div class="macro-ticker-badge-box">
+                    <span class="macro-indicator-bar"></span>
+                    <span class="macro-ticker-label">MERCADO</span>
                     <span id="market-status-tag" class="macro-status-badge">
                         <span class="status-pulse-dot"></span> EN VIVO
                     </span>
                 </div>
-                <div class="market-bar-grid" id="market-bar-container"></div>
+                <div class="macro-ticker-viewport" id="market-bar-container"></div>
             </section>
 
-            <!-- BLOQUE 2: MÉTRICAS PATRIMONIALES Y MENSUALES -->
+            <!-- BLOQUE 2: MÉTRICAS MENSUALES Y PATRIMONIALES (5 KPIs) -->
             <section class="metrics-section-container">
                 <div class="metrics-grid">
-                    <div class="card">
-                        <span class="card-title">Patrimonio Neto</span>
-                        <div class="card-value" id="metric-patrimonio"><span class="main-val">$0</span></div>
-                    </div>
                     <div class="card">
                         <span class="card-title">Ingresos Mes</span>
                         <div class="card-value" id="metric-ingresos"><span class="main-val">$0</span></div>
@@ -139,14 +133,31 @@
                         <span class="card-title">Ahorro Neto Mes</span>
                         <div class="card-value" id="metric-ahorro"><span class="main-val">$0</span></div>
                     </div>
-                    <div class="card">
-                        <span class="card-title">Liquidez Inmediata</span>
-                        <div class="card-value" id="metric-disponible"><span class="main-val">$0</span></div>
+                    <div class="card card-patrimonio-span">
+                        <span class="card-title">Patrimonio Neto</span>
+                        <div class="card-value" id="metric-patrimonio"><span class="main-val">$0</span></div>
                     </div>
                 </div>
             </section>
 
-            <!-- BLOQUE 3: DISTRIBUCIÓN DE LIQUIDEZ -->
+            <!-- BLOQUE 3: EJECUCIÓN PRESUPUESTARIA GLOBAL -->
+            <section class="section-box budget-global-banner home-budget-banner" id="budget-global-banner">
+                <div class="budget-progress-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="macro-indicator-bar"></span>
+                        <h3>EJECUCIÓN PRESUPUESTARIA GLOBAL</h3>
+                    </div>
+                    <span id="budget-global-pct-badge" style="font-size: 12px; font-weight: 800; font-family: 'Urbanist', sans-serif; color: var(--primary);">0,0% ejecutado</span>
+                </div>
+
+                <div class="budget-progress-track">
+                    <div class="budget-progress-fill" id="budget-global-progress-fill" style="width: 0%; background-color: var(--primary);"></div>
+                </div>
+
+                <div class="home-budget-kpis-grid" id="budget-global-kpis-container"></div>
+            </section>
+
+            <!-- BLOQUE 4: DISTRIBUCIÓN DE LIQUIDEZ OPERATIVA -->
             <section class="chart-frame">
                 <div class="chart-frame-header">
                     <span class="macro-indicator-bar"></span>
@@ -273,23 +284,6 @@
                             <i class="fa-solid fa-copy"></i> Duplicar Mes Anterior
                         </button>
                     </div>
-                </div>
-
-                <!-- BANNER MACRO: EJECUCIÓN PRESUPUESTARIA GLOBAL -->
-                <div class="section-box budget-global-banner" id="budget-global-banner" style="padding: 16px 20px; margin-bottom: 18px;">
-                    <div class="budget-progress-header">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="macro-indicator-bar"></span>
-                            <h3 style="margin: 0; border: none; padding: 0; font-size: 12px; letter-spacing: 0.6px;">EJECUCIÓN PRESUPUESTARIA GLOBAL</h3>
-                        </div>
-                        <span id="budget-global-pct-badge" style="font-size: 12px; font-weight: 800; font-family: 'Urbanist', sans-serif; color: var(--primary);">0,0% ejecutado</span>
-                    </div>
-
-                    <div class="budget-progress-track">
-                        <div class="budget-progress-fill" id="budget-global-progress-fill" style="width: 0%; background-color: var(--primary);"></div>
-                    </div>
-
-                    <div class="cat-history-kpis-grid" id="budget-global-kpis-container" style="margin: 12px 0 0 0;"></div>
                 </div>
 
                 <div class="section-box table-wrapper">
