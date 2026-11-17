@@ -55,6 +55,79 @@ export const CATEGORIAS_DEFAULT = [
     'Wellspring'
 ];
 
+export const NATURALEZA_META = {
+    FIJO: { label: 'Compromisos Fijos', shortLabel: 'Fijo', icon: 'fa-calendar-check', color: '#3b82f6' },
+    ESENCIAL: { label: 'Variables Esenciales', shortLabel: 'Esencial', icon: 'fa-basket-shopping', color: '#10b981' },
+    DISCRECIONAL: { label: 'Variables Discrecionales', shortLabel: 'Discrecional', icon: 'fa-sparkles', color: '#a855f7' }
+};
+
+export const CATEGORIAS_NATURALEZA_DEFAULT = {
+    'Aguas': 'FIJO',
+    'Ajuste Técnico Saldos': 'DISCRECIONAL',
+    'Apple': 'FIJO',
+    'Arreglos del Hogar': 'ESENCIAL',
+    'Asesoría Financiera': 'FIJO',
+    'CAFAR': 'FIJO',
+    'Carnicería': 'ESENCIAL',
+    'Cerámica': 'DISCRECIONAL',
+    'Compra/Venta Divisas': 'DISCRECIONAL',
+    'Contadora': 'FIJO',
+    'Corte Cesped': 'FIJO',
+    'Danza Desi': 'FIJO',
+    'Edenor Pilar': 'FIJO',
+    'Ekisian': 'FIJO',
+    'Entretenimiento': 'DISCRECIONAL',
+    'Farmacia': 'ESENCIAL',
+    'Gastos Automotor': 'ESENCIAL',
+    'Gimnasia': 'FIJO',
+    'Google Drive': 'FIJO',
+    'Impuesto municipal Pilar': 'FIJO',
+    'Impuestos cuentas bancarias': 'FIJO',
+    'Ingresos Laborales / Honorarios': 'DISCRECIONAL',
+    'Insumos Piscina': 'ESENCIAL',
+    'Intereses Financieros': 'FIJO',
+    'La Caja Seguros': 'FIJO',
+    'Limpieza Hogar': 'FIJO',
+    'Movistar': 'FIJO',
+    'Nafta': 'ESENCIAL',
+    'Naturgy': 'FIJO',
+    'Netflix': 'FIJO',
+    'Ofrenda': 'DISCRECIONAL',
+    'Otros': 'DISCRECIONAL',
+    'Paddle': 'FIJO',
+    'Pago Tarjeta de Crédito': 'FIJO',
+    'Panadería': 'ESENCIAL',
+    'Peajes': 'ESENCIAL',
+    'Peluquería': 'DISCRECIONAL',
+    'Personal Flow': 'FIJO',
+    'Personal TV': 'FIJO',
+    'Prosegur': 'FIJO',
+    'Regalos': 'DISCRECIONAL',
+    'Rendimiento Inversiones': 'DISCRECIONAL',
+    'Restaurantes': 'DISCRECIONAL',
+    'Servicios Bancarios': 'FIJO',
+    'Supermercado': 'ESENCIAL',
+    'Tarjeta de Crédito Galicia': 'FIJO',
+    'Tarjeta de Crédito Mercado Pago': 'FIJO',
+    'Tarjeta de Crédito Santander': 'FIJO',
+    'Tenis': 'FIJO',
+    'Tintorería': 'ESENCIAL',
+    'Transferencia Interna': 'DISCRECIONAL',
+    'Verdulería': 'ESENCIAL',
+    'Wellspring': 'FIJO'
+};
+
+export function resolveCategoryNature(categoryName, dbNaturaleza = null, fechaVenc = null) {
+    const norm = String(dbNaturaleza || '').trim().toUpperCase();
+    if (norm === 'FIJO' || norm === 'ESENCIAL' || norm === 'DISCRECIONAL') {
+        return norm;
+    }
+    if (fechaVenc) {
+        return 'FIJO';
+    }
+    return CATEGORIAS_NATURALEZA_DEFAULT[categoryName] || 'DISCRECIONAL';
+}
+
 export const CUENTAS_OPERATIVAS = ["Santander", "Efectivo", "Mercado Pago Dante", "Mercado Pago Lore", "Galicia"];
 export const CUENTAS_COMITENTES = ["Inviu", "Balanz", "Bull Market Brokers"];
 export const CUENTAS_TARJETAS = ["Tarjeta de Crédito Galicia", "Tarjeta de Crédito Santander", "Tarjeta de Crédito Mercado Pago"];
@@ -79,7 +152,8 @@ export const state = {
     creditCardDebtUSD: {},
     editingTransactionId: null,
     selectedCategoryHistoryName: null,
-    selectedCategoryHistoryRange: 6
+    selectedCategoryHistoryRange: 6,
+    ragViewMode: localStorage.getItem('sf_rag_view_mode') || 'NATURALEZA'
 };
 
 /**
@@ -133,7 +207,7 @@ export async function syncOfflineQueue(onSuccess) {
         const queue = JSON.parse(raw);
         if (!Array.isArray(queue) || queue.length === 0) return;
 
-        const { _supabase } = await import('./supabaseClient.js?v=8.4');
+        const { _supabase } = await import('./supabaseClient.js?v=8.5');
         const { error } = await _supabase.from('transacciones').insert(queue);
         if (!error) {
             localStorage.removeItem('sf_offline_queue');
@@ -148,7 +222,7 @@ export async function fetchDynamicCategories() {
     try {
         let combined = [...CATEGORIAS_DEFAULT];
         if (state.currentUser) {
-            const { _supabase } = await import('./supabaseClient.js?v=8.4');
+            const { _supabase } = await import('./supabaseClient.js?v=8.5');
             const { data, error } = await _supabase
                 .from('user_categories')
                 .select('nombre_categoria')
