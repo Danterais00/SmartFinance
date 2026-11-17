@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v8.5",
+        fecha: "2026-11-17",
+        tipo: "SEMÁFORO RAG POR NATURALEZA & RIGIDEZ",
+        color: "var(--primary)",
+        icon: "fa-layer-group",
+        archivos: ["sw.js", "index.html", "css/styles.css", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Clasificación inteligente y configurable del Semáforo Presupuestario RAG por naturaleza del gasto (Compromisos Fijos, Variables Esenciales y Variables Discrecionales) persistida en Supabase: 1) Selector de vista rápida en cabecera RAG (Por Naturaleza, Por Semáforo, Alfabético A–Z) con subtotales y barras de ejecución por bloque; 2) Selector de naturaleza en Fijar Presupuesto Mensual, Modal de Edición y Duplicar Mes Anterior; y 3) Exportación agrupada en Reporte PDF con indicador de Rigidez Presupuestaria."
+    },
+    {
         version: "v8.4",
         fecha: "2026-11-16",
         tipo: "REDISEÑO UX/UI DASHBOARD INICIO",
