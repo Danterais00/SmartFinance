@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.3';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.4';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.4';
 
 /**
  * Renderiza un gráfico de Chart.js fuera de pantalla y devuelve su imagen PNG
