@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.4';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.5';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -9,16 +9,18 @@ import {
     escapeHTML,
     getLocalDateString, 
     getPreviousMonthStr, 
+    NATURALEZA_META,
+    resolveCategoryNature,
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=8.4';
+} from './state.js?v=8.5';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=8.4';
+} from './financeEngine.js?v=8.5';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -30,10 +32,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=8.4';
-import { exportAuditPDF } from './pdfReport.js?v=8.4';
-import { parseVisaStatement } from './statementImporter.js?v=8.4';
-import { renderChangelogTable } from './changelog.js?v=8.4';
+} from './charts.js?v=8.5';
+import { exportAuditPDF } from './pdfReport.js?v=8.5';
+import { parseVisaStatement } from './statementImporter.js?v=8.5';
+import { renderChangelogTable } from './changelog.js?v=8.5';
 
 let parsedStatementItems = [];
 
@@ -161,17 +163,21 @@ window.UI = {
         if (typeof window.updateUnifiedFormUI === 'function') window.updateUnifiedFormUI();
     },
 
-    editBudgetDirect(catName, currentMeta, currentFecha = '') {
+    editBudgetDirect(catName, currentMeta, currentFecha = '', currentNaturaleza = '') {
         const titleEl = document.getElementById('modal-edit-budget-title');
         const hiddenCat = document.getElementById('edit-budget-cat-name');
         const inputAmount = document.getElementById('edit-budget-amount');
         const inputDate = document.getElementById('edit-budget-date');
+        const inputNat = document.getElementById('edit-budget-naturaleza');
         const selector = document.getElementById('global-month-selector');
         const activePeriod = selector ? selector.value : getLocalDateString().substring(0, 7);
 
         if (titleEl) titleEl.innerText = `Ajustar: ${catName}`;
         if (hiddenCat) hiddenCat.value = catName;
         if (inputAmount) inputAmount.value = currentMeta;
+        if (inputNat) {
+            inputNat.value = resolveCategoryNature(catName, currentNaturaleza, currentFecha);
+        }
 
         if (inputDate) {
             const [curY, curM] = activePeriod.split('-').map(Number);
@@ -461,6 +467,12 @@ function populateSelectOptions() {
     fillSelect('uni-destino', CUENTAS_SISTEMA_TOTAL);
     fillSelect('uni-categoria', state.misCategoriasUnificadas);
     fillSelect('pre-cat', state.misCategoriasUnificadas);
+    const preCatEl = document.getElementById('pre-cat');
+    const preNatEl = document.getElementById('pre-naturaleza');
+    const preFechaEl = document.getElementById('pre-fecha');
+    if (preCatEl && preNatEl) {
+        preNatEl.value = resolveCategoryNature(preCatEl.value, null, preFechaEl ? preFechaEl.value : null);
+    }
     fillSelect('audit-cuenta', CUENTAS_OPERATIVAS);
     fillSelect('edit-form-metodo', CUENTAS_SISTEMA_TOTAL);
     fillSelect('edit-form-categoria', state.misCategoriasUnificadas);
@@ -564,9 +576,11 @@ function recalculateFinancialMetrics() {
 
     let catMetaMap = {}; 
     let catFechaMap = {};
+    let catNaturalezaMap = {};
     state.misCategoriasUnificadas.forEach(c => { 
         catMetaMap[c] = 0; 
         catFechaMap[c] = null;
+        catNaturalezaMap[c] = null;
     });
 
     state.globalBudgetData.forEach(b => {
@@ -575,6 +589,7 @@ function recalculateFinancialMetrics() {
         if (catMetaMap[b.nombre] !== undefined) {
             catMetaMap[b.nombre] = val;
             catFechaMap[b.nombre] = b.fecha_vencimiento || null;
+            catNaturalezaMap[b.nombre] = b.naturaleza || null;
         }
     });
 
@@ -655,6 +670,7 @@ function recalculateFinancialMetrics() {
         let gasto = catGastosMap[c] || 0;
         let fechaVenc = catFechaMap[c] || null;
         let commitInfo = commitmentsStatusMap[c] || null;
+        let naturaleza = resolveCategoryNature(c, catNaturalezaMap[c], fechaVenc);
 
         if (meta > 0 || gasto > 0 || fechaVenc) {
             categoriesMes.push({ 
@@ -662,6 +678,7 @@ function recalculateFinancialMetrics() {
                 meta, 
                 gasto, 
                 fechaVenc, 
+                naturaleza,
                 isPaid: commitInfo ? commitInfo.isPaid : (gasto > 0),
                 estado: calcularEstadoRAG(meta, gasto) 
             });
@@ -731,90 +748,196 @@ function renderBudgetExecutionSummary(categoriesMes) {
     `;
 }
 
+function buildAccuracyCategoryRowHTML(c, todayIso, showNatureTag = false) {
+    const badgeColor = c.estado === 'Target' ? 'var(--primary)' : (c.estado === 'Riesgo' ? 'var(--warning)' : 'var(--danger)');
+    let campanaHTML = '';
+
+    if (c.fechaVenc && !c.isPaid) {
+        let colorCampana = 'var(--text-muted)';
+        let animacion = '';
+        if (c.fechaVenc < todayIso) {
+            colorCampana = 'var(--danger)';
+        } else if (c.fechaVenc === todayIso) {
+            colorCampana = 'var(--warning)';
+            animacion = 'fa-shake';
+        }
+        const [, m, d] = c.fechaVenc.split('-');
+        campanaHTML = `<span style="margin-left:8px; font-size:11px; color:${colorCampana}; font-weight:600;" title="Vence el ${escapeHTML(d)}/${escapeHTML(m)}"><i class="fa-solid fa-bell ${animacion}"></i> ${escapeHTML(d)}/${escapeHTML(m)}</span>`;
+    } else if (c.fechaVenc && c.isPaid) {
+        campanaHTML = `<span style="margin-left:8px; font-size:11px; color:var(--primary); font-weight:600;" title="Pagado en el mes activo"><i class="fa-solid fa-circle-check"></i> Pagado</span>`;
+    }
+
+    const dif = c.meta - c.gasto;
+    let dispHTML = '';
+    if (c.meta === 0 && c.gasto > 0) {
+        dispHTML = `
+            <span style="color:var(--danger); font-weight:700;">-$${Math.round(c.gasto).toLocaleString('es-AR')}</span>
+            <span style="display:block; font-size:9.5px; color:var(--text-muted); font-weight:500;">sin meta</span>
+        `;
+    } else if (dif >= 0) {
+        dispHTML = `<span style="color:var(--primary); font-weight:700;">+$${Math.round(dif).toLocaleString('es-AR')}</span>`;
+    } else {
+        dispHTML = `<span style="color:var(--danger); font-weight:700;">-$${Math.round(Math.abs(dif)).toLocaleString('es-AR')}</span>`;
+    }
+
+    let miniBarHTML = '';
+    if (c.meta > 0) {
+        const pctRow = Math.min(100, Math.max(0, (c.gasto / c.meta) * 100));
+        const pctRealLabel = ((c.gasto / c.meta) * 100).toFixed(1);
+        miniBarHTML = `
+            <div class="mini-progress-track" title="${pctRealLabel}% del presupuesto utilizado">
+                <div class="mini-progress-fill" style="width:${pctRow}%; background-color:${badgeColor};"></div>
+            </div>
+        `;
+    } else if (c.gasto > 0) {
+        miniBarHTML = `
+            <div class="mini-progress-track" title="Gasto sin presupuesto asignado">
+                <div class="mini-progress-fill" style="width:100%; background-color:var(--danger); opacity:0.65;"></div>
+            </div>
+        `;
+    }
+
+    const natKey = resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc);
+    const natMeta = NATURALEZA_META[natKey] || NATURALEZA_META.DISCRECIONAL;
+    const naturePillHTML = showNatureTag
+        ? `<span class="rag-nature-pill" style="color:${natMeta.color}; border-color:${natMeta.color}40;">${escapeHTML(natMeta.shortLabel)}</span>`
+        : '';
+
+    const safeCatAttr = escapeHTML(c.nombre);
+    const safeFechaAttr = escapeHTML(c.fechaVenc || '');
+    const safeNatAttr = escapeHTML(natKey);
+
+    return `<tr>
+        <td style="font-weight:600;">
+            <div style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px;">
+                <span>${safeCatAttr}${naturePillHTML}</span>
+                ${campanaHTML}
+            </div>
+        </td>
+        <td style="text-align:right; white-space:nowrap;">$${c.meta.toLocaleString('es-AR')}</td>
+        <td style="text-align:right; font-weight:700; white-space:nowrap;">
+            <div>$${c.gasto.toLocaleString('es-AR')}</div>
+            ${miniBarHTML}
+        </td>
+        <td style="text-align:right; white-space:nowrap;">${dispHTML}</td>
+        <td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${escapeHTML(c.estado)}</span></td>
+        <td style="text-align:center; white-space:nowrap;">
+            <button type="button" class="btn-action btn-edit-budget" data-cat="${safeCatAttr}" data-meta="${c.meta}" data-fecha="${safeFechaAttr}" data-naturaleza="${safeNatAttr}" title="Editar Presupuesto, Naturaleza y Vencimiento"><i class="fa-solid fa-pen-to-square"></i></button>
+            <button type="button" class="btn-delete btn-delete-budget" data-cat="${safeCatAttr}" title="Eliminar Presupuesto"><i class="fa-solid fa-trash"></i></button>
+        </td>
+    </tr>`;
+}
+
+function buildAccuracyGroupHeaderHTML(natKey, items) {
+    const metaInfo = NATURALEZA_META[natKey] || NATURALEZA_META.DISCRECIONAL;
+    const grpMeta = items.reduce((acc, c) => acc + (parseFloat(c.meta) || 0), 0);
+    const grpGasto = items.reduce((acc, c) => acc + (parseFloat(c.gasto) || 0), 0);
+    const grpDif = grpMeta - grpGasto;
+    const grpEstado = calcularEstadoRAG(grpMeta, grpGasto);
+    const badgeColor = grpEstado === 'Target' ? 'var(--primary)' : (grpEstado === 'Riesgo' ? 'var(--warning)' : 'var(--danger)');
+
+    const dispHTML = grpDif >= 0
+        ? `<span style="color:var(--primary); font-weight:800;">+$${Math.round(grpDif).toLocaleString('es-AR')}</span>`
+        : `<span style="color:var(--danger); font-weight:800;">-$${Math.round(Math.abs(grpDif)).toLocaleString('es-AR')}</span>`;
+
+    const pctGroup = grpMeta > 0 ? Math.min(100, Math.max(0, (grpGasto / grpMeta) * 100)) : (grpGasto > 0 ? 100 : 0);
+    const pctLabel = grpMeta > 0 ? `${((grpGasto / grpMeta) * 100).toFixed(1)}%` : (grpGasto > 0 ? 'Sin meta' : '0%');
+
+    return `<tr class="rag-group-header-row" style="--group-accent: ${metaInfo.color};">
+        <td>
+            <div class="rag-group-title-wrap">
+                <i class="fa-solid ${metaInfo.icon}" style="color:${metaInfo.color};"></i>
+                <span>${escapeHTML(metaInfo.label)}</span>
+                <span class="rag-group-count">${items.length}</span>
+            </div>
+        </td>
+        <td style="text-align:right; font-weight:800; white-space:nowrap;">$${Math.round(grpMeta).toLocaleString('es-AR')}</td>
+        <td style="text-align:right; font-weight:800; white-space:nowrap;">
+            <div>$${Math.round(grpGasto).toLocaleString('es-AR')}</div>
+            <div class="mini-progress-track" title="${pctLabel} ejecutado en el bloque">
+                <div class="mini-progress-fill" style="width:${pctGroup}%; background-color:${badgeColor};"></div>
+            </div>
+        </td>
+        <td style="text-align:right; white-space:nowrap;">${dispHTML}</td>
+        <td style="text-align:center;"><span style="color:${badgeColor}; font-weight:800;">● ${escapeHTML(grpEstado)}</span></td>
+        <td style="text-align:center; font-size:10.5px; color:var(--text-muted); font-weight:700;">${pctLabel}</td>
+    </tr>`;
+}
+
 function renderAccuracyTable(categoriesMes) {
     const tbody = document.getElementById('accuracy-body-real');
     if (!tbody) return;
     tbody.innerHTML = "";
-    if (categoriesMes.length === 0) { 
+    if (!categoriesMes || categoriesMes.length === 0) { 
         tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:16px;">Sin registros ni presupuesto activo para este período.</td></tr>`; 
         return; 
     }
-    
-    const sortedList = [...categoriesMes].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
-    const todayIso = getLocalDateString();
 
-    sortedList.forEach(c => {
-        const badgeColor = c.estado === 'Target' ? 'var(--primary)' : (c.estado === 'Riesgo' ? 'var(--warning)' : 'var(--danger)');
-        let campanaHTML = '';
-
-        if (c.fechaVenc && !c.isPaid) {
-            let colorCampana = 'var(--text-muted)';
-            let animacion = '';
-            if (c.fechaVenc < todayIso) {
-                colorCampana = 'var(--danger)';
-            } else if (c.fechaVenc === todayIso) {
-                colorCampana = 'var(--warning)';
-                animacion = 'fa-shake';
-            }
-            const [, m, d] = c.fechaVenc.split('-');
-            campanaHTML = `<span style="margin-left:8px; font-size:11px; color:${colorCampana}; font-weight:600;" title="Vence el ${escapeHTML(d)}/${escapeHTML(m)}"><i class="fa-solid fa-bell ${animacion}"></i> ${escapeHTML(d)}/${escapeHTML(m)}</span>`;
-        } else if (c.fechaVenc && c.isPaid) {
-            campanaHTML = `<span style="margin-left:8px; font-size:11px; color:var(--primary); font-weight:600;" title="Pagado en el mes activo"><i class="fa-solid fa-circle-check"></i> Pagado</span>`;
-        }
-
-        const dif = c.meta - c.gasto;
-        let dispHTML = '';
-        if (c.meta === 0 && c.gasto > 0) {
-            dispHTML = `
-                <span style="color:var(--danger); font-weight:700;">-$${Math.round(c.gasto).toLocaleString('es-AR')}</span>
-                <span style="display:block; font-size:9.5px; color:var(--text-muted); font-weight:500;">sin meta</span>
-            `;
-        } else if (dif >= 0) {
-            dispHTML = `<span style="color:var(--primary); font-weight:700;">+$${Math.round(dif).toLocaleString('es-AR')}</span>`;
-        } else {
-            dispHTML = `<span style="color:var(--danger); font-weight:700;">-$${Math.round(Math.abs(dif)).toLocaleString('es-AR')}</span>`;
-        }
-
-        let miniBarHTML = '';
-        if (c.meta > 0) {
-            const pctRow = Math.min(100, Math.max(0, (c.gasto / c.meta) * 100));
-            const pctRealLabel = ((c.gasto / c.meta) * 100).toFixed(1);
-            miniBarHTML = `
-                <div class="mini-progress-track" title="${pctRealLabel}% del presupuesto utilizado">
-                    <div class="mini-progress-fill" style="width:${pctRow}%; background-color:${badgeColor};"></div>
-                </div>
-            `;
-        } else if (c.gasto > 0) {
-            miniBarHTML = `
-                <div class="mini-progress-track" title="Gasto sin presupuesto asignado">
-                    <div class="mini-progress-fill" style="width:100%; background-color:var(--danger); opacity:0.65;"></div>
-                </div>
-            `;
-        }
-
-        const safeCatAttr = escapeHTML(c.nombre);
-        const safeFechaAttr = escapeHTML(c.fechaVenc || '');
-
-        tbody.innerHTML += `<tr>
-            <td style="font-weight:600;">
-                <div style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px;">
-                    <span>${safeCatAttr}</span>
-                    ${campanaHTML}
-                </div>
-            </td>
-            <td style="text-align:right; white-space:nowrap;">$${c.meta.toLocaleString('es-AR')}</td>
-            <td style="text-align:right; font-weight:700; white-space:nowrap;">
-                <div>$${c.gasto.toLocaleString('es-AR')}</div>
-                ${miniBarHTML}
-            </td>
-            <td style="text-align:right; white-space:nowrap;">${dispHTML}</td>
-            <td style="text-align:center;"><span style="color:${badgeColor}; font-weight:700;">● ${escapeHTML(c.estado)}</span></td>
-            <td style="text-align:center; white-space:nowrap;">
-                <button type="button" class="btn-action btn-edit-budget" data-cat="${safeCatAttr}" data-meta="${c.meta}" data-fecha="${safeFechaAttr}" title="Editar Presupuesto y Vencimiento"><i class="fa-solid fa-pen-to-square"></i></button>
-                <button type="button" class="btn-delete btn-delete-budget" data-cat="${safeCatAttr}" title="Eliminar Presupuesto"><i class="fa-solid fa-trash"></i></button>
-            </td>
-        </tr>`;
+    const mode = state.ragViewMode || 'NATURALEZA';
+    document.querySelectorAll('.btn-rag-mode').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-rag-mode') === mode);
     });
+
+    const todayIso = getLocalDateString();
+    const severityRank = { 'Fuera': 0, 'Riesgo': 1, 'Target': 2 };
+    const execRatio = (c) => (c.meta > 0 ? (c.gasto / c.meta) : (c.gasto > 0 ? 999 : -1));
+
+    let rowsHTML = '';
+
+    if (mode === 'NATURALEZA') {
+        const order = ['FIJO', 'ESENCIAL', 'DISCRECIONAL'];
+        order.forEach(natKey => {
+            const groupItems = categoriesMes.filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey);
+            if (groupItems.length === 0) return;
+
+            if (natKey === 'FIJO') {
+                groupItems.sort((a, b) => {
+                    const aUnpaidDue = (a.fechaVenc && !a.isPaid) ? 0 : (!a.fechaVenc ? 1 : 2);
+                    const bUnpaidDue = (b.fechaVenc && !b.isPaid) ? 0 : (!b.fechaVenc ? 1 : 2);
+                    if (aUnpaidDue !== bUnpaidDue) return aUnpaidDue - bUnpaidDue;
+                    if (aUnpaidDue === 0 && a.fechaVenc !== b.fechaVenc) return a.fechaVenc.localeCompare(b.fechaVenc);
+                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+                });
+            } else if (natKey === 'ESENCIAL') {
+                groupItems.sort((a, b) => {
+                    const rDiff = execRatio(b) - execRatio(a);
+                    if (Math.abs(rDiff) > 0.001) return rDiff;
+                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+                });
+            } else {
+                groupItems.sort((a, b) => {
+                    const sDiff = (severityRank[a.estado] ?? 2) - (severityRank[b.estado] ?? 2);
+                    if (sDiff !== 0) return sDiff;
+                    const rDiff = execRatio(b) - execRatio(a);
+                    if (Math.abs(rDiff) > 0.001) return rDiff;
+                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+                });
+            }
+
+            rowsHTML += buildAccuracyGroupHeaderHTML(natKey, groupItems);
+            groupItems.forEach(c => {
+                rowsHTML += buildAccuracyCategoryRowHTML(c, todayIso, false);
+            });
+        });
+    } else if (mode === 'SEMAFORO') {
+        const sortedList = [...categoriesMes].sort((a, b) => {
+            const sDiff = (severityRank[a.estado] ?? 2) - (severityRank[b.estado] ?? 2);
+            if (sDiff !== 0) return sDiff;
+            const rDiff = execRatio(b) - execRatio(a);
+            if (Math.abs(rDiff) > 0.001) return rDiff;
+            return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+        });
+        sortedList.forEach(c => {
+            rowsHTML += buildAccuracyCategoryRowHTML(c, todayIso, true);
+        });
+    } else {
+        const sortedList = [...categoriesMes].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+        sortedList.forEach(c => {
+            rowsHTML += buildAccuracyCategoryRowHTML(c, todayIso, true);
+        });
+    }
+
+    tbody.innerHTML = rowsHTML;
 
     if (!tbody.dataset.eventsBound) {
         tbody.addEventListener('click', (e) => {
@@ -823,7 +946,8 @@ function renderAccuracyTable(categoriesMes) {
                 const cat = editBtn.getAttribute('data-cat');
                 const meta = parseFloat(editBtn.getAttribute('data-meta')) || 0;
                 const fecha = editBtn.getAttribute('data-fecha') || '';
-                window.UI.editBudgetDirect(cat, meta, fecha);
+                const nat = editBtn.getAttribute('data-naturaleza') || '';
+                window.UI.editBudgetDirect(cat, meta, fecha, nat);
                 return;
             }
             const delBtn = e.target.closest('.btn-delete-budget');
@@ -834,8 +958,6 @@ function renderAccuracyTable(categoriesMes) {
         });
         tbody.dataset.eventsBound = 'true';
     }
-    
-
 }
 
 function buildHistoricalChartData() {
@@ -1331,9 +1453,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
     });
 
-    document.querySelectorAll('.btn-range-pill').forEach(btn => {
+    document.querySelectorAll('.btn-range-pill:not(.btn-rag-mode)').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.btn-range-pill').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.btn-range-pill:not(.btn-rag-mode)').forEach(b => b.classList.remove('active'));
             const targetBtn = e.target.closest('.btn-range-pill');
             targetBtn.classList.add('active');
             const range = parseInt(targetBtn.getAttribute('data-range'), 10) || 6;
@@ -1341,6 +1463,27 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
         });
     });
+
+    document.querySelectorAll('.btn-rag-mode').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetBtn = e.target.closest('.btn-rag-mode');
+            const mode = targetBtn.getAttribute('data-rag-mode') || 'NATURALEZA';
+            state.ragViewMode = mode;
+            try { localStorage.setItem('sf_rag_view_mode', mode); } catch (err) {}
+            renderAccuracyTable(state.cachedCategoriesDataForChart);
+        });
+    });
+
+    const syncSuggestedPreNature = () => {
+        const catVal = document.getElementById('pre-cat')?.value || '';
+        const fechaVal = document.getElementById('pre-fecha')?.value || '';
+        const natSel = document.getElementById('pre-naturaleza');
+        if (natSel && catVal) {
+            natSel.value = resolveCategoryNature(catVal, null, fechaVal);
+        }
+    };
+    document.getElementById('pre-cat')?.addEventListener('change', syncSuggestedPreNature);
+    document.getElementById('pre-fecha')?.addEventListener('change', syncSuggestedPreNature);
 
     document.getElementById('btn-trigger-report')?.addEventListener('click', () => {
         const audit = executeFinancialAuditEngine(); 
@@ -1532,6 +1675,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const cat = document.getElementById('pre-cat').value;
         const monto = parseFloat(document.getElementById('pre-mon').value);
         let vencimiento = document.getElementById('pre-fecha').value || null;
+        const rawNat = document.getElementById('pre-naturaleza')?.value || '';
+        const naturaleza = resolveCategoryNature(cat, rawNat, vencimiento);
 
         if (!isFinite(monto) || monto < 0) {
             window.UI.showAppAlert("Monto Inválido", "Ingresá un presupuesto numérico mayor o igual a cero.");
@@ -1558,7 +1703,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (existing) {
                 const { error: updErr } = await _supabase.from('categorias')
-                    .update({ presupuesto_mensual: monto, fecha_vencimiento: vencimiento })
+                    .update({ presupuesto_mensual: monto, fecha_vencimiento: vencimiento, naturaleza })
                     .eq('id', existing.id);
                 if (updErr) throw updErr;
             } else {
@@ -1568,7 +1713,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         nombre: cat,
                         presupuesto_mensual: monto,
                         periodo,
-                        fecha_vencimiento: vencimiento
+                        fecha_vencimiento: vencimiento,
+                        naturaleza
                     }]);
                 if (insErr) throw insErr;
             }
@@ -1590,6 +1736,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const catName = document.getElementById('edit-budget-cat-name').value;
         const num = parseFloat(document.getElementById('edit-budget-amount').value);
         let fechaVenc = document.getElementById('edit-budget-date')?.value || null;
+        const rawNat = document.getElementById('edit-budget-naturaleza')?.value || '';
+        const naturaleza = resolveCategoryNature(catName, rawNat, fechaVenc);
 
         if (!isFinite(num) || num < 0) {
             window.UI.showAppAlert("Entrada inválida", "Ingresá un monto numérico positivo.");
@@ -1618,7 +1766,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { error: updErr } = await _supabase.from('categorias')
                     .update({ 
                         presupuesto_mensual: num,
-                        fecha_vencimiento: fechaVenc
+                        fecha_vencimiento: fechaVenc,
+                        naturaleza
                     })
                     .eq('id', existing.id);
                 if (updErr) throw updErr;
@@ -1629,6 +1778,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         nombre: catName,
                         presupuesto_mensual: num,
                         fecha_vencimiento: fechaVenc,
+                        naturaleza,
                         periodo
                     }]);
                 if (insErr) throw insErr;
@@ -1768,13 +1918,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
+                    const clonedNat = resolveCategoryNature(b.nombre, b.naturaleza, adjustedDueDate);
                     const targetId = existingMap.get(b.nombre);
                     if (targetId) {
                         updatePromises.push(
                             _supabase.from('categorias')
                                 .update({
                                     presupuesto_mensual: b.presupuesto_mensual,
-                                    fecha_vencimiento: adjustedDueDate
+                                    fecha_vencimiento: adjustedDueDate,
+                                    naturaleza: clonedNat
                                 })
                                 .eq('id', targetId)
                         );
@@ -1784,7 +1936,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             nombre: b.nombre,
                             presupuesto_mensual: b.presupuesto_mensual,
                             periodo: currentPeriodo,
-                            fecha_vencimiento: adjustedDueDate
+                            fecha_vencimiento: adjustedDueDate,
+                            naturaleza: clonedNat
                         });
                     }
                 });
