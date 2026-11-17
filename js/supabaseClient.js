@@ -1,6 +1,6 @@
 /**
  * SmartFinance - Módulo de Cliente Supabase & Feed Financiero Macro en Vivo
- * Archivo: js/supabaseClient.js (v8.3)
+ * Archivo: js/supabaseClient.js (v8.4)
  */
 
 export const SUPABASE_URL = "https://uszneehbjssjractaleh.supabase.co";
@@ -131,7 +131,7 @@ function resolvePreviousDollarCloses(histDolaresList, currentQuotes) {
 }
 
 /**
- * Genera el HTML de una tarjeta de divisa bimonetaria (Compra / Venta limpias)
+ * Genera un ítem compacto de divisa (Compra y Venta juntos) para la marquesina financiera
  */
 function createCurrencyCardHTML(title, compra, venta, subtext, variacion = '= 0.0%') {
     const formatNumber = (val) => {
@@ -145,30 +145,16 @@ function createCurrencyCardHTML(title, compra, venta, subtext, variacion = '= 0.
     const varBadgeHTML = formatVariationBadge(variacion, false);
 
     return `
-        <div class="market-pill">
-            <div class="market-pill-header">
-                <span class="title">${title}</span>
-                ${varBadgeHTML}
-            </div>
-            <div class="val-group">
-                <div class="val-row">
-                    <span class="lbl">Compra</span>
-                    <span class="num" style="color: var(--text-muted); font-size: 12.5px; font-weight: 600;">${fCompra}</span>
-                </div>
-                <div class="val-row">
-                    <span class="lbl">Venta</span>
-                    <div class="num-box">
-                        <span class="num" style="color: #ffffff; font-size: 13.5px; font-weight: 700;">${fVenta}</span>
-                    </div>
-                </div>
-            </div>
-            <span class="sub">${subtext}</span>
+        <div class="ticker-item" title="${subtext}">
+            <span class="ticker-title">${title}</span>
+            <span class="ticker-pair"><span class="ticker-lbl">C:</span> ${fCompra} <span class="ticker-sep">/</span> <span class="ticker-lbl">V:</span> <strong>${fVenta}</strong></span>
+            ${varBadgeHTML}
         </div>
     `;
 }
 
 /**
- * Genera el HTML de una tarjeta de indicador macroeconómico de cifra única
+ * Genera un ítem compacto de indicador macroeconómico para la marquesina financiera
  */
 function createMacroCardHTML(title, value, subtext, badgeText, badgeClass = 'neutral') {
     let icon = '';
@@ -180,15 +166,21 @@ function createMacroCardHTML(title, value, subtext, badgeText, badgeClass = 'neu
     const cleanBadgeText = badgeText.replace('▲', '').replace('▼', '').trim();
 
     return `
-        <div class="market-pill">
-            <span class="title">${title}</span>
-            <div class="val-row" style="margin: 4px 0;">
-                <span class="num" style="font-size: 18px; font-weight: 800; font-family: 'Urbanist', sans-serif; color: #ffffff;">${value}</span>
-                <span class="var-badge ${badgeClass}">${icon} ${cleanBadgeText}</span>
-            </div>
-            <span class="sub">${subtext}</span>
+        <div class="ticker-item">
+            <span class="ticker-title">${title}</span>
+            <strong class="ticker-main-num">${value}</strong>
+            <span class="ticker-sub">(${subtext})</span>
+            <span class="var-badge ${badgeClass}">${icon} ${cleanBadgeText}</span>
         </div>
     `;
+}
+
+/**
+ * Envuelve los ítems en una pista continua duplicada para desplazamiento fluido sin cortes
+ */
+function buildMarqueeTrackHTML(itemsArray) {
+    const joined = itemsArray.join('<span class="ticker-divider">•</span>');
+    return `<div class="macro-ticker-track">${joined}<span class="ticker-divider">•</span>${joined}<span class="ticker-divider">•</span></div>`;
 }
 
 /**
@@ -345,13 +337,13 @@ export async function fetchMarketData() {
         } catch (e) {}
 
         if (container) {
-            container.innerHTML = `
-                ${createCurrencyCardHTML('Dólar Oficial', oficial?.compra, oficial?.venta, 'Banco Nación', varOficial)}
-                ${createCurrencyCardHTML('Dólar Blue', blue?.compra, blue?.venta, 'Informal', varBlue)}
-                ${createCurrencyCardHTML('Dólar MEP', mep?.compra, mep?.venta, 'Bolsa / Cable', varMep)}
-                ${createMacroCardHTML('Riesgo País', rpCard.value, rpCard.subtext, rpCard.badgeText, rpCard.badgeClass)}
-                ${createMacroCardHTML('Inflación IPC', ipcCard.value, ipcCard.subtext, ipcCard.badgeText, ipcCard.badgeClass)}
-            `;
+            container.innerHTML = buildMarqueeTrackHTML([
+                createCurrencyCardHTML('Dólar Oficial', oficial?.compra, oficial?.venta, 'Banco Nación', varOficial),
+                createCurrencyCardHTML('Dólar Blue', blue?.compra, blue?.venta, 'Informal', varBlue),
+                createCurrencyCardHTML('Dólar MEP', mep?.compra, mep?.venta, 'Bolsa / Cable', varMep),
+                createMacroCardHTML('Riesgo País', rpCard.value, rpCard.subtext, rpCard.badgeText, rpCard.badgeClass),
+                createMacroCardHTML('Inflación IPC', ipcCard.value, ipcCard.subtext, ipcCard.badgeText, ipcCard.badgeClass)
+            ]);
         }
 
         if (statusTag) {
@@ -381,21 +373,21 @@ export async function fetchMarketData() {
 
         if (container) {
             if (snap) {
-                container.innerHTML = `
-                    ${createCurrencyCardHTML('Dólar Oficial', snap.oficial?.compra, snap.oficial?.venta, 'Banco Nación', snap.varOficial || '= 0.0%')}
-                    ${createCurrencyCardHTML('Dólar Blue', snap.blue?.compra, snap.blue?.venta, 'Informal', snap.varBlue || '= 0.0%')}
-                    ${createCurrencyCardHTML('Dólar MEP', snap.mep?.compra || TIPO_CAMBIO_PRESUPUESTO, snap.mep?.venta || TIPO_CAMBIO_PRESUPUESTO, 'Bolsa / Cable', snap.varMep || '= 0.0%')}
-                    ${createMacroCardHTML('Riesgo País', snap.rpCard?.value || '873 pb', snap.rpCard?.subtext || 'JP Morgan EMBI+', snap.rpCard?.badgeText || '= 0.0%', snap.rpCard?.badgeClass || 'neutral')}
-                    ${createMacroCardHTML('Inflación IPC', snap.ipcCard?.value || '2,7%', snap.ipcCard?.subtext || 'INDEC (Respaldo)', snap.ipcCard?.badgeText || '= 0.0 pp', snap.ipcCard?.badgeClass || 'neutral')}
-                `;
+                container.innerHTML = buildMarqueeTrackHTML([
+                    createCurrencyCardHTML('Dólar Oficial', snap.oficial?.compra, snap.oficial?.venta, 'Banco Nación', snap.varOficial || '= 0.0%'),
+                    createCurrencyCardHTML('Dólar Blue', snap.blue?.compra, snap.blue?.venta, 'Informal', snap.varBlue || '= 0.0%'),
+                    createCurrencyCardHTML('Dólar MEP', snap.mep?.compra || TIPO_CAMBIO_PRESUPUESTO, snap.mep?.venta || TIPO_CAMBIO_PRESUPUESTO, 'Bolsa / Cable', snap.varMep || '= 0.0%'),
+                    createMacroCardHTML('Riesgo País', snap.rpCard?.value || '873 pb', snap.rpCard?.subtext || 'JP Morgan EMBI+', snap.rpCard?.badgeText || '= 0.0%', snap.rpCard?.badgeClass || 'neutral'),
+                    createMacroCardHTML('Inflación IPC', snap.ipcCard?.value || '2,7%', snap.ipcCard?.subtext || 'INDEC (Respaldo)', snap.ipcCard?.badgeText || '= 0.0 pp', snap.ipcCard?.badgeClass || 'neutral')
+                ]);
             } else {
-                container.innerHTML = `
-                    ${createCurrencyCardHTML('Dólar Oficial', TIPO_CAMBIO_PRESUPUESTO, TIPO_CAMBIO_PRESUPUESTO, 'Banco Nación', '= 0.0%')}
-                    ${createCurrencyCardHTML('Dólar Blue', TIPO_CAMBIO_PRESUPUESTO, TIPO_CAMBIO_PRESUPUESTO, 'Informal', '= 0.0%')}
-                    ${createCurrencyCardHTML('Dólar MEP', TIPO_CAMBIO_PRESUPUESTO, TIPO_CAMBIO_PRESUPUESTO, 'Bolsa / Cable', '= 0.0%')}
-                    ${createMacroCardHTML('Riesgo País', '873 pb', 'JP Morgan EMBI+', '= 0.0%', 'neutral')}
-                    ${createMacroCardHTML('Inflación IPC', '2,7%', 'INDEC (Sin conexión)', '= 0.0 pp', 'neutral')}
-                `;
+                container.innerHTML = buildMarqueeTrackHTML([
+                    createCurrencyCardHTML('Dólar Oficial', TIPO_CAMBIO_PRESUPUESTO, TIPO_CAMBIO_PRESUPUESTO, 'Banco Nación', '= 0.0%'),
+                    createCurrencyCardHTML('Dólar Blue', TIPO_CAMBIO_PRESUPUESTO, TIPO_CAMBIO_PRESUPUESTO, 'Informal', '= 0.0%'),
+                    createCurrencyCardHTML('Dólar MEP', TIPO_CAMBIO_PRESUPUESTO, TIPO_CAMBIO_PRESUPUESTO, 'Bolsa / Cable', '= 0.0%'),
+                    createMacroCardHTML('Riesgo País', '873 pb', 'JP Morgan EMBI+', '= 0.0%', 'neutral'),
+                    createMacroCardHTML('Inflación IPC', '2,7%', 'INDEC (Sin conexión)', '= 0.0 pp', 'neutral')
+                ]);
             }
         }
     }
