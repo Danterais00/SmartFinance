@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.3';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.3';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=8.4';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.4';
 
 /**
  * Generador estándar de UUID v4 compatible al 100% con el tipo de datos UUID de PostgreSQL.
