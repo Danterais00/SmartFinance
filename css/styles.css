@@ -51,86 +51,206 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .view-container { display: none; width: 100%; max-width: 1200px; padding: 12px 16px; margin: 0 auto; }
 .view-container.active { display: block; }
 
-/* 1. SECCIÓN MERCADO MACRO & DIVISAS */
-.macro-section-container { 
-    background-color: var(--bg-card) !important; 
-    border: 1px solid var(--border-color) !important; 
-    border-radius: 14px !important; 
-    padding: 10px 16px !important; 
-    margin-bottom: 10px !important; 
-    display: block !important; 
-    width: 100% !important; 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.25); 
+/* 1. MARQUESINA MERCADO MACRO & DIVISAS EN VIVO */
+.macro-ticker-section {
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    padding: 6px 12px !important;
+    margin-bottom: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    height: 40px !important;
+    overflow: hidden !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.22);
     flex: 0 0 auto !important;
 }
-.macro-header-row { display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 8px !important; width: 100% !important; }
-.macro-header-title { display: flex !important; align-items: center !important; gap: 8px !important; }
-.macro-indicator-bar { width: 4px; height: 14px; background: var(--blue); border-radius: 2px; display: inline-block; }
-.macro-header-title h2 { font-size: 11px !important; font-weight: 800 !important; color: #ffffff !important; text-transform: uppercase !important; letter-spacing: 0.8px !important; line-height: 1 !important; }
-.macro-status-badge { font-size: 9.5px !important; font-weight: 700 !important; padding: 2px 8px !important; border-radius: 20px !important; border: 1px solid var(--primary) !important; color: var(--primary) !important; background: rgba(16, 185, 129, 0.1) !important; display: inline-flex !important; align-items: center !important; gap: 5px !important; letter-spacing: 0.5px !important; white-space: nowrap !important; }
+.macro-ticker-badge-box {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    flex-shrink: 0 !important;
+    padding-right: 10px !important;
+    border-right: 1px solid var(--border-color) !important;
+}
+.macro-indicator-bar { width: 4px; height: 14px; background: var(--blue); border-radius: 2px; display: inline-block; flex-shrink: 0; }
+.macro-ticker-label {
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.7px !important;
+    display: none;
+}
+@media (min-width: 600px) {
+    .macro-ticker-label { display: inline-block !important; }
+}
+.macro-status-badge { font-size: 9px !important; font-weight: 700 !important; padding: 2px 7px !important; border-radius: 20px !important; border: 1px solid var(--primary) !important; color: var(--primary) !important; background: rgba(16, 185, 129, 0.1) !important; display: inline-flex !important; align-items: center !important; gap: 4px !important; letter-spacing: 0.4px !important; white-space: nowrap !important; }
 .status-pulse-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
 
-.market-bar-grid { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 8px !important; width: 100% !important; }
-@media (min-width: 650px) { .market-bar-grid { grid-template-columns: repeat(3, 1fr) !important; } }
-@media (min-width: 1024px) { .market-bar-grid { grid-template-columns: repeat(5, 1fr) !important; } }
-
-.market-pill { 
-    background: var(--bg-input) !important; 
-    border: 1px solid var(--border-color) !important; 
-    border-radius: 10px !important; 
-    padding: 8px 12px !important; 
-    display: flex !important; 
-    flex-direction: column !important; 
-    justify-content: space-between !important; 
-    gap: 3px !important; 
-    min-height: 80px !important; 
-    transition: border-color 0.2s ease; 
+.macro-ticker-viewport {
+    flex: 1 1 auto !important;
+    overflow: hidden !important;
+    position: relative !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    mask-image: linear-gradient(to right, transparent 0%, #000 2.5%, #000 97.5%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 2.5%, #000 97.5%, transparent 100%);
 }
-.market-pill:hover { border-color: var(--blue) !important; }
-.market-pill-header { display: flex !important; justify-content: space-between !important; align-items: center !important; width: 100% !important; margin-bottom: 2px !important; }
-.market-pill .title { font-size: 9.5px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
-.market-pill .val-group { display: flex; flex-direction: column; gap: 2px; }
-.market-pill .val-row { display: flex; justify-content: space-between; align-items: center; }
-.market-pill .val-row .lbl { color: var(--text-muted); font-size: 10px; font-weight: 500; }
-.market-pill .val-row .num-box { display: flex; align-items: center; gap: 5px; }
-.market-pill .val-row .num { font-size: 13px; font-weight: 700; font-family: 'Urbanist'; color: #ffffff !important; }
-.market-pill .sub { font-size: 9px; color: var(--text-muted); opacity: 0.8; font-weight: 500; }
-.var-badge { font-size: 8.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; padding: 2px 6px; border-radius: 4px; }
+.macro-ticker-track {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    white-space: nowrap !important;
+    width: max-content !important;
+    animation: sfMarqueeScroll 34s linear infinite;
+    will-change: transform;
+}
+.macro-ticker-section:hover .macro-ticker-track,
+.macro-ticker-section:active .macro-ticker-track {
+    animation-play-state: paused !important;
+}
+@keyframes sfMarqueeScroll {
+    0% { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-50%, 0, 0); }
+}
+
+.ticker-item {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    padding: 3px 10px !important;
+    height: 26px !important;
+    font-size: 11.5px !important;
+}
+.ticker-title {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: var(--text-muted) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.4px !important;
+}
+.ticker-pair {
+    font-size: 11.5px !important;
+    color: #e5e7eb !important;
+    font-family: 'Urbanist', sans-serif !important;
+    font-weight: 600 !important;
+}
+.ticker-pair strong,
+.ticker-main-num {
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    font-family: 'Urbanist', sans-serif !important;
+    font-size: 12.5px !important;
+}
+.ticker-lbl {
+    color: var(--text-muted) !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+}
+.ticker-sep {
+    color: var(--border-color) !important;
+    margin: 0 2px !important;
+}
+.ticker-sub {
+    font-size: 10px !important;
+    color: var(--text-muted) !important;
+    font-weight: 500 !important;
+}
+.ticker-divider {
+    color: var(--border-color) !important;
+    font-size: 12px !important;
+    user-select: none;
+}
+
+.var-badge { font-size: 8.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 2px; padding: 1.5px 5px; border-radius: 4px; }
 .var-badge.up { color: var(--primary); background: rgba(16, 185, 129, 0.12); }
 .var-badge.down { color: var(--danger); background: rgba(239, 68, 68, 0.12); }
 .var-badge.neutral { color: var(--text-muted); background: rgba(156, 163, 175, 0.12); opacity: 0.85; }
 
-/* 2. SECCIÓN MÉTRICAS PATRIMONIALES */
-.metrics-section-container { width: 100% !important; margin-bottom: 10px !important; display: block !important; flex: 0 0 auto !important; }
+/* 2. SECCIÓN MÉTRICAS MENSUALES Y PATRIMONIALES (5 KPIs) */
+.metrics-section-container { width: 100% !important; margin-bottom: 8px !important; display: block !important; flex: 0 0 auto !important; }
 .metrics-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; width: 100% !important; }
-@media (min-width: 768px) { .metrics-grid { grid-template-columns: repeat(3, 1fr) !important; } }
-@media (min-width: 1100px) { .metrics-grid { grid-template-columns: repeat(6, 1fr) !important; } }
+.metrics-grid .card-patrimonio-span { grid-column: 1 / -1; }
+@media (min-width: 768px) {
+    .metrics-grid { grid-template-columns: repeat(3, 1fr) !important; }
+    .metrics-grid .card-patrimonio-span { grid-column: auto; }
+}
+@media (min-width: 1100px) {
+    .metrics-grid { grid-template-columns: repeat(5, 1fr) !important; }
+}
 
 .card { 
     background-color: var(--bg-card) !important; 
     border: 1px solid var(--border-color) !important; 
     border-radius: 12px !important; 
-    padding: 10px 14px !important; 
+    padding: 8px 13px !important; 
     display: flex !important; 
     flex-direction: column !important; 
     justify-content: space-between !important; 
-    min-height: 90px !important; 
-    height: 90px !important; 
+    min-height: 78px !important; 
+    height: 78px !important; 
     width: 100% !important; 
     transition: transform 0.2s ease, border-color 0.2s ease; 
 }
 .card:hover { border-color: rgba(59, 130, 246, 0.4) !important; transform: translateY(-2px); }
-.card-title { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
-.card-value { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; height: 100%; overflow: hidden; margin-top: 3px; }
-.card-value .main-val { font-size: clamp(15px, 1.6vw, 19px); font-weight: 700; font-family: 'Urbanist'; display: block; line-height: 1.2; white-space: nowrap; }
-.card-value .sub-val { font-size: clamp(10px, 1vw, 11.5px); font-family: 'Urbanist'; display: block; line-height: 1.2; min-height: 14px; white-space: nowrap; font-weight: 700; }
+.card-title { font-size: 9.5px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+.card-value { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 1px; height: 100%; overflow: hidden; margin-top: 2px; }
+.card-value .main-val { font-size: clamp(15px, 1.55vw, 18.5px); font-weight: 700; font-family: 'Urbanist'; display: block; line-height: 1.2; white-space: nowrap; }
+.card-value .sub-val { font-size: clamp(9.5px, 0.95vw, 11px); font-family: 'Urbanist'; display: block; line-height: 1.15; min-height: 13px; white-space: nowrap; font-weight: 700; }
 
-/* 3. SECCIÓN DISTRIBUCIÓN DE LIQUIDEZ */
+/* 3. BANNER DE EJECUCIÓN PRESUPUESTARIA GLOBAL EN INICIO */
+.home-budget-banner {
+    padding: 10px 16px !important;
+    margin-bottom: 8px !important;
+    border-radius: 12px !important;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+}
+.home-budget-banner .budget-progress-header {
+    margin-bottom: 6px !important;
+}
+.home-budget-banner .budget-progress-header h3 {
+    margin: 0 !important;
+    border: none !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.7px !important;
+}
+.home-budget-kpis-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+}
+.home-budget-kpis-grid .micro-kpi-card {
+    padding: 5px 10px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+}
+@media (max-width: 640px) {
+    .home-budget-kpis-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* 4. SECCIÓN DISTRIBUCIÓN DE LIQUIDEZ OPERATIVA (COMPACTA) */
 .chart-frame { 
     background: var(--bg-card) !important; 
     border: 1px solid var(--border-color) !important; 
     border-radius: 14px !important; 
-    padding: 14px 20px !important; 
+    padding: 10px 18px !important; 
     text-align: center !important; 
     width: 100% !important; 
     margin-bottom: 0 !important; 
@@ -138,7 +258,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     display: flex !important;
     flex-direction: column !important;
 }
-.chart-frame-header { display: flex !important; align-items: center !important; gap: 8px !important; margin-bottom: 8px !important; text-align: left !important; flex: 0 0 auto !important; }
+.chart-frame-header { display: flex !important; align-items: center !important; gap: 8px !important; margin-bottom: 6px !important; text-align: left !important; flex: 0 0 auto !important; }
 .chart-frame-header h3 { font-size: 11px !important; font-weight: 800 !important; color: #ffffff !important; text-transform: uppercase !important; letter-spacing: 0.8px !important; line-height: 1 !important; }
 .chart-frame canvas { touch-action: pan-y; }
 
@@ -147,7 +267,7 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 14px !important;
+    gap: 12px !important;
     width: 100% !important;
     flex: 1 1 0 !important;
     min-height: 0 !important;
@@ -156,40 +276,40 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .svg-pie-container { 
     width: 100% !important;
     height: 100% !important;
-    max-height: 380px !important;
+    max-height: 245px !important;
     display: flex !important; 
     align-items: center !important; 
     justify-content: center !important; 
     margin: 0 auto !important; 
-    flex: 0 1 45% !important;
+    flex: 0 1 40% !important;
     min-width: 0 !important;
 }
 
 .legend-grid { 
     display: flex !important;
     flex-direction: column !important;
-    gap: 8px !important;
+    gap: 5px !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    flex: 1 1 50% !important;
+    flex: 1 1 55% !important;
     max-width: 520px !important;
     height: 100% !important;
-    max-height: 380px !important;
+    max-height: 245px !important;
     justify-content: space-between !important;
 }
 
 .legend-flat-item { 
     background: var(--bg-input) !important; 
     border: 1px solid var(--border-color) !important; 
-    border-radius: 12px !important; 
-    padding: 10px 20px !important; 
+    border-radius: 10px !important; 
+    padding: 5px 16px !important; 
     display: flex !important; 
     flex-direction: row !important;
     justify-content: space-between !important;
     align-items: center !important; 
     flex: 1 1 0 !important;
-    min-height: 52px !important;
+    min-height: 36px !important;
     width: 100% !important;
     box-sizing: border-box !important;
     transition: border-color 0.2s ease, transform 0.2s ease, background-color 0.2s ease !important;
@@ -202,16 +322,16 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .legend-flat-item .label-bank { 
     display: flex !important; 
     align-items: center !important; 
-    gap: 12px !important; 
+    gap: 10px !important; 
     color: var(--text-muted) !important; 
-    font-size: 13.5px !important; 
+    font-size: 12.5px !important; 
     font-weight: 600 !important; 
     white-space: nowrap !important; 
 }
 .legend-flat-item .label-bank .account-dot {
     display: inline-block !important;
-    width: 10px !important;
-    height: 10px !important;
+    width: 9px !important;
+    height: 9px !important;
     border-radius: 50% !important;
     flex-shrink: 0 !important;
 }
@@ -221,18 +341,18 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
     align-items: flex-end !important;
     justify-content: center !important;
     text-align: right !important;
-    font-size: 16px !important; 
+    font-size: 14.5px !important; 
     font-weight: 700 !important; 
     color: #ffffff !important; 
     font-family: 'Urbanist', sans-serif !important; 
     white-space: nowrap !important; 
 }
 .legend-flat-item .value-bank .sub-usd-val {
-    font-size: 11px !important;
+    font-size: 10px !important;
     color: var(--text-muted) !important;
     font-weight: 600 !important;
-    margin-top: 2px !important;
-    line-height: 1.1 !important;
+    margin-top: 1px !important;
+    line-height: 1.05 !important;
 }
 
 /* ESCRITORIO (SIN SCROLL EN INICIO) */
