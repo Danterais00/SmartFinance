@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.5';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.6';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -14,13 +14,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=8.5';
+} from './state.js?v=8.6';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=8.5';
+} from './financeEngine.js?v=8.6';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -32,10 +32,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=8.5';
-import { exportAuditPDF } from './pdfReport.js?v=8.5';
-import { parseVisaStatement } from './statementImporter.js?v=8.5';
-import { renderChangelogTable } from './changelog.js?v=8.5';
+} from './charts.js?v=8.6';
+import { exportAuditPDF } from './pdfReport.js?v=8.6';
+import { parseVisaStatement } from './statementImporter.js?v=8.6';
+import { renderChangelogTable } from './changelog.js?v=8.6';
 
 let parsedStatementItems = [];
 
@@ -1264,6 +1264,36 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
     return statusMap;
 }
 
+async function fetchAllPaginatedRows(tableName, userId, orderColumns = []) {
+    const PAGE_SIZE = 1000;
+    let allRows = [];
+    let from = 0;
+
+    while (true) {
+        let query = _supabase
+            .from(tableName)
+            .select('*')
+            .eq('user_id', userId);
+
+        orderColumns.forEach(col => {
+            query = query.order(col.column, { ascending: col.ascending });
+        });
+
+        const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+
+        const chunk = data || [];
+        allRows = allRows.concat(chunk);
+
+        if (chunk.length < PAGE_SIZE) {
+            break;
+        }
+        from += PAGE_SIZE;
+    }
+
+    return allRows;
+}
+
 async function loadUserDataFromDatabase() {
     if (!state.currentUser) return;
     try {
@@ -1271,15 +1301,27 @@ async function loadUserDataFromDatabase() {
         populateSelectOptions();
         const selector = document.getElementById('global-month-selector');
         const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
-                const [tRes, bMesRes, bHistRes] = await Promise.all([
-            _supabase.from('transacciones').select('*').eq('user_id', state.currentUser.id).order('fecha', { ascending: false }),
+        const [allTrans, bMesRes, allBudgetsHist] = await Promise.all([
+            fetchAllPaginatedRows('transacciones', state.currentUser.id, [
+                { column: 'fecha', ascending: false },
+                { column: 'id', ascending: false }
+            ]),
             _supabase.from('categorias').select('*').eq('user_id', state.currentUser.id).eq('periodo', activeMonth),
-            _supabase.from('categorias').select('*').eq('user_id', state.currentUser.id)
+            fetchAllPaginatedRows('categorias', state.currentUser.id, [
+                { column: 'periodo', ascending: false },
+                { column: 'id', ascending: false }
+            ])
         ]);
-        if (tRes.error) throw tRes.error; if (bMesRes.error) throw bMesRes.error; if (bHistRes.error) throw bHistRes.error;
-        state.globalTransData = tRes.data || []; state.globalBudgetData = bMesRes.data || []; state.allBudgetDataHistorico = bHistRes.data || [];
-        recalculateFinancialMetrics(); applyFilters();
-    } catch (err) { console.error("Error cargando datos:", err); window.UI.showToast(navigator.onLine ? `Error al sincronizar: ${err.message || "Error interno"}` : "Sin conexión a internet", true); }
+        if (bMesRes.error) throw bMesRes.error;
+        state.globalTransData = allTrans;
+        state.globalBudgetData = bMesRes.data || [];
+        state.allBudgetDataHistorico = allBudgetsHist;
+        recalculateFinancialMetrics();
+        applyFilters();
+    } catch (err) {
+        console.error("Error cargando datos:", err);
+        window.UI.showToast(navigator.onLine ? `Error al sincronizar: ${err.message || "Error interno"}` : "Sin conexión a internet", true);
+    }
 }
 
 function updateStagingTotals() {
