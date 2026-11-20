@@ -5,6 +5,24 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v8.7",
+        fecha: "2026-11-20",
+        tipo: "DETALLE RÁPIDO EN SEMÁFORO RAG",
+        color: "var(--blue)",
+        icon: "fa-list-ul",
+        archivos: ["sw.js", "index.html", "css/styles.css", "js/app.js", "js/changelog.js"],
+        descripcion: "Incorporación de cuadro flotante contextual en el Semáforo Presupuestario RAG: al posicionar el cursor (o tocar en móvil) sobre el nombre de una categoría o su Gasto Real, se despliega el listado de gastos imputados en el mes activo (Fecha, Concepto y Monto) excluyendo registros NO_COMPUTA y renovándose automáticamente al cambiar de período."
+    },
+    {
+        version: "v8.6",
+        fecha: "2026-11-19",
+        tipo: "HOTFIX PAGINACIÓN HISTÓRICA SUPABASE",
+        color: "var(--primary)",
+        icon: "fa-database",
+        archivos: ["sw.js", "index.html", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Implementación de descarga paginada automática en bloques de 1.000 filas (fetchAllPaginatedRows con desempate determinístico por fecha e id) para transacciones y presupuestos históricos, superando el límite por defecto de 1.000 registros por consulta de Supabase y restaurando el 100% de los saldos acumulados de apertura."
+    },
+    {
         version: "v8.5",
         fecha: "2026-11-17",
         tipo: "SEMÁFORO RAG POR NATURALEZA & RIGIDEZ",
