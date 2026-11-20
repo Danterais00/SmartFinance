@@ -35,7 +35,7 @@ import {
 } from './charts.js?v=8.6';
 import { exportAuditPDF } from './pdfReport.js?v=8.6';
 import { parseVisaStatement } from './statementImporter.js?v=8.6';
-import { renderChangelogTable } from './changelog.js?v=8.6';
+import { renderChangelogTable } from './changelog.js?v=8.7';
 
 let parsedStatementItems = [];
 
@@ -808,14 +808,14 @@ function buildAccuracyCategoryRowHTML(c, todayIso, showNatureTag = false) {
     const safeNatAttr = escapeHTML(natKey);
 
     return `<tr>
-        <td style="font-weight:600;">
+        <td class="rag-popover-trigger" data-rag-cat="${safeCatAttr}" style="font-weight:600;">
             <div style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:8px;">
-                <span>${safeCatAttr}${naturePillHTML}</span>
+                <span>${safeCatAttr}${naturePillHTML}<i class="fa-solid fa-circle-info rag-popover-hint" title="Ver detalle de gastos del mes"></i></span>
                 ${campanaHTML}
             </div>
         </td>
         <td style="text-align:right; white-space:nowrap;">$${c.meta.toLocaleString('es-AR')}</td>
-        <td style="text-align:right; font-weight:700; white-space:nowrap;">
+        <td class="rag-popover-trigger" data-rag-cat="${safeCatAttr}" style="text-align:right; font-weight:700; white-space:nowrap;">
             <div>$${c.gasto.toLocaleString('es-AR')}</div>
             ${miniBarHTML}
         </td>
@@ -864,7 +864,135 @@ function buildAccuracyGroupHeaderHTML(natKey, items) {
     </tr>`;
 }
 
+let ragPopoverHideTimer = null;
+let ragPopoverActiveCategory = null;
+
+function hideRagCategoryPopover(immediate = false) {
+    if (ragPopoverHideTimer) {
+        clearTimeout(ragPopoverHideTimer);
+        ragPopoverHideTimer = null;
+    }
+    const pop = document.getElementById('rag-category-popover');
+    if (!pop) return;
+    if (immediate) {
+        pop.classList.remove('is-visible');
+        pop.setAttribute('aria-hidden', 'true');
+        pop.innerHTML = '';
+        ragPopoverActiveCategory = null;
+    } else {
+        ragPopoverHideTimer = setTimeout(() => {
+            pop.classList.remove('is-visible');
+            pop.setAttribute('aria-hidden', 'true');
+            ragPopoverActiveCategory = null;
+        }, 160);
+    }
+}
+
+function positionRagCategoryPopover(pop, triggerEl) {
+    const rect = triggerEl.getBoundingClientRect();
+    const popWidth = Math.min(340, window.innerWidth - 24);
+    pop.style.width = `${popWidth}px`;
+
+    // Medir altura real
+    const popHeight = pop.offsetHeight || 220;
+    let left = rect.left;
+    if (left + popWidth > window.innerWidth - 12) {
+        left = window.innerWidth - popWidth - 12;
+    }
+    if (left < 12) left = 12;
+
+    let top = rect.bottom + 6;
+    if (top + popHeight > window.innerHeight - 12 && rect.top > popHeight + 14) {
+        top = Math.max(12, rect.top - popHeight - 6);
+    }
+
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.top = `${Math.round(top)}px`;
+}
+
+function showRagCategoryPopover(categoryName, triggerEl) {
+    const pop = document.getElementById('rag-category-popover');
+    if (!pop || !categoryName || !triggerEl) return;
+
+    if (ragPopoverHideTimer) {
+        clearTimeout(ragPopoverHideTimer);
+        ragPopoverHideTimer = null;
+    }
+
+    const selector = document.getElementById('global-month-selector');
+    const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
+    const periodLabel = (selector && selector.selectedIndex >= 0)
+        ? selector.options[selector.selectedIndex].text
+        : activeMonth;
+
+    const gastosCat = (state.globalTransData || [])
+        .filter(t => {
+            if (!t.fecha || t.fecha.substring(0, 7) !== activeMonth) return false;
+            if (t.tipo !== 'gasto') return false;
+            if (t.categoria !== categoryName) return false;
+            if (t.presupuestado === 'NO_COMPUTA') return false;
+            if (
+                t.categoria === 'Transferencia Interna' ||
+                t.categoria === 'Compra/Venta Divisas' ||
+                t.categoria === 'Pago Tarjeta de Crédito' ||
+                t.categoria === 'Ajuste Técnico Saldos'
+            ) return false;
+            return true;
+        })
+        .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+
+    let totalARS = 0;
+    let bodyHTML = '';
+
+    if (gastosCat.length === 0) {
+        bodyHTML = `<div class="rag-popover-empty">Sin gastos imputados en este período.</div>`;
+    } else {
+        bodyHTML = gastosCat.map(t => {
+            const rawMonto = parseFloat(t.monto) || 0;
+            const appliedFx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
+            const equivARS = (t.moneda === 'USD') ? (rawMonto * appliedFx) : rawMonto;
+            totalARS += equivARS;
+
+            const parts = (t.fecha || '').split('-');
+            const fechaCorta = (parts.length === 3) ? `${parts[2]}/${parts[1]}` : (t.fecha || '-');
+            const concepto = escapeHTML((t.descripcion || '').trim() || 'Sin detalle');
+
+            const isNeg = equivARS < 0;
+            const signStr = isNeg ? '-' : '';
+            const colorStyle = isNeg ? 'style="color:var(--primary);"' : '';
+            const formattedARS = `${signStr}$${Math.round(Math.abs(equivARS)).toLocaleString('es-AR')}`;
+            const usdSub = (t.moneda === 'USD')
+                ? `<small>${rawMonto < 0 ? '-' : ''}u$d ${Math.abs(rawMonto).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</small>`
+                : '';
+
+            return `<div class="rag-popover-item">
+                <span class="rag-popover-date">${escapeHTML(fechaCorta)}</span>
+                <span class="rag-popover-concept" title="${concepto}">${concepto}</span>
+                <span class="rag-popover-amount" ${colorStyle}>${formattedARS}${usdSub}</span>
+            </div>`;
+        }).join('');
+    }
+
+    pop.innerHTML = `
+        <div class="rag-popover-header">
+            <span class="rag-popover-title">${escapeHTML(categoryName)}</span>
+            <span class="rag-popover-period">${escapeHTML(periodLabel)}</span>
+        </div>
+        <div class="rag-popover-body">${bodyHTML}</div>
+        <div class="rag-popover-footer">
+            <span>Total (${gastosCat.length} ${gastosCat.length === 1 ? 'gasto' : 'gastos'})</span>
+            <strong>$${Math.round(totalARS).toLocaleString('es-AR')}</strong>
+        </div>
+    `;
+
+    pop.classList.add('is-visible');
+    pop.setAttribute('aria-hidden', 'false');
+    ragPopoverActiveCategory = categoryName;
+    positionRagCategoryPopover(pop, triggerEl);
+}
+
 function renderAccuracyTable(categoriesMes) {
+    hideRagCategoryPopover(true);
     const tbody = document.getElementById('accuracy-body-real');
     if (!tbody) return;
     tbody.innerHTML = "";
@@ -956,6 +1084,62 @@ function renderAccuracyTable(categoriesMes) {
                 window.UI.deleteBudgetDirect(cat);
             }
         });
+        tbody.addEventListener('mouseover', (e) => {
+            const trigger = e.target.closest('.rag-popover-trigger');
+            if (!trigger) return;
+            const cat = trigger.getAttribute('data-rag-cat');
+            if (cat) showRagCategoryPopover(cat, trigger);
+        });
+
+        tbody.addEventListener('mouseout', (e) => {
+            const trigger = e.target.closest('.rag-popover-trigger');
+            if (!trigger) return;
+            const related = e.relatedTarget;
+            if (related && (trigger.contains(related) || related.closest('#rag-category-popover'))) {
+                return;
+            }
+            hideRagCategoryPopover(false);
+        });
+
+        tbody.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-edit-budget') || e.target.closest('.btn-delete-budget')) return;
+            const trigger = e.target.closest('.rag-popover-trigger');
+            if (!trigger) return;
+            const cat = trigger.getAttribute('data-rag-cat');
+            const pop = document.getElementById('rag-category-popover');
+            if (pop && pop.classList.contains('is-visible') && ragPopoverActiveCategory === cat) {
+                hideRagCategoryPopover(true);
+            } else if (cat) {
+                showRagCategoryPopover(cat, trigger);
+            }
+        });
+
+        const popEl = document.getElementById('rag-category-popover');
+        if (popEl && !popEl.dataset.eventsBound) {
+            popEl.addEventListener('mouseenter', () => {
+                if (ragPopoverHideTimer) {
+                    clearTimeout(ragPopoverHideTimer);
+                    ragPopoverHideTimer = null;
+                }
+            });
+            popEl.addEventListener('mouseleave', () => {
+                hideRagCategoryPopover(false);
+            });
+            popEl.dataset.eventsBound = 'true';
+        }
+
+        if (!document.body.dataset.ragPopoverGlobalBound) {
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.rag-popover-trigger') && !e.target.closest('#rag-category-popover')) {
+                    hideRagCategoryPopover(true);
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') hideRagCategoryPopover(true);
+            });
+            document.body.dataset.ragPopoverGlobalBound = 'true';
+        }
+
         tbody.dataset.eventsBound = 'true';
     }
 }
@@ -1467,6 +1651,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('btn-header-logout')?.addEventListener('click', () => window.UI.showAppConfirm("Salir", "¿Querés cerrar sesión?", async () => { await _supabase.auth.signOut(); window.location.reload(); }));
     document.getElementById('global-month-selector')?.addEventListener('change', () => {
+        hideRagCategoryPopover(true);
         initMonthSelector();
         loadUserDataFromDatabase();
     });
