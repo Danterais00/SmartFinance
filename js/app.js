@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.6';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.8';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -14,13 +14,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=8.6';
+} from './state.js?v=8.8';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=8.6';
+} from './financeEngine.js?v=8.8';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -32,10 +32,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=8.6';
-import { exportAuditPDF } from './pdfReport.js?v=8.6';
-import { parseVisaStatement } from './statementImporter.js?v=8.6';
-import { renderChangelogTable } from './changelog.js?v=8.7';
+} from './charts.js?v=8.8';
+import { exportAuditPDF } from './pdfReport.js?v=8.8';
+import { parseVisaStatement } from './statementImporter.js?v=8.8';
+import { renderChangelogTable } from './changelog.js?v=8.8';
 
 let parsedStatementItems = [];
 
@@ -385,7 +385,18 @@ function switchView(targetViewId, targetTabBtnId) {
     document.querySelectorAll('.mobile-tab-bar .tab-item').forEach(b => b.classList.remove('active'));
     document.getElementById(targetViewId)?.classList.add('active');
     document.getElementById(targetTabBtnId)?.classList.add('active');
+    if (targetViewId === 'view-mas' && document.getElementById('subview-graficos')?.classList.contains('active')) {
+        refreshAnalyticsCharts();
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function refreshAnalyticsCharts() {
+    requestAnimationFrame(() => {
+        buildHistoricalChartData();
+        renderInteractiveChart(state.cachedCategoriesDataForChart);
+        renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
+    });
 }
 
 function switchSubTab(targetSubViewId, targetSubBtnId) {
@@ -395,9 +406,7 @@ function switchSubTab(targetSubViewId, targetSubBtnId) {
     document.getElementById(targetSubBtnId)?.classList.add('active');
     
     if (targetSubViewId === 'subview-graficos') {
-        buildHistoricalChartData();
-        renderInteractiveChart(state.cachedCategoriesDataForChart);
-        renderCategoryHistoryChart(state.selectedCategoryHistoryName, state.selectedCategoryHistoryRange);
+        refreshAnalyticsCharts();
     }
 }
 

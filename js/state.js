@@ -207,7 +207,7 @@ export async function syncOfflineQueue(onSuccess) {
         const queue = JSON.parse(raw);
         if (!Array.isArray(queue) || queue.length === 0) return;
 
-        const { _supabase } = await import('./supabaseClient.js?v=8.5');
+        const { _supabase } = await import('./supabaseClient.js?v=8.8');
         const { error } = await _supabase.from('transacciones').insert(queue);
         if (!error) {
             localStorage.removeItem('sf_offline_queue');
@@ -222,7 +222,7 @@ export async function fetchDynamicCategories() {
     try {
         let combined = [...CATEGORIAS_DEFAULT];
         if (state.currentUser) {
-            const { _supabase } = await import('./supabaseClient.js?v=8.5');
+            const { _supabase } = await import('./supabaseClient.js?v=8.8');
             const { data, error } = await _supabase
                 .from('user_categories')
                 .select('nombre_categoria')

@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v8.8",
+        fecha: "2026-11-23",
+        tipo: "SINCRONIZACIÓN MODULAR & GRÁFICOS ANALÍTICOS",
+        color: "var(--primary)",
+        icon: "fa-chart-line",
+        archivos: ["sw.js", "index.html", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Unificación de etiquetas de importación (?v=8.8) en los 8 módulos JavaScript para compartir una única instancia de estado en memoria (eliminando la pantalla vacía y valores en $0 en Gráficos Analíticos) y renderizado diferido con requestAnimationFrame al abrir la subpestaña de gráficos."
+    },
+    {
         version: "v8.7",
         fecha: "2026-11-20",
         tipo: "DETALLE RÁPIDO EN SEMÁFORO RAG",
