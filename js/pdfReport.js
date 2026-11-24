@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=8.9';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.9';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=9.0';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.0';
 
 /**
  * Renderiza un gráfico de Chart.js fuera de pantalla y devuelve su imagen PNG
@@ -291,80 +291,169 @@ export async function exportAuditPDF(auditResult) {
         // 3. ANÁLISIS GRÁFICO PRESUPUESTARIO E HISTÓRICO
         // ==========================================
         const hist = state.cachedHistoricalDataForChart || [];
-        if (rawCategories.length > 0 || hist.length > 0) {
-            doc.addPage();
-            y = 20;
-            doc.setFontSize(13);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(30, 41, 59);
-            doc.text("3. Análisis Gráfico Presupuestario e Histórico", 14, y);
-            y += 8;
+        doc.addPage();
+        y = 20;
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text("3. Análisis Gráfico Presupuestario e Histórico", 14, y);
+        y += 8;
 
-            if (rawCategories.length > 0) {
-                const cLabels = rawCategories.map(c => c.nombre);
-                const cMeta = rawCategories.map(c => c.meta);
-                const cGasto = rawCategories.map(c => c.gasto);
-                const chartA = {
-                    type: 'bar',
-                    data: {
-                        labels: cLabels,
-                        datasets: [
-                            { label: 'Presupuesto ($)', data: cMeta, backgroundColor: '#3b82f6', categoryPercentage: 0.8, barPercentage: 0.9 },
-                            { label: 'Gasto Real ($)', data: cGasto, backgroundColor: '#ef4444', categoryPercentage: 0.8, barPercentage: 0.9 }
-                        ]
-                    },
-                    options: {
-                        scales: {
-                            x: { ticks: { color: '#9ca3af', font: { size: 9 }, autoSkip: false, maxRotation: 60, minRotation: 45 }, grid: { color: '#252538' } },
-                            y: { min: 0, ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: '#252538' } }
-                        },
-                        plugins: { legend: { labels: { color: '#ffffff', font: { size: 11 } } } }
-                    }
-                };
-                const imgA = await captureOffscreenChart(chartA, 960, 420);
-                if (imgA) {
-                    doc.setFontSize(10);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(75, 85, 99);
-                    doc.text(`Desempeño por Categoría (${periodo})`, 14, y);
-                    doc.addImage(imgA, 'PNG', 14, y + 3, 182, 80);
-                    y += 92;
+        const pdfNatureCharts = [
+            { key: 'FIJO', title: `Desempeño Compromisos Fijos (${periodo})` },
+            { key: 'ESENCIAL', title: `Desempeño Variables Esenciales (${periodo})` },
+            { key: 'DISCRECIONAL', title: `Desempeño Variables Discrecionales (${periodo})` }
+        ];
+
+        for (const grpCfg of pdfNatureCharts) {
+            const grpItems = rawCategories
+                .filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === grpCfg.key)
+                .sort((a, b) => {
+                    const gDiff = (parseFloat(b.gasto) || 0) - (parseFloat(a.gasto) || 0);
+                    if (Math.abs(gDiff) > 0.001) return gDiff;
+                    const mDiff = (parseFloat(b.meta) || 0) - (parseFloat(a.meta) || 0);
+                    if (Math.abs(mDiff) > 0.001) return mDiff;
+                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+                });
+
+            if (grpItems.length === 0) {
+                if (y > 265) {
+                    doc.addPage();
+                    y = 20;
                 }
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(75, 85, 99);
+                doc.text(grpCfg.title, 14, y);
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(8.8);
+                doc.setTextColor(107, 114, 128);
+                doc.text("Sin categorías activas en este grupo", 14, y + 5.5);
+                y += 13;
+                continue;
             }
 
-            if (hist.length > 0) {
-                const hLabels = hist.map(h => h.mes);
-                const hGasto = hist.map(h => h.gastoTotal);
-                const hMeta = hist.map(h => h.metaTotal);
-                const chartB = {
-                    type: 'line',
-                    data: {
-                        labels: hLabels,
-                        datasets: [
-                            { label: 'Gasto Total ($)', data: hGasto, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.12)', fill: true, tension: 0.25, pointRadius: 4, pointBackgroundColor: '#ef4444' },
-                            { label: 'Presupuesto Total ($)', data: hMeta, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.08)', fill: true, tension: 0.25, pointRadius: 4, pointBackgroundColor: '#3b82f6' }
-                        ]
-                    },
-                    options: {
-                        scales: {
-                            x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: '#252538' } },
-                            y: { min: 0, ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: '#252538' } }
-                        },
-                        plugins: { legend: { labels: { color: '#ffffff', font: { size: 11 } } } }
-                    }
-                };
-                const imgB = await captureOffscreenChart(chartB, 960, 360);
-                if (imgB) {
-                    doc.setFontSize(10);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setTextColor(75, 85, 99);
-                    doc.text("Tendencia Histórica Multimensual Consolidada", 14, y);
-                    doc.addImage(imgB, 'PNG', 14, y + 3, 182, 68);
-                    y += 80;
-                }
+            if (y > 205) {
+                doc.addPage();
+                y = 20;
             }
-        } else {
-            y = doc.lastAutoTable.finalY + 10;
+
+            const cLabels = grpItems.map(c => c.nombre);
+            const cMeta = grpItems.map(c => Math.max(0, parseFloat(c.meta) || 0));
+            const cGasto = grpItems.map(c => Math.max(0, parseFloat(c.gasto) || 0));
+
+            const chartGroupCfg = {
+                type: 'bar',
+                data: {
+                    labels: cLabels,
+                    datasets: [
+                        {
+                            label: 'Presupuesto Meta ($)',
+                            data: cMeta,
+                            backgroundColor: '#3b82f6',
+                            borderRadius: 4,
+                            categoryPercentage: 0.72,
+                            barPercentage: 0.78,
+                            maxBarThickness: 36
+                        },
+                        {
+                            label: 'Gasto Real ($)',
+                            data: cGasto,
+                            backgroundColor: '#ef4444',
+                            borderRadius: 4,
+                            categoryPercentage: 0.72,
+                            barPercentage: 0.78,
+                            maxBarThickness: 36
+                        }
+                    ]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 9.5, weight: '600' },
+                                autoSkip: false,
+                                maxRotation: 45,
+                                minRotation: 0
+                            },
+                            grid: { color: '#252538' }
+                        },
+                        y: {
+                            min: 0,
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 10 },
+                                callback: function(val) {
+                                    return '$' + Number(val).toLocaleString('es-AR');
+                                }
+                            },
+                            grid: { color: '#252538' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#ffffff', font: { size: 11 } }
+                        }
+                    }
+                }
+            };
+
+            const imgGrp = await captureOffscreenChart(chartGroupCfg, 960, 380);
+            if (imgGrp) {
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(75, 85, 99);
+                doc.text(grpCfg.title, 14, y);
+                doc.addImage(imgGrp, 'PNG', 14, y + 3, 182, 70);
+                y += 79;
+            }
+        }
+
+        if (hist.length > 0) {
+            if (y > 205) {
+                doc.addPage();
+                y = 20;
+            }
+            const hLabels = hist.map(h => h.mes);
+            const hGasto = hist.map(h => h.gastoTotal);
+            const hMeta = hist.map(h => h.metaTotal);
+            const chartB = {
+                type: 'line',
+                data: {
+                    labels: hLabels,
+                    datasets: [
+                        { label: 'Gasto Total ($)', data: hGasto, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.12)', fill: true, tension: 0.25, pointRadius: 4, pointBackgroundColor: '#ef4444' },
+                        { label: 'Presupuesto Total ($)', data: hMeta, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.08)', fill: true, tension: 0.25, pointRadius: 4, pointBackgroundColor: '#3b82f6' }
+                    ]
+                },
+                options: {
+                    scales: {
+                        x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: '#252538' } },
+                        y: {
+                            min: 0,
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 10 },
+                                callback: function(val) {
+                                    return '$' + Number(val).toLocaleString('es-AR');
+                                }
+                            },
+                            grid: { color: '#252538' }
+                        }
+                    },
+                    plugins: { legend: { labels: { color: '#ffffff', font: { size: 11 } } } }
+                }
+            };
+            const imgB = await captureOffscreenChart(chartB, 960, 360);
+            if (imgB) {
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(75, 85, 99);
+                doc.text("Tendencia Histórica Multimensual Consolidada", 14, y);
+                doc.addImage(imgB, 'PNG', 14, y + 3, 182, 68);
+                y += 78;
+            }
         }
 
         // ==========================================

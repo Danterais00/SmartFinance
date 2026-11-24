@@ -1,5 +1,5 @@
-import { state, getLocalDateString } from './state.js?v=8.9';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.9';
+import { state, getLocalDateString } from './state.js?v=9.0';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.0';
 
 const PREDICTIVE_CATEGORIES = [
     { pattern: /telepeaje|corresur|autopista|ausol|aubasa|camino.*pque|peaje/i, targets: ['peaje', 'transporte', 'auto', 'vehiculo'] },

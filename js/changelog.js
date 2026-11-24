@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v9.0",
+        fecha: "2026-11-24",
+        tipo: "GRÁFICOS DESGLOSADOS POR NATURALEZA (BARRAS AGRUPADAS)",
+        color: "var(--blue)",
+        icon: "fa-chart-column",
+        archivos: ["sw.js", "index.html", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Reemplazo del gráfico unificado de Desempeño por Categoría por tres gráficos independientes de barras agrupadas (Compromisos Fijos, Variables Esenciales y Variables Discrecionales) ordenados de mayor a menor Gasto Real, con controles individuales de escala (Lineal/Logarítmica) y zoom X/Y, aviso visual cuando un grupo no tiene categorías activas y réplica fiel en la Sección 3 del Reporte PDF."
+    },
+    {
         version: "v8.9",
         fecha: "2026-11-23",
         tipo: "AUDITORÍA DE EXCESOS POR NATURALEZA EN PDF",

@@ -1,15 +1,23 @@
-import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js?v=8.9';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.9';
+import { state, CUENTAS_COMITENTES, resolveCategoryNature, escapeHTML, getLocalDateString } from './state.js?v=9.0';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.0';
 
-let performanceChart = null;
+const performanceCharts = {
+    FIJO: null,
+    ESENCIAL: null,
+    DISCRECIONAL: null
+};
+const performanceScaleModes = {
+    FIJO: 'linear',
+    ESENCIAL: 'linear',
+    DISCRECIONAL: 'linear'
+};
 let historyChart = null;
 let categoryHistoryChartInstance = null;
-let currentScaleMode = 'linear';
 
 /**
  * Control de Zoom Desacoplado por Zonas de Eje (Rueda del ratón activa en Eje Y y Eje X)
  */
-function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
+function setupDecoupledZoom(canvasId, getChartInstance, getIsLogScale = () => false) {
     const canvas = document.getElementById(canvasId);
     if (!canvas || canvas.dataset.zoomBound === 'true') return;
 
@@ -51,7 +59,7 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
         if (zone === 'y') {
             e.preventDefault();
             const factor = e.deltaY > 0 ? 1.15 : 0.85;
-            const pMin = (isLogScale && currentScaleMode === 'logarithmic') ? 500 : 0;
+            const pMin = getIsLogScale() ? 500 : 0;
             let curMax = chart.options.scales.y.max ?? chart.scales.y.max;
             let newMax = curMax * factor;
             if (newMax <= pMin + 10000) newMax = pMin + 10000;
@@ -99,7 +107,7 @@ function setupDecoupledZoom(canvasId, getChartInstance, isLogScale = false) {
             if (dragAxis === 'y') {
                 const delta = currentY - lastY;
                 const factor = delta > 0 ? 1.05 : 0.95;
-                const pMin = (isLogScale && currentScaleMode === 'logarithmic') ? 500 : 0;
+                const pMin = getIsLogScale() ? 500 : 0;
                 let curMax = (chart.options.scales.y.max || chart.scales.y.max);
                 let newMax = curMax * factor;
                 if (newMax <= pMin + 100) newMax = pMin + 100;
@@ -305,64 +313,83 @@ export function renderSavingsPatrimonialTab(balancesARS, balancesUSD, brokerARS,
 }
 
 /**
- * GRÁFICO 1: Desempeño por Categoría (Mes Activo)
+ * Renderiza un gráfico individual de barras agrupadas por naturaleza del gasto
+ * ordenado de mayor a menor Gasto Real.
  */
-export function renderInteractiveChart(categoriesMes) {
-    const sortedCategories = [...(categoriesMes || [])].sort((a, b) => 
-        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
-    );
-
-    state.cachedCategoriesDataForChart = sortedCategories;
-    const canvas = document.getElementById('interactive-performance-canvas');
+function renderSingleNaturePerformanceChart(natKey, categoriesMes) {
+    const keyLower = natKey.toLowerCase();
+    const canvasId = `perf-canvas-${keyLower}`;
+    const emptyId = `perf-empty-${keyLower}`;
+    const canvas = document.getElementById(canvasId);
+    const emptyEl = document.getElementById(emptyId);
     if (!canvas) return;
 
-    if (performanceChart) {
-        performanceChart.destroy();
+    if (performanceCharts[natKey]) {
+        performanceCharts[natKey].destroy();
+        performanceCharts[natKey] = null;
     }
 
-    if (sortedCategories.length === 0) return;
+    const groupItems = (categoriesMes || [])
+        .filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey)
+        .sort((a, b) => {
+            const gDiff = (parseFloat(b.gasto) || 0) - (parseFloat(a.gasto) || 0);
+            if (Math.abs(gDiff) > 0.001) return gDiff;
+            const mDiff = (parseFloat(b.meta) || 0) - (parseFloat(a.meta) || 0);
+            if (Math.abs(mDiff) > 0.001) return mDiff;
+            return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+        });
 
-    const isLog = (currentScaleMode === 'logarithmic');
-    const labels = sortedCategories.map(c => c.nombre);
+    if (groupItems.length === 0) {
+        canvas.style.display = 'none';
+        if (emptyEl) emptyEl.style.display = 'flex';
+        return;
+    }
 
-    const metaPoints = sortedCategories.map(c => ({
-        x: c.nombre,
-        y: (isLog && c.meta <= 0) ? 500 : c.meta,
-        realVal: c.meta,
-        estado: c.estado
-    }));
+    canvas.style.display = 'block';
+    if (emptyEl) emptyEl.style.display = 'none';
 
-    const gastoPoints = sortedCategories.map(c => ({
-        x: c.nombre,
-        y: (isLog && c.gasto <= 0) ? 500 : c.gasto,
-        realVal: c.gasto,
-        estado: c.estado
-    }));
+    const scaleMode = performanceScaleModes[natKey] || 'linear';
+    const isLog = (scaleMode === 'logarithmic');
+    const labels = groupItems.map(c => c.nombre);
+
+    const metaRealVals = groupItems.map(c => parseFloat(c.meta) || 0);
+    const gastoRealVals = groupItems.map(c => parseFloat(c.gasto) || 0);
+    const estadosList = groupItems.map(c => c.estado || 'N/D');
+
+    const metaPlotVals = metaRealVals.map(v => (isLog && v <= 0) ? 500 : Math.max(0, v));
+    const gastoPlotVals = gastoRealVals.map(v => (isLog && v <= 0) ? 500 : Math.max(0, v));
 
     const ctx = canvas.getContext('2d');
-    performanceChart = new Chart(ctx, {
-        type: 'line',
+    performanceCharts[natKey] = new window.Chart(ctx, {
+        type: 'bar',
         data: {
             labels: labels,
             datasets: [
                 {
                     label: 'Presupuesto Meta ($)',
-                    data: metaPoints,
+                    data: metaPlotVals,
+                    realVals: metaRealVals,
+                    estadosList: estadosList,
+                    backgroundColor: 'rgba(59, 130, 246, 0.85)',
                     borderColor: '#3b82f6',
-                    backgroundColor: '#3b82f6',
-                    showLine: false,
-                    pointRadius: 5.5,
-                    pointHoverRadius: 8
+                    borderWidth: 1,
+                    borderRadius: 5,
+                    barPercentage: 0.78,
+                    categoryPercentage: 0.72,
+                    maxBarThickness: 34
                 },
                 {
                     label: 'Gasto Real ($)',
-                    data: gastoPoints,
+                    data: gastoPlotVals,
+                    realVals: gastoRealVals,
+                    estadosList: estadosList,
+                    backgroundColor: 'rgba(239, 68, 68, 0.85)',
                     borderColor: '#ef4444',
-                    backgroundColor: '#ef4444',
-                    showLine: false,
-                    pointRadius: 5.5,
-                    pointStyle: 'rectRot',
-                    pointHoverRadius: 8
+                    borderWidth: 1,
+                    borderRadius: 5,
+                    barPercentage: 0.78,
+                    categoryPercentage: 0.72,
+                    maxBarThickness: 34
                 }
             ]
         },
@@ -375,14 +402,14 @@ export function renderInteractiveChart(categoriesMes) {
                     ticks: {
                         color: '#9ca3af',
                         autoSkip: false,
-                        maxRotation: 90,
-                        minRotation: 45,
-                        font: { size: 9, weight: '600' }
+                        maxRotation: 45,
+                        minRotation: 0,
+                        font: { size: 10, weight: '600' }
                     },
                     grid: { color: 'rgba(37, 37, 56, 0.6)' }
                 },
                 y: {
-                    type: currentScaleMode,
+                    type: scaleMode,
                     min: isLog ? 500 : 0,
                     ticks: {
                         color: '#9ca3af',
@@ -415,15 +442,18 @@ export function renderInteractiveChart(categoriesMes) {
                     bodyFont: { size: 12 },
                     callbacks: {
                         label: function(context) {
-                            const raw = context.raw;
-                            const label = context.dataset.label || '';
-                            const val = (raw && raw.realVal !== undefined) ? raw.realVal : context.parsed.y;
-                            return ` ${label}: $${val.toLocaleString('es-AR')}`;
+                            const ds = context.dataset;
+                            const label = ds.label || '';
+                            const val = (ds.realVals && ds.realVals[context.dataIndex] !== undefined)
+                                ? ds.realVals[context.dataIndex]
+                                : context.parsed.y;
+                            return ` ${label}: $${Number(val).toLocaleString('es-AR')}`;
                         },
-                        afterBody: function(context) {
-                            if (!context || context.length === 0) return '';
-                            const raw = context[0].raw;
-                            return ` Semáforo: ${raw.estado || 'N/D'}`;
+                        afterBody: function(contexts) {
+                            if (!contexts || contexts.length === 0) return '';
+                            const ctx0 = contexts[0];
+                            const estado = ctx0.dataset.estadosList?.[ctx0.dataIndex] || 'N/D';
+                            return ` Semáforo: ${estado}`;
                         }
                     }
                 },
@@ -436,7 +466,21 @@ export function renderInteractiveChart(categoriesMes) {
         }
     });
 
-    setupDecoupledZoom('interactive-performance-canvas', () => performanceChart, true);
+    setupDecoupledZoom(canvasId, () => performanceCharts[natKey], () => performanceScaleModes[natKey] === 'logarithmic');
+}
+
+/**
+ * GRÁFICOS 1A, 1B y 1C: Desempeño por Categoría desglosado por Naturaleza del Gasto (Mes Activo)
+ */
+export function renderInteractiveChart(categoriesMes) {
+    const allCats = [...(categoriesMes || [])].sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+    );
+    state.cachedCategoriesDataForChart = allCats;
+
+    ['FIJO', 'ESENCIAL', 'DISCRECIONAL'].forEach(natKey => {
+        renderSingleNaturePerformanceChart(natKey, allCats);
+    });
 }
 
 /**
@@ -838,24 +882,29 @@ export function renderInteractiveHistoryChart(historicalList) {
     setupDecoupledZoom('interactive-history-canvas', () => historyChart, false);
 }
 
-export function toggleInteractiveScale() {
-    currentScaleMode = (currentScaleMode === 'linear') ? 'logarithmic' : 'linear';
-    const lbl = document.getElementById('lbl-scale-mode');
+export function toggleInteractiveScale(natKey = 'FIJO') {
+    const key = String(natKey || 'FIJO').toUpperCase();
+    const nextMode = (performanceScaleModes[key] === 'linear') ? 'logarithmic' : 'linear';
+    performanceScaleModes[key] = nextMode;
+
+    const lbl = document.getElementById(`lbl-scale-mode-${key.toLowerCase()}`);
     if (lbl) {
-        lbl.innerText = (currentScaleMode === 'linear') ? 'Lineal' : 'Logarítmica';
-        lbl.style.color = (currentScaleMode === 'linear') ? 'var(--blue)' : 'var(--warning)';
+        lbl.innerText = (nextMode === 'linear') ? 'Lineal' : 'Logarítmica';
+        lbl.style.color = (nextMode === 'linear') ? 'var(--blue)' : 'var(--warning)';
     }
-    renderInteractiveChart(state.cachedCategoriesDataForChart);
+    renderSingleNaturePerformanceChart(key, state.cachedCategoriesDataForChart);
 }
 
-export function resetInteractiveZoom() {
-    if (performanceChart) {
-        delete performanceChart.options.scales.x.min;
-        delete performanceChart.options.scales.x.max;
-        delete performanceChart.options.scales.y.max;
-        performanceChart.options.scales.y.min = (currentScaleMode === 'logarithmic') ? 500 : 0;
-        performanceChart.resetZoom();
-        performanceChart.update();
+export function resetInteractiveZoom(natKey = 'FIJO') {
+    const key = String(natKey || 'FIJO').toUpperCase();
+    const chart = performanceCharts[key];
+    if (chart) {
+        delete chart.options.scales.x.min;
+        delete chart.options.scales.x.max;
+        delete chart.options.scales.y.max;
+        chart.options.scales.y.min = (performanceScaleModes[key] === 'logarithmic') ? 500 : 0;
+        chart.resetZoom();
+        chart.update();
     }
 }
 
@@ -870,18 +919,20 @@ export function resetInteractiveHistoryZoom() {
     }
 }
 
-export function zoomPerformanceChart(axis, factor) {
-    if (performanceChart) {
+export function zoomPerformanceChart(natKey, axis, factor) {
+    const key = String(natKey || 'FIJO').toUpperCase();
+    const chart = performanceCharts[key];
+    if (chart) {
         if (axis === 'x') {
-            performanceChart.zoom({ x: factor });
+            chart.zoom({ x: factor });
         } else {
-            const pMin = (currentScaleMode === 'logarithmic') ? 500 : 0;
-            let curMax = performanceChart.options.scales.y.max ?? performanceChart.scales.y.max;
+            const pMin = (performanceScaleModes[key] === 'logarithmic') ? 500 : 0;
+            let curMax = chart.options.scales.y.max ?? chart.scales.y.max;
             let newMax = curMax * factor;
             if (newMax <= pMin + 10000) newMax = pMin + 10000;
-            performanceChart.options.scales.y.min = pMin;
-            performanceChart.options.scales.y.max = newMax;
-            performanceChart.update('none');
+            chart.options.scales.y.min = pMin;
+            chart.options.scales.y.max = newMax;
+            chart.update('none');
         }
     }
 }

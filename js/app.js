@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.9';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.0';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -14,13 +14,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=8.9';
+} from './state.js?v=9.0';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=8.9';
+} from './financeEngine.js?v=9.0';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -32,10 +32,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=8.9';
-import { exportAuditPDF } from './pdfReport.js?v=8.9';
-import { parseVisaStatement } from './statementImporter.js?v=8.9';
-import { renderChangelogTable } from './changelog.js?v=8.9';
+} from './charts.js?v=9.0';
+import { exportAuditPDF } from './pdfReport.js?v=9.0';
+import { parseVisaStatement } from './statementImporter.js?v=9.0';
+import { renderChangelogTable } from './changelog.js?v=9.0';
 
 let parsedStatementItems = [];
 
@@ -1673,13 +1673,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('subtab-btn-presupuestos')?.addEventListener('click', () => switchSubTab('subview-presupuestos', 'subtab-btn-presupuestos'));
     document.getElementById('subtab-btn-historial')?.addEventListener('click', () => switchSubTab('subview-historial', 'subtab-btn-historial'));
     document.getElementById('subtab-btn-graficos')?.addEventListener('click', () => switchSubTab('subview-graficos', 'subtab-btn-graficos'));
-    document.getElementById('btn-chart-scale-toggle')?.addEventListener('click', toggleInteractiveScale);
-    document.getElementById('btn-chart-zoom-reset')?.addEventListener('click', resetInteractiveZoom);
+    ['FIJO', 'ESENCIAL', 'DISCRECIONAL'].forEach(natKey => {
+        const k = natKey.toLowerCase();
+        document.getElementById(`btn-chart-scale-toggle-${k}`)?.addEventListener('click', () => toggleInteractiveScale(natKey));
+        document.getElementById(`btn-chart-zoom-reset-${k}`)?.addEventListener('click', () => resetInteractiveZoom(natKey));
+        document.getElementById(`btn-chart-zoom-in-x-${k}`)?.addEventListener('click', () => zoomPerformanceChart(natKey, 'x', 0.8));
+        document.getElementById(`btn-chart-zoom-out-x-${k}`)?.addEventListener('click', () => zoomPerformanceChart(natKey, 'x', 1.25));
+        document.getElementById(`btn-chart-zoom-in-y-${k}`)?.addEventListener('click', () => zoomPerformanceChart(natKey, 'y', 0.8));
+        document.getElementById(`btn-chart-zoom-out-y-${k}`)?.addEventListener('click', () => zoomPerformanceChart(natKey, 'y', 1.25));
+    });
     document.getElementById('btn-history-zoom-reset')?.addEventListener('click', resetInteractiveHistoryZoom);
-    document.getElementById('btn-chart-zoom-in-x')?.addEventListener('click', () => zoomPerformanceChart('x', 0.8));
-    document.getElementById('btn-chart-zoom-out-x')?.addEventListener('click', () => zoomPerformanceChart('x', 1.25));
-    document.getElementById('btn-chart-zoom-in-y')?.addEventListener('click', () => zoomPerformanceChart('y', 0.8));
-    document.getElementById('btn-chart-zoom-out-y')?.addEventListener('click', () => zoomPerformanceChart('y', 1.25));
     document.getElementById('btn-history-zoom-in')?.addEventListener('click', () => zoomHistoryChart(0.8));
     document.getElementById('btn-history-zoom-out')?.addEventListener('click', () => zoomHistoryChart(1.25));
 
