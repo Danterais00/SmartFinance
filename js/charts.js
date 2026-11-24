@@ -1,5 +1,5 @@
-import { state, CUENTAS_COMITENTES, resolveCategoryNature, escapeHTML, getLocalDateString } from './state.js?v=9.0';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.0';
+import { state, CUENTAS_COMITENTES, resolveCategoryNature, escapeHTML, getLocalDateString } from './state.js?v=9.1';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.1';
 
 const performanceCharts = {
     FIJO: null,

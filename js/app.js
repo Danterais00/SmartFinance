@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.0';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.1';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -14,13 +14,13 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=9.0';
+} from './state.js?v=9.1';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch 
-} from './financeEngine.js?v=9.0';
+} from './financeEngine.js?v=9.1';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -32,10 +32,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=9.0';
-import { exportAuditPDF } from './pdfReport.js?v=9.0';
-import { parseVisaStatement } from './statementImporter.js?v=9.0';
-import { renderChangelogTable } from './changelog.js?v=9.0';
+} from './charts.js?v=9.1';
+import { exportAuditPDF } from './pdfReport.js?v=9.1';
+import { parseVisaStatement } from './statementImporter.js?v=9.1';
+import { renderChangelogTable } from './changelog.js?v=9.1';
 
 let parsedStatementItems = [];
 

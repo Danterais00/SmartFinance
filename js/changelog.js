@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v9.1",
+        fecha: "2026-11-24",
+        tipo: "ESPACIADO ENTRE GRÁFICOS ANALÍTICOS Y BLOQUES RAG",
+        color: "var(--primary)",
+        icon: "fa-grip-lines",
+        archivos: ["sw.js", "index.html", "css/styles.css", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Incorporación del margen estándar de separación (8px) entre las tarjetas de gráficos dentro de Gráficos Analíticos y entre los grupos de naturaleza (Compromisos Fijos, Variables Esenciales y Variables Discrecionales) del Semáforo Presupuestario RAG, sin alterar cálculos ni demás vistas."
+    },
+    {
         version: "v9.0",
         fecha: "2026-11-24",
         tipo: "GRÁFICOS DESGLOSADOS POR NATURALEZA (BARRAS AGRUPADAS)",
