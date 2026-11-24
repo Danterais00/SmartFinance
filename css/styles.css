@@ -262,6 +262,10 @@ body { background-color: var(--bg-main); color: var(--text-main); min-height: 10
 .chart-frame-header h3 { font-size: 11px !important; font-weight: 800 !important; color: #ffffff !important; text-transform: uppercase !important; letter-spacing: 0.8px !important; line-height: 1 !important; }
 .chart-frame canvas { touch-action: pan-y; }
 
+#subview-graficos .chart-frame + .chart-frame {
+    margin-top: 8px !important;
+}
+
 .liquidity-split-container {
     display: flex !important;
     flex-direction: column !important;
@@ -637,6 +641,9 @@ td:nth-child(3) { white-space: nowrap !important; }
     padding: 9px 10px !important;
     font-size: 12px !important;
     color: #ffffff !important;
+}
+#accuracy-table tr.rag-group-header-row + tr.rag-group-header-row td {
+    padding-top: 17px !important;
 }
 .rag-group-header-row td:first-child {
     border-left: 3px solid var(--group-accent, var(--blue)) !important;
