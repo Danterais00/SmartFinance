@@ -1,5 +1,5 @@
-import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js?v=8.8';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.8';
+import { state, CUENTAS_COMITENTES, escapeHTML, getLocalDateString } from './state.js?v=8.9';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.9';
 
 let performanceChart = null;
 let historyChart = null;

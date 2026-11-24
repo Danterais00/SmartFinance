@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v8.9",
+        fecha: "2026-11-23",
+        tipo: "AUDITORÍA DE EXCESOS POR NATURALEZA EN PDF",
+        color: "var(--primary)",
+        icon: "fa-file-pdf",
+        archivos: ["sw.js", "index.html", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Ampliación de la Sección 4 (Resumen Ejecutivo Global y Desvíos) en el Reporte PDF auditado: incorporación del desglose estructurado por naturaleza del gasto (Compromisos Fijos, Variables Esenciales y Variables Discrecionales) listando las categorías en estado 'Fuera' ordenadas de mayor a menor exceso con el detalle cronológico de todos sus gastos del mes (Fecha, Concepto y Monto) o la leyenda 'Sin categorías en estado Fuera'."
+    },
+    {
         version: "v8.8",
         fecha: "2026-11-23",
         tipo: "SINCRONIZACIÓN MODULAR & GRÁFICOS ANALÍTICOS",

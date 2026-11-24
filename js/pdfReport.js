@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=8.8';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.8';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=8.9';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=8.9';
 
 /**
  * Renderiza un gráfico de Chart.js fuera de pantalla y devuelve su imagen PNG
@@ -408,38 +408,154 @@ export async function exportAuditPDF(auditResult) {
         y += 25.5;
 
         doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
         doc.setTextColor(30, 41, 59);
-        doc.text(`Detalle de Excesos en Categorías "Fuera":`, 14, y);
-        y += 5.5;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.8);
-        doc.setTextColor(55, 65, 81);
+        doc.text(`Detalle de Excesos en Categorías "Fuera" por Naturaleza del Gasto:`, 14, y);
+        y += 6;
 
-        if (catFuera.length === 0) {
-            doc.text("Ninguna categoría excedió su presupuesto por encima del margen de tolerancia.", 14, y);
-            y += 7;
-        } else {
-            const txsMes = (state.globalTransData || []).filter(t =>
-                t.fecha && t.fecha.startsWith(activePeriod) &&
-                t.tipo === 'gasto' &&
-                t.presupuestado !== 'NO_COMPUTA'
-            );
-            catFuera.forEach(cf => {
-                const exceso = cf.gasto - cf.meta;
-                const memos = txsMes
-                    .filter(t => t.categoria === cf.nombre)
-                    .map(t => `"${t.descripcion || 'Sin detalle'}"`)
-                    .join(', ');
-                const tLine = `• ${cf.nombre}: +$${Math.round(exceso).toLocaleString('es-AR')} | Memos: ${memos || 'Sin detalle'}`;
-                const splitT = doc.splitTextToSize(tLine, 180);
-                if (y + (splitT.length * 4.5) > 275) {
-                    doc.addPage();
-                    y = 20;
-                }
-                doc.text(splitT, 14, y);
-                y += (splitT.length * 4.5) + 2;
-            });
-        }
+        const txsMesComputables = (state.globalTransData || []).filter(t =>
+            t.fecha && t.fecha.startsWith(activePeriod) &&
+            t.tipo === 'gasto' &&
+            t.presupuestado !== 'NO_COMPUTA' &&
+            t.categoria !== 'Transferencia Interna' &&
+            t.categoria !== 'Compra/Venta Divisas' &&
+            t.categoria !== 'Pago Tarjeta de Crédito' &&
+            t.categoria !== 'Ajuste Técnico Saldos'
+        );
+
+        const natureAccentMap = {
+            FIJO: [59, 130, 246],
+            ESENCIAL: [16, 185, 129],
+            DISCRECIONAL: [168, 85, 247]
+        };
+
+        ['FIJO', 'ESENCIAL', 'DISCRECIONAL'].forEach(natKey => {
+            const grpLabel = NATURALEZA_META[natKey]?.label || natKey;
+            const accentRgb = natureAccentMap[natKey] || [59, 130, 246];
+
+            const catsFueraGrupo = catFuera
+                .filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey)
+                .sort((a, b) => {
+                    const excDiff = (b.gasto - b.meta) - (a.gasto - a.meta);
+                    if (Math.abs(excDiff) > 0.01) return excDiff;
+                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+                });
+
+            if (y > 258) {
+                doc.addPage();
+                y = 20;
+            }
+
+            doc.setFillColor(241, 245, 249);
+            doc.rect(14, y - 3.8, 182, 6.2, 'F');
+            doc.setFillColor(accentRgb[0], accentRgb[1], accentRgb[2]);
+            doc.rect(14, y - 3.8, 1.8, 6.2, 'F');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.2);
+            doc.setTextColor(15, 23, 42);
+            const grpSuffix = catsFueraGrupo.length > 0
+                ? ` (${catsFueraGrupo.length} ${catsFueraGrupo.length === 1 ? 'categoría' : 'categorías'})`
+                : '';
+            doc.text(`${grpLabel}${grpSuffix}`, 18, y + 0.5);
+            y += 6.5;
+
+            if (catsFueraGrupo.length === 0) {
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(8.6);
+                doc.setTextColor(107, 114, 128);
+                doc.text("Sin categorías en estado Fuera", 18, y);
+                y += 6.5;
+            } else {
+                catsFueraGrupo.forEach(cf => {
+                    const exceso = cf.gasto - cf.meta;
+                    const pctExcStr = cf.meta > 0
+                        ? `+${(((cf.gasto - cf.meta) / cf.meta) * 100).toFixed(1)}%`
+                        : 'Sin meta';
+
+                    const catTxs = txsMesComputables
+                        .filter(t => t.categoria === cf.nombre)
+                        .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+
+                    const txRows = catTxs.map(t => {
+                        const rawMonto = parseFloat(t.monto) || 0;
+                        const fx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
+                        const equivARS = (t.moneda === 'USD') ? rawMonto * fx : rawMonto;
+                        const parts = (t.fecha || '').split('-');
+                        const fechaFmt = (parts.length === 3) ? `${parts[2]}/${parts[1]}/${parts[0]}` : (t.fecha || '-');
+                        const conceptoFmt = (t.descripcion || '').trim() || 'Sin detalle';
+                        const signStr = equivARS < 0 ? '-' : '';
+                        const usdNote = (t.moneda === 'USD')
+                            ? ` (${rawMonto < 0 ? '-' : ''}u$d ${Math.abs(rawMonto).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
+                            : '';
+                        const montoFmt = `${signStr}$${Math.round(Math.abs(equivARS)).toLocaleString('es-AR')}${usdNote}`;
+                        return [fechaFmt, conceptoFmt, montoFmt];
+                    });
+
+                    if (txRows.length === 0) {
+                        txRows.push(['-', 'Sin movimientos individuales detallados en el período', `$${Math.round(cf.gasto).toLocaleString('es-AR')}`]);
+                    }
+
+                    if (y > 246) {
+                        doc.addPage();
+                        y = 20;
+                    }
+
+                    doc.autoTable({
+                        startY: y,
+                        head: [
+                            [
+                                {
+                                    content: `${cf.nombre}  |  Presupuesto: $${Math.round(cf.meta).toLocaleString('es-AR')}  |  Gasto Real: $${Math.round(cf.gasto).toLocaleString('es-AR')}  |  Exceso: +$${Math.round(exceso).toLocaleString('es-AR')} (${pctExcStr})`,
+                                    colSpan: 3,
+                                    styles: {
+                                        fillColor: [254, 226, 226],
+                                        textColor: [153, 27, 27],
+                                        fontStyle: 'bold',
+                                        fontSize: 8.3,
+                                        halign: 'left'
+                                    }
+                                }
+                            ],
+                            [
+                                { content: 'Fecha', styles: { cellWidth: 25 } },
+                                { content: 'Concepto' },
+                                { content: 'Monto', styles: { halign: 'right', cellWidth: 44 } }
+                            ]
+                        ],
+                        body: txRows,
+                        theme: 'grid',
+                        headStyles: {
+                            fillColor: [248, 250, 252],
+                            textColor: [51, 65, 85],
+                            fontStyle: 'bold',
+                            fontSize: 7.8,
+                            cellPadding: 1.8
+                        },
+                        styles: {
+                            font: 'helvetica',
+                            fontSize: 8,
+                            cellPadding: 1.8,
+                            textColor: [31, 41, 55]
+                        },
+                        columnStyles: {
+                            0: { cellWidth: 25 },
+                            2: { halign: 'right', fontStyle: 'bold', cellWidth: 44 }
+                        },
+                        didParseCell: function(data) {
+                            if (data.section === 'body' && data.column.index === 2) {
+                                const txt = String(data.cell.raw || '');
+                                if (txt.startsWith('-$')) {
+                                    data.cell.styles.textColor = [16, 185, 129];
+                                }
+                            }
+                        }
+                    });
+
+                    y = doc.lastAutoTable.finalY + 4;
+                });
+            }
+        });
 
         y += 3;
         if (y > 250) {
