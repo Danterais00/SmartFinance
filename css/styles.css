@@ -625,7 +625,7 @@ td:nth-child(3) { white-space: nowrap !important; }
     transition: width 0.35s ease, background-color 0.3s ease;
 }
 
-/* SEMÁFORO RAG AGRUPADO POR NATURALEZA Y SELECTOR DE VISTA (v9.3) */
+/* SEMÁFORO RAG AGRUPADO POR NATURALEZA Y SELECTOR DE VISTA (v9.5) */
 .rag-header-bar {
     display: flex;
     justify-content: space-between;
