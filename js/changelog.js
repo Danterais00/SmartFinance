@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v9.2",
+        fecha: "2026-11-24",
+        tipo: "UNIFICACIÓN DE REGLAS DE GASTO COMPUTABLE Y CONVERSIÓN FX",
+        color: "var(--primary)",
+        icon: "fa-code-merge",
+        archivos: ["sw.js", "index.html", "css/styles.css", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Centralización en financeEngine.js de las reglas de gasto computable en presupuesto (isComputableBudgetExpense) y conversión a pesos (convertTransactionToARS) para mantener coherencia única entre métricas, semáforo RAG, cuadro flotante, gráficos y reporte PDF sin alterar cálculos."
+    },
+    {
         version: "v9.1",
         fecha: "2026-11-24",
         tipo: "ESPACIADO ENTRE GRÁFICOS ANALÍTICOS Y BLOQUES RAG",

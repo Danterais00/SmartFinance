@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.1';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.2';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -14,13 +14,15 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=9.1';
+} from './state.js?v=9.2';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
-    buildCreditCardClosingBatch 
-} from './financeEngine.js?v=9.1';
+    buildCreditCardClosingBatch,
+    convertTransactionToARS,
+    isComputableBudgetExpense
+} from './financeEngine.js?v=9.2';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -32,10 +34,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=9.1';
-import { exportAuditPDF } from './pdfReport.js?v=9.1';
-import { parseVisaStatement } from './statementImporter.js?v=9.1';
-import { renderChangelogTable } from './changelog.js?v=9.1';
+} from './charts.js?v=9.2';
+import { exportAuditPDF } from './pdfReport.js?v=9.2';
+import { parseVisaStatement } from './statementImporter.js?v=9.2';
+import { renderChangelogTable } from './changelog.js?v=9.2';
 
 let parsedStatementItems = [];
 
@@ -523,8 +525,7 @@ function recalculateFinancialMetrics() {
         const isUpToSelectedMonthEnd = txDate && txDate <= cutoffDateStr;
         const isCurrentMonth = txDate && txDate.substring(0, 7) === activeMonth;
         
-        const appliedFx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
-        const convUSD = (t.moneda === 'USD') ? monto * appliedFx : monto;
+        const convUSD = convertTransactionToARS(t);
         const esTarjeta = CUENTAS_TARJETAS.includes(t.cuenta);
 
         // Corte patrimonial exacto al último día del período activo (AUD-04)
@@ -573,7 +574,7 @@ function recalculateFinancialMetrics() {
             if (t.tipo === 'gasto' && !esTransferenciaOPago) {
                 totalEgresosRealesMes += convUSD;
 
-                if (t.presupuestado !== 'NO_COMPUTA') {
+                if (isComputableBudgetExpense(t)) {
                     totalGastosPresupuestados += convUSD;
                     if (catGastosMap[t.categoria] !== undefined) {
                         catGastosMap[t.categoria] += convUSD;
@@ -935,19 +936,7 @@ function showRagCategoryPopover(categoryName, triggerEl) {
         : activeMonth;
 
     const gastosCat = (state.globalTransData || [])
-        .filter(t => {
-            if (!t.fecha || t.fecha.substring(0, 7) !== activeMonth) return false;
-            if (t.tipo !== 'gasto') return false;
-            if (t.categoria !== categoryName) return false;
-            if (t.presupuestado === 'NO_COMPUTA') return false;
-            if (
-                t.categoria === 'Transferencia Interna' ||
-                t.categoria === 'Compra/Venta Divisas' ||
-                t.categoria === 'Pago Tarjeta de Crédito' ||
-                t.categoria === 'Ajuste Técnico Saldos'
-            ) return false;
-            return true;
-        })
+        .filter(t => t.fecha && t.fecha.substring(0, 7) === activeMonth && isComputableBudgetExpense(t, categoryName))
         .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
 
     let totalARS = 0;
@@ -958,8 +947,7 @@ function showRagCategoryPopover(categoryName, triggerEl) {
     } else {
         bodyHTML = gastosCat.map(t => {
             const rawMonto = parseFloat(t.monto) || 0;
-            const appliedFx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
-            const equivARS = (t.moneda === 'USD') ? (rawMonto * appliedFx) : rawMonto;
+            const equivARS = convertTransactionToARS(t);
             totalARS += equivARS;
 
             const parts = (t.fecha || '').split('-');
@@ -1171,17 +1159,9 @@ function buildHistoricalChartData() {
             .forEach(b => metaSum += parseFloat(b.presupuesto_mensual) || 0);
 
         state.globalTransData
-            .filter(t => t.fecha && t.fecha.substring(0, 7) === opt.value && 
-                         t.tipo === 'gasto' && 
-                         t.presupuestado !== 'NO_COMPUTA' && 
-                         t.categoria !== 'Transferencia Interna' && 
-                         t.categoria !== 'Compra/Venta Divisas' && 
-                         t.categoria !== 'Pago Tarjeta de Crédito' && 
-                         t.categoria !== 'Ajuste Técnico Saldos')
+            .filter(t => t.fecha && t.fecha.substring(0, 7) === opt.value && isComputableBudgetExpense(t))
             .forEach(t => {
-                const m = parseFloat(t.monto) || 0; 
-                const fx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
-                gastoSum += (t.moneda === 'USD') ? m * fx : m;
+                gastoSum += convertTransactionToARS(t);
             });
 
         historicalList.push({ mes: opt.text, metaTotal: metaSum, gastoTotal: gastoSum });

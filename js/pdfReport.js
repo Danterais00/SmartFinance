@@ -1,5 +1,6 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=9.1';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.1';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=9.2';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.2';
+import { convertTransactionToARS, isComputableBudgetExpense } from './financeEngine.js?v=9.2';
 
 /**
  * Renderiza un gráfico de Chart.js fuera de pantalla y devuelve su imagen PNG
@@ -503,13 +504,7 @@ export async function exportAuditPDF(auditResult) {
         y += 6;
 
         const txsMesComputables = (state.globalTransData || []).filter(t =>
-            t.fecha && t.fecha.startsWith(activePeriod) &&
-            t.tipo === 'gasto' &&
-            t.presupuestado !== 'NO_COMPUTA' &&
-            t.categoria !== 'Transferencia Interna' &&
-            t.categoria !== 'Compra/Venta Divisas' &&
-            t.categoria !== 'Pago Tarjeta de Crédito' &&
-            t.categoria !== 'Ajuste Técnico Saldos'
+            t.fecha && t.fecha.startsWith(activePeriod) && isComputableBudgetExpense(t)
         );
 
         const natureAccentMap = {
@@ -568,8 +563,7 @@ export async function exportAuditPDF(auditResult) {
 
                     const txRows = catTxs.map(t => {
                         const rawMonto = parseFloat(t.monto) || 0;
-                        const fx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
-                        const equivARS = (t.moneda === 'USD') ? rawMonto * fx : rawMonto;
+                        const equivARS = convertTransactionToARS(t);
                         const parts = (t.fecha || '').split('-');
                         const fechaFmt = (parts.length === 3) ? `${parts[2]}/${parts[1]}/${parts[0]}` : (t.fecha || '-');
                         const conceptoFmt = (t.descripcion || '').trim() || 'Sin detalle';
@@ -672,9 +666,7 @@ export async function exportAuditPDF(auditResult) {
             ajustes.forEach(a => {
                 const cta = a.cuenta || 'Cuenta';
                 if (!accAjustes[cta]) accAjustes[cta] = { neto: 0, desc: [] };
-                const montoNum = parseFloat(a.monto) || 0;
-                const fx = (parseFloat(a.tipo_cambio) > 0) ? parseFloat(a.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
-                const montoARS = (a.moneda === 'USD') ? montoNum * fx : montoNum;
+                const montoARS = convertTransactionToARS(a);
                 accAjustes[cta].neto += (a.tipo === 'ingreso' ? montoARS : -montoARS);
                 accAjustes[cta].desc.push(`"${a.descripcion || 'Ajuste'}"`);
             });

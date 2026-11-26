@@ -1,5 +1,6 @@
-import { state, CUENTAS_COMITENTES, resolveCategoryNature, escapeHTML, getLocalDateString } from './state.js?v=9.1';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.1';
+import { state, CUENTAS_COMITENTES, resolveCategoryNature, escapeHTML, getLocalDateString } from './state.js?v=9.2';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.2';
+import { convertTransactionToARS, isComputableBudgetExpense } from './financeEngine.js?v=9.2';
 
 const performanceCharts = {
     FIJO: null,
@@ -571,17 +572,8 @@ export function renderCategoryHistoryChart(categoryName, monthsCount) {
 
         let gastoVal = 0;
         (state.globalTransData || []).forEach(t => {
-            if (t.fecha && t.fecha.substring(0, 7) === m.periodo && 
-                t.categoria === categoryName && 
-                t.tipo === 'gasto' && 
-                t.presupuestado !== 'NO_COMPUTA' &&
-                t.categoria !== 'Transferencia Interna' &&
-                t.categoria !== 'Compra/Venta Divisas' &&
-                t.categoria !== 'Pago Tarjeta de Crédito' &&
-                t.categoria !== 'Ajuste Técnico Saldos') {
-                const monto = parseFloat(t.monto) || 0;
-                const fx = (parseFloat(t.tipo_cambio) > 0) ? parseFloat(t.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
-                gastoVal += (t.moneda === 'USD') ? monto * fx : monto;
+            if (t.fecha && t.fecha.substring(0, 7) === m.periodo && isComputableBudgetExpense(t, categoryName)) {
+                gastoVal += convertTransactionToARS(t);
             }
         });
 

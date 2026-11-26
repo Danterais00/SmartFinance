@@ -1,10 +1,43 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=9.1';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.1';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=9.2';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.2';
 
 /**
  * Generador estándar de UUID v4 compatible al 100% con el tipo de datos UUID de PostgreSQL.
  * Cumple estrictamente con la especificación RFC 4122 (formato 8-4-4-4-12 hex).
  */
+/**
+ * Regla unificada de conversión a pesos (ARS) a partir de un movimiento.
+ */
+export function convertTransactionToARS(tx) {
+    if (!tx) return 0;
+    const monto = parseFloat(tx.monto) || 0;
+    if (tx.moneda === 'USD') {
+        const fx = (parseFloat(tx.tipo_cambio) > 0) ? parseFloat(tx.tipo_cambio) : TIPO_CAMBIO_PRESUPUESTO;
+        return monto * fx;
+    }
+    return monto;
+}
+
+/**
+ * Regla unificada para determinar si un movimiento es un gasto computable
+ * dentro del presupuesto mensual (opcionalmente filtrado por categoría).
+ */
+export function isComputableBudgetExpense(tx, categoryName = null) {
+    if (!tx || tx.tipo !== 'gasto') return false;
+    if (!tx.fecha) return false;
+    if (tx.presupuestado === 'NO_COMPUTA') return false;
+    if (
+        tx.categoria === 'Transferencia Interna' ||
+        tx.categoria === 'Compra/Venta Divisas' ||
+        tx.categoria === 'Pago Tarjeta de Crédito' ||
+        tx.categoria === 'Ajuste Técnico Saldos'
+    ) {
+        return false;
+    }
+    if (categoryName && tx.categoria !== categoryName) return false;
+    return true;
+}
+
 export function generateUUID() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -94,12 +127,7 @@ export function executeFinancialAuditEngine() {
     });
 
     // 4. Auditoría de Posibles Gastos Duplicados (Mismo día, cuenta, categoría, moneda, monto y glosa) (AUD-07)
-    let gastosMes = currentMonthTxs.filter(t => 
-        t.tipo === 'gasto' && 
-        t.presupuestado !== 'NO_COMPUTA' && 
-        t.categoria !== 'Transferencia Interna' && 
-        t.categoria !== 'Compra/Venta Divisas'
-    );
+    let gastosMes = currentMonthTxs.filter(t => isComputableBudgetExpense(t));
     for (let i = 0; i < gastosMes.length; i++) {
         for (let j = i + 1; j < gastosMes.length; j++) {
             let t1 = gastosMes[i];
