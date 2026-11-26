@@ -159,6 +159,17 @@ export const state = {
 /**
  * Sanitiza cadenas de texto antes de inyectarlas en el DOM (Protección XSS)
  */
+export const APP_VERSION = '9.5';
+
+export function withAssetVersion(assetPath) {
+    if (!assetPath || typeof assetPath !== 'string') return assetPath;
+    if (assetPath.startsWith('http://') || assetPath.startsWith('https://') || assetPath.startsWith('./') === false && assetPath.startsWith('js/') === false && assetPath.startsWith('css/') === false) {
+        return assetPath;
+    }
+    const cleanPath = assetPath.split('?')[0];
+    return `${cleanPath}?v=${APP_VERSION}`;
+}
+
 export function escapeHTML(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -207,7 +218,7 @@ export async function syncOfflineQueue(onSuccess) {
         const queue = JSON.parse(raw);
         if (!Array.isArray(queue) || queue.length === 0) return;
 
-        const { _supabase } = await import('./supabaseClient.js?v=9.3');
+        const { _supabase } = await import(withAssetVersion('./supabaseClient.js'));
         const { error } = await _supabase.from('transacciones').insert(queue);
         if (!error) {
             localStorage.removeItem('sf_offline_queue');
@@ -222,7 +233,7 @@ export async function fetchDynamicCategories() {
     try {
         let combined = [...CATEGORIAS_DEFAULT];
         if (state.currentUser) {
-            const { _supabase } = await import('./supabaseClient.js?v=9.3');
+            const { _supabase } = await import(withAssetVersion('./supabaseClient.js'));
             const { data, error } = await _supabase
                 .from('user_categories')
                 .select('nombre_categoria')

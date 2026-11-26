@@ -5,6 +5,24 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v9.5",
+        fecha: "2026-11-26",
+        tipo: "ESTANDARIZACIÓN DE VERSIÓN Y CACHÉ PWA",
+        color: "var(--blue)",
+        icon: "fa-rotate",
+        archivos: ["sw.js", "index.html", "css/styles.css", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Incorporación de APP_VERSION y del helper withAssetVersion en js/state.js para estandarizar el versionado de recursos dinámicos y registro de Service Worker, manteniendo sincronizada la caché PWA v9.5 sin alterar cálculos ni demás vistas."
+    },
+    {
+        version: "v9.4",
+        fecha: "2026-11-26",
+        tipo: "UNIFICACIÓN DE REGLA DE COMPROMISOS Y VENCIMIENTOS",
+        color: "var(--primary)",
+        icon: "fa-bell-check",
+        archivos: ["sw.js", "index.html", "css/styles.css", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Centralización en financeEngine.js de la regla de evaluación de compromisos pagados y vencimientos (evaluateCommitmentsAndAlerts) para mantener sincronizado el centro de alertas, el semáforo RAG y la auditoría sin alterar cálculos ni demás vistas."
+    },
+    {
         version: "v9.3",
         fecha: "2026-11-26",
         tipo: "UNIFICACIÓN DE REGLAS DE ORDENAMIENTO POR NATURALEZA Y EXCESO",

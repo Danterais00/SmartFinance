@@ -1,6 +1,6 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=9.3';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.3';
-import { convertTransactionToARS, isComputableBudgetExpense, sortCategoriesByNature, sortExcessCategoriesByAmount } from './financeEngine.js?v=9.3';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=9.5';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.5';
+import { convertTransactionToARS, isComputableBudgetExpense, sortCategoriesByNature, sortExcessCategoriesByAmount } from './financeEngine.js?v=9.5';
 
 /**
  * Renderiza un gráfico de Chart.js fuera de pantalla y devuelve su imagen PNG

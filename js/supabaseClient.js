@@ -1,6 +1,6 @@
 /**
  * SmartFinance - Módulo de Cliente Supabase & Feed Financiero Macro en Vivo
- * Archivo: js/supabaseClient.js (v9.3)
+ * Archivo: js/supabaseClient.js (v9.5)
  */
 
 export const SUPABASE_URL = "https://uszneehbjssjractaleh.supabase.co";

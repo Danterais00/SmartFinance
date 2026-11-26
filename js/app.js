@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.3';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.5';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -13,8 +13,9 @@ import {
     resolveCategoryNature,
     saveOfflineQueue, 
     syncOfflineQueue, 
-    fetchDynamicCategories 
-} from './state.js?v=9.3';
+    fetchDynamicCategories,
+    withAssetVersion 
+} from './state.js?v=9.5';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
@@ -22,8 +23,9 @@ import {
     buildCreditCardClosingBatch,
     convertTransactionToARS,
     isComputableBudgetExpense,
-    sortCategoriesByNature
-} from './financeEngine.js?v=9.3';
+    sortCategoriesByNature,
+    evaluateCommitmentsAndAlerts
+} from './financeEngine.js?v=9.5';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -35,10 +37,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=9.3';
-import { exportAuditPDF } from './pdfReport.js?v=9.3';
-import { parseVisaStatement } from './statementImporter.js?v=9.3';
-import { renderChangelogTable } from './changelog.js?v=9.3';
+} from './charts.js?v=9.5';
+import { exportAuditPDF } from './pdfReport.js?v=9.5';
+import { parseVisaStatement } from './statementImporter.js?v=9.5';
+import { renderChangelogTable } from './changelog.js?v=9.5';
 
 let parsedStatementItems = [];
 
@@ -1243,85 +1245,16 @@ function checkRemindersAndAlerts(catGastosMap = {}) {
     const selector = document.getElementById('global-month-selector');
     const activeMonth = selector ? selector.value : getLocalDateString().substring(0, 7);
 
-    state.currentMonthAlertsCache = [];
-    const paidCommitments = [];
-    const statusMap = {};
-
-    state.globalBudgetData.forEach(b => {
-        if (!b.fecha_vencimiento) return;
-
-        const montoPresupuestado = parseFloat(b.presupuesto_mensual) || 0;
-        const bNombreLower = b.nombre.toLowerCase().trim();
-        const esTarjeta = CUENTAS_TARJETAS.some(card => card.toLowerCase() === bNombreLower);
-        
-        let totalPagadoDetectado = 0;
-        let fechaPagoDetectada = null;
-
-        state.globalTransData.forEach(t => {
-            const isMesActivo = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
-            if (!isMesActivo) return;
-
-            const tMonto = parseFloat(t.monto) || 0;
-            const tDesc = (t.descripcion || '').toLowerCase();
-            const tCat = (t.categoria || '').toLowerCase();
-            const tCuenta = (t.cuenta || '').toLowerCase();
-
-            if (esTarjeta) {
-                const matchPagoTarjeta = (
-                    (tCuenta === bNombreLower && (t.tipo === 'ingreso' || t.categoria === 'Transferencia Interna')) ||
-                    (tCat === 'pago tarjeta de crédito' && (tCuenta === bNombreLower || tDesc.includes(bNombreLower))) ||
-                    (tCat === bNombreLower && t.tipo === 'gasto')
-                );
-
-                if (matchPagoTarjeta) {
-                    totalPagadoDetectado += Math.abs(tMonto);
-                    if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
-                }
-            } else {
-                const matchCat = (tCat === bNombreLower);
-                if (t.tipo === 'gasto' && matchCat) {
-                    totalPagadoDetectado += Math.abs(tMonto);
-                    if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
-                }
-            }
-        });
-
-        const gastoDirectoMes = catGastosMap[b.nombre] || 0;
-        if (gastoDirectoMes > 0 && totalPagadoDetectado === 0 && !esTarjeta) {
-            totalPagadoDetectado = gastoDirectoMes;
-        }
-
-        const isPaid = (montoPresupuestado <= 0) || (totalPagadoDetectado > 0 && totalPagadoDetectado >= montoPresupuestado * 0.95);
-
-        statusMap[b.nombre] = {
-            isPaid,
-            totalPagado: totalPagadoDetectado,
-            fechaPago: fechaPagoDetectada,
-            fechaVenc: b.fecha_vencimiento
-        };
-
-        if (isPaid) {
-            paidCommitments.push({
-                categoria: b.nombre,
-                monto: montoPresupuestado > 0 ? montoPresupuestado : totalPagadoDetectado,
-                fechaVto: b.fecha_vencimiento,
-                fechaPago: fechaPagoDetectada,
-                totalPagado: totalPagadoDetectado
-            });
-        } else {
-            let status = 'upcoming';
-            if (b.fecha_vencimiento < today) status = 'overdue';
-            else if (b.fecha_vencimiento === today) status = 'today';
-
-            state.currentMonthAlertsCache.push({
-                categoria: b.nombre,
-                monto: montoPresupuestado,
-                fechaRaw: b.fecha_vencimiento,
-                fechaFormateada: b.fecha_vencimiento,
-                status
-            });
-        }
+    const { upcomingOrDueAlerts, paidCommitments, statusMap } = evaluateCommitmentsAndAlerts({
+        budgets: state.globalBudgetData,
+        transactions: state.globalTransData,
+        activeMonth,
+        todayIso: today,
+        creditCards: CUENTAS_TARJETAS,
+        catGastosMap
     });
+
+    state.currentMonthAlertsCache = upcomingOrDueAlerts;
 
     const badge = document.getElementById('global-bell-badge');
     const bellIcon = document.getElementById('global-bell-vector');
@@ -1576,7 +1509,7 @@ function processStatementFile(file) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').then((reg) => reg.update());
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register(withAssetVersion('./sw.js')).then((reg) => reg.update());
     initMonthSelector(); fetchMarketData();
     setInterval(() => {
         if (!document.hidden && navigator.onLine) {

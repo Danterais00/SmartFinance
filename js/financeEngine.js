@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, resolveCategoryNature, getLocalDateString } from './state.js?v=9.3';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.3';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, resolveCategoryNature, getLocalDateString } from './state.js?v=9.5';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.5';
 
 /**
  * Generador estándar de UUID v4 compatible al 100% con el tipo de datos UUID de PostgreSQL.
@@ -82,6 +82,105 @@ export function sortExcessCategoriesByAmount(categories) {
         if (Math.abs(excDiff) > 0.01) return excDiff;
         return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
     });
+}
+
+/**
+ * Regla unificada para evaluar el estado de pago y vencimiento de compromisos
+ * presupuestarios en el mes activo, manteniendo sincronizadas campanita, RAG y auditoría.
+ */
+export function evaluateCommitmentsAndAlerts({
+    budgets = [],
+    transactions = [],
+    activeMonth = '',
+    todayIso = '',
+    creditCards = [],
+    catGastosMap = {}
+}) {
+    const upcomingOrDueAlerts = [];
+    const paidCommitments = [];
+    const statusMap = {};
+
+    (budgets || []).forEach(b => {
+        if (!b || !b.fecha_vencimiento) return;
+
+        const montoPresupuestado = parseFloat(b.presupuesto_mensual) || 0;
+        const bNombreLower = String(b.nombre || '').toLowerCase().trim();
+        const esTarjeta = (creditCards || []).some(card => card.toLowerCase() === bNombreLower);
+
+        let totalPagadoDetectado = 0;
+        let fechaPagoDetectada = null;
+
+        (transactions || []).forEach(t => {
+            const isMesActivo = (t.fecha && t.fecha.substring(0, 7) === activeMonth);
+            if (!isMesActivo) return;
+
+            const tMonto = parseFloat(t.monto) || 0;
+            const tDesc = (t.descripcion || '').toLowerCase();
+            const tCat = (t.categoria || '').toLowerCase();
+            const tCuenta = (t.cuenta || '').toLowerCase();
+
+            if (esTarjeta) {
+                const matchPagoTarjeta = (
+                    (tCuenta === bNombreLower && (t.tipo === 'ingreso' || t.categoria === 'Transferencia Interna')) ||
+                    (tCat === 'pago tarjeta de crédito' && (tCuenta === bNombreLower || tDesc.includes(bNombreLower))) ||
+                    (tCat === bNombreLower && t.tipo === 'gasto')
+                );
+
+                if (matchPagoTarjeta) {
+                    totalPagadoDetectado += Math.abs(tMonto);
+                    if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
+                }
+            } else {
+                const matchCat = (tCat === bNombreLower);
+                if (t.tipo === 'gasto' && matchCat) {
+                    totalPagadoDetectado += Math.abs(tMonto);
+                    if (!fechaPagoDetectada || t.fecha > fechaPagoDetectada) fechaPagoDetectada = t.fecha;
+                }
+            }
+        });
+
+        const gastoDirectoMes = catGastosMap[b.nombre] || 0;
+        if (gastoDirectoMes > 0 && totalPagadoDetectado === 0 && !esTarjeta) {
+            totalPagadoDetectado = gastoDirectoMes;
+        }
+
+        const isPaid = (montoPresupuestado <= 0) || (totalPagadoDetectado > 0 && totalPagadoDetectado >= montoPresupuestado * 0.95);
+
+        statusMap[b.nombre] = {
+            isPaid,
+            totalPagado: totalPagadoDetectado,
+            fechaPago: fechaPagoDetectada,
+            fechaVenc: b.fecha_vencimiento
+        };
+
+        if (isPaid) {
+            paidCommitments.push({
+                categoria: b.nombre,
+                monto: montoPresupuestado > 0 ? montoPresupuestado : totalPagadoDetectado,
+                fechaVto: b.fecha_vencimiento,
+                fechaPago: fechaPagoDetectada,
+                totalPagado: totalPagadoDetectado
+            });
+        } else {
+            let status = 'upcoming';
+            if (b.fecha_vencimiento < todayIso) status = 'overdue';
+            else if (b.fecha_vencimiento === todayIso) status = 'today';
+
+            upcomingOrDueAlerts.push({
+                categoria: b.nombre,
+                monto: montoPresupuestado,
+                fechaRaw: b.fecha_vencimiento,
+                fechaFormateada: b.fecha_vencimiento,
+                status
+            });
+        }
+    });
+
+    return {
+        upcomingOrDueAlerts,
+        paidCommitments,
+        statusMap
+    };
 }
 
 export function generateUUID() {
