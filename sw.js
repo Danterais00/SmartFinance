@@ -1,22 +1,22 @@
 /**
- * SmartFinance PWA - Service Worker v9.3
+ * SmartFinance PWA - Service Worker v9.5
  * Estrategia: Cache-First para App Shell / Network-Only para APIs y Supabase
  */
 
-const CACHE_NAME = 'smartfinance-cache-v9.3';
+const CACHE_NAME = 'smartfinance-cache-v9.5';
 
 const STATIC_ASSETS = [
     './',
     './index.html',
-    './css/styles.css?v=9.3',
-    './js/app.js?v=9.3',
-    './js/state.js?v=9.3',
-    './js/financeEngine.js?v=9.3',
-    './js/charts.js?v=9.3',
-    './js/statementImporter.js?v=9.3',
-    './js/pdfReport.js?v=9.3',
-    './js/changelog.js?v=9.3',
-    './js/supabaseClient.js?v=9.3',
+    './css/styles.css?v=9.5',
+    './js/app.js?v=9.5',
+    './js/state.js?v=9.5',
+    './js/financeEngine.js?v=9.5',
+    './js/charts.js?v=9.5',
+    './js/statementImporter.js?v=9.5',
+    './js/pdfReport.js?v=9.5',
+    './js/changelog.js?v=9.5',
+    './js/supabaseClient.js?v=9.5',
     './manifest.json',
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
     'https://cdn.jsdelivr.net/npm/chart.js',
