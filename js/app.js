@@ -1,4 +1,4 @@
-import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.2';
+import { _supabase, fetchMarketData, TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.3';
 import { 
     state, 
     CUENTAS_OPERATIVAS, 
@@ -14,15 +14,16 @@ import {
     saveOfflineQueue, 
     syncOfflineQueue, 
     fetchDynamicCategories 
-} from './state.js?v=9.2';
+} from './state.js?v=9.3';
 import { 
     calcularEstadoRAG, 
     executeFinancialAuditEngine, 
     buildUnifiedTransactionBatch, 
     buildCreditCardClosingBatch,
     convertTransactionToARS,
-    isComputableBudgetExpense
-} from './financeEngine.js?v=9.2';
+    isComputableBudgetExpense,
+    sortCategoriesByNature
+} from './financeEngine.js?v=9.3';
 import { 
     renderInteractiveChart, 
     renderInteractiveHistoryChart, 
@@ -34,10 +35,10 @@ import {
     resetInteractiveHistoryZoom,
     zoomPerformanceChart,
     zoomHistoryChart
-} from './charts.js?v=9.2';
-import { exportAuditPDF } from './pdfReport.js?v=9.2';
-import { parseVisaStatement } from './statementImporter.js?v=9.2';
-import { renderChangelogTable } from './changelog.js?v=9.2';
+} from './charts.js?v=9.3';
+import { exportAuditPDF } from './pdfReport.js?v=9.3';
+import { parseVisaStatement } from './statementImporter.js?v=9.3';
+import { renderChangelogTable } from './changelog.js?v=9.3';
 
 let parsedStatementItems = [];
 
@@ -1012,32 +1013,8 @@ function renderAccuracyTable(categoriesMes) {
     if (mode === 'NATURALEZA') {
         const order = ['FIJO', 'ESENCIAL', 'DISCRECIONAL'];
         order.forEach(natKey => {
-            const groupItems = categoriesMes.filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey);
+            const groupItems = sortCategoriesByNature(categoriesMes, natKey);
             if (groupItems.length === 0) return;
-
-            if (natKey === 'FIJO') {
-                groupItems.sort((a, b) => {
-                    const aUnpaidDue = (a.fechaVenc && !a.isPaid) ? 0 : (!a.fechaVenc ? 1 : 2);
-                    const bUnpaidDue = (b.fechaVenc && !b.isPaid) ? 0 : (!b.fechaVenc ? 1 : 2);
-                    if (aUnpaidDue !== bUnpaidDue) return aUnpaidDue - bUnpaidDue;
-                    if (aUnpaidDue === 0 && a.fechaVenc !== b.fechaVenc) return a.fechaVenc.localeCompare(b.fechaVenc);
-                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-                });
-            } else if (natKey === 'ESENCIAL') {
-                groupItems.sort((a, b) => {
-                    const rDiff = execRatio(b) - execRatio(a);
-                    if (Math.abs(rDiff) > 0.001) return rDiff;
-                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-                });
-            } else {
-                groupItems.sort((a, b) => {
-                    const sDiff = (severityRank[a.estado] ?? 2) - (severityRank[b.estado] ?? 2);
-                    if (sDiff !== 0) return sDiff;
-                    const rDiff = execRatio(b) - execRatio(a);
-                    if (Math.abs(rDiff) > 0.001) return rDiff;
-                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-                });
-            }
 
             rowsHTML += buildAccuracyGroupHeaderHTML(natKey, groupItems);
             groupItems.forEach(c => {

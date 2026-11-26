@@ -1,5 +1,5 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, getLocalDateString } from './state.js?v=9.2';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.2';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_TARJETAS, resolveCategoryNature, getLocalDateString } from './state.js?v=9.3';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.3';
 
 /**
  * Generador estándar de UUID v4 compatible al 100% con el tipo de datos UUID de PostgreSQL.
@@ -36,6 +36,52 @@ export function isComputableBudgetExpense(tx, categoryName = null) {
     }
     if (categoryName && tx.categoria !== categoryName) return false;
     return true;
+}
+
+/**
+ * Regla unificada de ordenamiento de categorías según su naturaleza (FIJO, ESENCIAL, DISCRECIONAL).
+ */
+export function sortCategoriesByNature(categories, natKey) {
+    const items = (categories || []).filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey);
+    const severityRank = { 'Fuera': 0, 'Riesgo': 1, 'Target': 2 };
+    const execRatio = (c) => (c.meta > 0 ? (c.gasto / c.meta) : (c.gasto > 0 ? 999 : -1));
+
+    if (natKey === 'FIJO') {
+        return [...items].sort((a, b) => {
+            const aU = (a.fechaVenc && !a.isPaid) ? 0 : (!a.fechaVenc ? 1 : 2);
+            const bU = (b.fechaVenc && !b.isPaid) ? 0 : (!b.fechaVenc ? 1 : 2);
+            if (aU !== bU) return aU - bU;
+            if (aU === 0 && a.fechaVenc !== b.fechaVenc) return a.fechaVenc.localeCompare(b.fechaVenc);
+            return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+        });
+    }
+
+    if (natKey === 'ESENCIAL') {
+        return [...items].sort((a, b) => {
+            const rDiff = execRatio(b) - execRatio(a);
+            if (Math.abs(rDiff) > 0.001) return rDiff;
+            return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+        });
+    }
+
+    return [...items].sort((a, b) => {
+        const sD = (severityRank[a.estado] ?? 2) - (severityRank[b.estado] ?? 2);
+        if (sD !== 0) return sD;
+        const rDiff = execRatio(b) - execRatio(a);
+        if (Math.abs(rDiff) > 0.001) return rDiff;
+        return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+    });
+}
+
+/**
+ * Regla unificada de ordenamiento de categorías en exceso ("Fuera") de mayor a menor valor excedido.
+ */
+export function sortExcessCategoriesByAmount(categories) {
+    return [...(categories || [])].sort((a, b) => {
+        const excDiff = ((parseFloat(b.gasto) || 0) - (parseFloat(b.meta) || 0)) - ((parseFloat(a.gasto) || 0) - (parseFloat(a.meta) || 0));
+        if (Math.abs(excDiff) > 0.01) return excDiff;
+        return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+    });
 }
 
 export function generateUUID() {

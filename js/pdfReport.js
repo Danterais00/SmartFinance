@@ -1,6 +1,6 @@
-import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=9.2';
-import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.2';
-import { convertTransactionToARS, isComputableBudgetExpense } from './financeEngine.js?v=9.2';
+import { state, CUENTAS_OPERATIVAS, CUENTAS_COMITENTES, CUENTAS_TARJETAS, NATURALEZA_META, resolveCategoryNature, getLocalDateString } from './state.js?v=9.3';
+import { TIPO_CAMBIO_PRESUPUESTO } from './supabaseClient.js?v=9.3';
+import { convertTransactionToARS, isComputableBudgetExpense, sortCategoriesByNature, sortExcessCategoriesByAmount } from './financeEngine.js?v=9.3';
 
 /**
  * Renderiza un gráfico de Chart.js fuera de pantalla y devuelve su imagen PNG
@@ -193,26 +193,8 @@ export async function exportAuditPDF(auditResult) {
             categoriesData.push(['Sin categorías presupuestadas ni consumos registrados en este período.', '-', '-', '-', '-']);
         } else if (ragMode === 'NATURALEZA') {
             ['FIJO', 'ESENCIAL', 'DISCRECIONAL'].forEach(natKey => {
-                const grpItems = rawCategories.filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey);
+                const grpItems = sortCategoriesByNature(rawCategories, natKey);
                 if (grpItems.length === 0) return;
-
-                if (natKey === 'FIJO') {
-                    grpItems.sort((a, b) => {
-                        const aU = (a.fechaVenc && !a.isPaid) ? 0 : (!a.fechaVenc ? 1 : 2);
-                        const bU = (b.fechaVenc && !b.isPaid) ? 0 : (!b.fechaVenc ? 1 : 2);
-                        if (aU !== bU) return aU - bU;
-                        if (aU === 0 && a.fechaVenc !== b.fechaVenc) return a.fechaVenc.localeCompare(b.fechaVenc);
-                        return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-                    });
-                } else if (natKey === 'ESENCIAL') {
-                    grpItems.sort((a, b) => (Math.abs(execRatio(b) - execRatio(a)) > 0.001) ? execRatio(b) - execRatio(a) : a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
-                } else {
-                    grpItems.sort((a, b) => {
-                        const sD = (severityRank[a.estado] ?? 2) - (severityRank[b.estado] ?? 2);
-                        if (sD !== 0) return sD;
-                        return (Math.abs(execRatio(b) - execRatio(a)) > 0.001) ? execRatio(b) - execRatio(a) : a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-                    });
-                }
 
                 const grpMeta = grpItems.reduce((acc, c) => acc + (parseFloat(c.meta) || 0), 0);
                 const grpGasto = grpItems.reduce((acc, c) => acc + (parseFloat(c.gasto) || 0), 0);
@@ -517,13 +499,9 @@ export async function exportAuditPDF(auditResult) {
             const grpLabel = NATURALEZA_META[natKey]?.label || natKey;
             const accentRgb = natureAccentMap[natKey] || [59, 130, 246];
 
-            const catsFueraGrupo = catFuera
-                .filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey)
-                .sort((a, b) => {
-                    const excDiff = (b.gasto - b.meta) - (a.gasto - a.meta);
-                    if (Math.abs(excDiff) > 0.01) return excDiff;
-                    return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-                });
+            const catsFueraGrupo = sortExcessCategoriesByAmount(
+                catFuera.filter(c => resolveCategoryNature(c.nombre, c.naturaleza, c.fechaVenc) === natKey)
+            );
 
             if (y > 258) {
                 doc.addPage();

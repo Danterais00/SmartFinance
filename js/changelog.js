@@ -5,6 +5,15 @@
 
 export const APP_CHANGELOG = [
     {
+        version: "v9.3",
+        fecha: "2026-11-26",
+        tipo: "UNIFICACIÓN DE REGLAS DE ORDENAMIENTO POR NATURALEZA Y EXCESO",
+        color: "var(--blue)",
+        icon: "fa-arrow-down-short-wide",
+        archivos: ["sw.js", "index.html", "css/styles.css", "js/app.js", "js/changelog.js", "js/charts.js", "js/financeEngine.js", "js/pdfReport.js", "js/state.js", "js/statementImporter.js", "js/supabaseClient.js"],
+        descripcion: "Centralización en financeEngine.js de las reglas de ordenamiento por naturaleza (sortCategoriesByNature) y de categorías en exceso 'Fuera' de mayor a menor (sortExcessCategoriesByAmount) para mantener criterios únicos entre el Semáforo RAG y el Reporte PDF sin alterar cálculos ni demás vistas."
+    },
+    {
         version: "v9.2",
         fecha: "2026-11-24",
         tipo: "UNIFICACIÓN DE REGLAS DE GASTO COMPUTABLE Y CONVERSIÓN FX",
